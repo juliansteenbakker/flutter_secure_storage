@@ -46,6 +46,9 @@ public:
 
   void deleteItem(const char *key) {
     nlohmann::json root = readFromKeyring();
+    if (root.is_null()) {
+        return;
+    }
     root.erase(key);
     storeToKeyring(root);
   }
@@ -70,6 +73,8 @@ public:
     nlohmann::json value;
     g_autoptr(GError) err = nullptr;
 
+    warmupKeyring();
+
     secret_autofree gchar *result = secret_password_lookupv_sync(
         &the_schema, m_attributes.getGHashTable(), nullptr, &err);
 
@@ -80,5 +85,33 @@ public:
       value = nlohmann::json::parse(result);
     }
     return value;
+  }
+
+private:
+  // Search with schemas fails in cold keyrings.
+  // https://gitlab.gnome.org/GNOME/gnome-keyring/-/issues/89
+  //
+  // Note that we're not using the workaround mentioned in the above issue. Instead, we're using
+  // a workaround as implemented in http://crbug.com/660005. Reason being that with the lookup
+  // approach we can't distinguish whether the keyring was actually unlocked or whether the user
+  // cancelled the password prompt.
+  void warmupKeyring() {
+    g_autoptr(GError) err = nullptr;
+
+    FHashTable attributes;
+    attributes.insert("explanation", "Because of quirks in the gnome libsecret API, "
+            "flutter_secret_storage needs to store a dummy entry to guarantee that "
+            "this keyring was properly unlocked. More details at http://crbug.com/660005.");
+
+    const gchar* dummy_label = "FlutterSecureStorage Control";
+
+    // Store a dummy entry without `the_schema`.
+    bool success = secret_password_storev_sync(
+        NULL, attributes.getGHashTable(), nullptr, dummy_label,
+        "The meaning of life", nullptr, &err);
+
+    if (!success) {
+      throw "Failed to unlock the keyring";
+    }
   }
 };

@@ -1,0 +1,11 @@
+dependency_overrides:
+  flutter_secure_storage_linux:
+    path: ../flutter_secure_storage_linux
+  flutter_secure_storage_macos:
+    path: ../flutter_secure_storage_macos
+  flutter_secure_storage_platform_interface:
+    path: ../flutter_secure_storage_platform_interface
+  flutter_secure_storage_web:
+    path: ../flutter_secure_storage_web
+  flutter_secure_storage_windows:
+    path: ../flutter_secure_storage_windows

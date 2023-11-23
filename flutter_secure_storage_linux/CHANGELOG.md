@@ -1,3 +1,7 @@
+## 1.2.0
+- Remove and replace libjsoncpp1 dependency
+- Update Dart SDK Constraint to support <4.0.0 instead of <3.0.0.
+
 ## 1.1.3
 Fixed a memory management issue
 

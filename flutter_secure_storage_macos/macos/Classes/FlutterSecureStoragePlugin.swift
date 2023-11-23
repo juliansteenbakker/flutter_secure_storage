@@ -31,6 +31,15 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
             readAll(call, result)
         case "containsKey":
             containsKey(call, result)
+        case "isProtectedDataAvailable":
+            // NSApplication is not thread safe
+            DispatchQueue.main.async {
+                if #available(macOS 12.0, *) {
+                    result(NSApplication.shared.isProtectedDataAvailable)
+                } else {
+                    result(true)
+                }
+            }
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -43,8 +52,8 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
             return
         }
         
-        let response = flutterSecureStorageManager.read(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable)
-        result(response.value)
+        let response = flutterSecureStorageManager.read(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
+        handleResponse(response, result)
     }
     
     private func write(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -66,7 +75,7 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
         
         let response = flutterSecureStorageManager.write(key: values.key!, value: values.value!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
         
-        result(response)
+        handleResponse(response, result)
     }
     
     private func delete(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -76,25 +85,23 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
             return
         }
         
-        let response = flutterSecureStorageManager.delete(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable)
+        let response = flutterSecureStorageManager.delete(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
         
-        result(response)
+        handleResponse(response, result)
     }
     
     private func deleteAll(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let values = parseCall(call)
-        
         let response = flutterSecureStorageManager.deleteAll(groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable)
         
-        result(response)
+        handleResponse(response, result)
     }
     
     private func readAll(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let values = parseCall(call)
-        
         let response = flutterSecureStorageManager.readAll(groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable)
         
-        result(response.value);
+        handleResponse(response, result)
     }
     
     private func containsKey(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -103,9 +110,23 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
             result(FlutterError.init(code: "Missing Parameter", message: "containsKey requires key parameter", details: nil))
         }
         
-        let response = flutterSecureStorageManager.containsKey(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable)
+        let response = flutterSecureStorageManager.containsKey(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
         
-        result(response);
+        switch response {
+        case .success(let exists):
+            result(exists)
+            break;
+        case .failure(let err):
+            var errorMessage = ""
+
+            if let errMsg = SecCopyErrorMessageString(err.status, nil) as? String {
+                errorMessage = "Code: \(err.status), Message: \(errMsg)"
+            } else {
+                errorMessage = "Unknown security result code: \(err.status)"
+            }
+            result(FlutterError.init(code: "Unexpected security result code", message: errorMessage, details: err.status))
+            break;
+        }
     }
     
     private func parseCall(_ call: FlutterMethodCall) -> FlutterSecureStorageRequest {
@@ -115,7 +136,6 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
         let accountName = options["accountName"] as? String
         let groupId = options["groupId"] as? String
         let synchronizableString = options["synchronizable"] as? String
-        
         
         let synchronizable: Bool = synchronizableString != nil ? Bool(synchronizableString!)! : false
         
@@ -127,8 +147,29 @@ public class FlutterSecureStoragePlugin: NSObject, FlutterPlugin {
             accountName: accountName,
             groupId: groupId,
             synchronizable: synchronizable,
-            accessibility: accessibility, key: key, value: value
+            accessibility: accessibility, 
+            key: key, 
+            value: value
         )
+    }
+
+    private func handleResponse(_ response: FlutterSecureStorageResponse, _ result: @escaping FlutterResult) {
+        if let status = response.status {
+            if (status == noErr) {
+                result(response.value)
+            } else {
+                var errorMessage = ""
+
+                if let errMsg = SecCopyErrorMessageString(status, nil) as? String {
+                    errorMessage = "Code: \(status), Message: \(errMsg)"
+                } else {
+                    errorMessage = "Unknown security result code: \(status)"
+                }
+                result(FlutterError.init(code: "Unexpected security result code", message: errorMessage, details: status))
+            }
+        } else {
+            result(response.value)
+        }
     }
     
     struct FlutterSecureStorageRequest {

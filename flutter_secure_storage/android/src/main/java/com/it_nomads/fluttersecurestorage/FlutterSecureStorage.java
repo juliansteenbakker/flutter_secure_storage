@@ -47,6 +47,11 @@ public class FlutterSecureStorage {
     }
 
     @SuppressWarnings({"ConstantConditions"})
+    boolean getResetOnError() {
+        return options.containsKey("resetOnError") && options.get("resetOnError").equals("true");
+    }
+
+    @SuppressWarnings({"ConstantConditions"})
     private boolean getUseEncryptedSharedPreferences() {
         if (failedToUseEncryptedSharedPreferences) {
             return false;

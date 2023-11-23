@@ -1,3 +1,6 @@
+## 3.0.1
+Update Dart SDK Constraint to support <4.0.0 instead of <3.0.0.
+
 ## 3.0.0
 Changed minimum macOS version from 10.13 to 10.14 to mach latest Flutter version.
 

@@ -8,7 +8,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.4.1'
+        classpath 'com.android.tools.build:gradle:8.1.2'
     }
 }
 
@@ -26,6 +26,10 @@ android {
         namespace("com.it_nomads.fluttersecurestorage")
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     compileSdkVersion 33
 
     compileOptions {
@@ -40,5 +44,5 @@ android {
 }
 
 dependencies {
-    implementation "androidx.security:security-crypto:1.1.0-alpha05"
+    implementation "androidx.security:security-crypto:1.1.0-alpha06"
 }

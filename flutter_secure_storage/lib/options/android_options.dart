@@ -1,4 +1,4 @@
-part of flutter_secure_storage;
+part of '../flutter_secure_storage.dart';
 
 enum KeyCipherAlgorithm {
   RSA_ECB_PKCS1Padding,

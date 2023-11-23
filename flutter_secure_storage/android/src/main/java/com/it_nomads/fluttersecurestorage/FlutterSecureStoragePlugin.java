@@ -67,12 +67,6 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         workerThreadHandler.post(new MethodRunner(call, result));
     }
 
-    @SuppressWarnings({"unchecked", "ConstantConditions"})
-    private boolean getResetOnErrorFromCall(MethodCall call) {
-        Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return arguments.containsKey("resetOnError") && arguments.get("resetOnError").equals("true");
-    }
-
     @SuppressWarnings("unchecked")
     private String getKeyFromCall(MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
@@ -135,7 +129,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
             boolean resetOnError = false;
             try {
                 secureStorage.options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
-                resetOnError = getResetOnErrorFromCall(call);
+                resetOnError = secureStorage.getResetOnError();
                 switch (call.method) {
                     case "write": {
                         String key = getKeyFromCall(call);
@@ -191,12 +185,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                 Log.i("Creating sharedPrefs", e.getLocalizedMessage());
             } catch (Exception e) {
                 if (resetOnError) {
-                    secureStorage.deleteAll();
-                    result.success("Data has been reset");
+                    try {
+                        secureStorage.deleteAll();
+                        result.success("Data has been reset");
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
                 } else {
-                    StringWriter stringWriter = new StringWriter();
-                    e.printStackTrace(new PrintWriter(stringWriter));
-                    result.error("Exception encountered", call.method, stringWriter.toString());
+                    throw new RuntimeException(e);
                 }
             }
         }

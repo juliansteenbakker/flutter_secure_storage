@@ -1,3 +1,4 @@
+/// Web library for flutter_secure_storage
 library flutter_secure_storage_web;
 
 import 'dart:convert';

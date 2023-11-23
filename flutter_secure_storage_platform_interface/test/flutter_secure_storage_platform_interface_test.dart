@@ -42,33 +42,20 @@ void main() {
 
     final log = <MethodCall>[];
 
-    //Used for Flutter 2.3 and later
-    // handler(MethodCall methodCall) async {
-    //   log.add(methodCall);
+    Future<bool?>? handler(MethodCall methodCall) async {
+      log.add(methodCall);
 
-    //   if (methodCall.method == 'containsKey') {
-    //     return true;
-    //   }
-
-    //   return null;
-    // }
-
-    // TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-    //     .setMockMethodCallHandler(channel, handler);
-
-    //Remove this and replace with above when 2.3 goes stable
-    channel.setMockMethodCallHandler((call) async {
-      log.add(call);
-
-      if (call.method == 'containsKey') {
+      if (methodCall.method == 'containsKey') {
+        return true;
+      } else if (methodCall.method == 'isProtectedDataAvailable') {
         return true;
       }
 
-      // Return null explicitly instead of relying on the implicit null
-      // returned by the method channel if no return statement is specified.
-
       return null;
-    });
+    }
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, handler);
 
     final storage = MethodChannelFlutterSecureStorage();
     const options = <String, String>{};
@@ -105,7 +92,7 @@ void main() {
             arguments: <String, Object>{
               'key': key,
               'value': 'test',
-              'options': options
+              'options': options,
             },
           ),
         ],
@@ -131,7 +118,7 @@ void main() {
             arguments: <String, Object>{
               'key': key,
               'value': 'test',
-              'options': options
+              'options': options,
             },
           ),
           isMethodCall(
@@ -173,7 +160,7 @@ void main() {
             arguments: <String, Object>{
               'key': key,
               'value': 'test',
-              'options': options
+              'options': options,
             },
           ),
           isMethodCall(
@@ -184,6 +171,12 @@ void main() {
           ),
         ],
       );
+    });
+
+    test('isProtectedDataAvailable', () async {
+      final result = await storage.isCupertinoProtectedDataAvailable();
+
+      expect(result, true);
     });
   });
 }

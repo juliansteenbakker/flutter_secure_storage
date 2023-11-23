@@ -1,4 +1,1 @@
-include: package:lint/analysis_options_package.yaml
-linter:
-  rules:
-    avoid_positional_boolean_parameters: false #Disable because it is used in Javascript code
+include: package:lint/package.yaml

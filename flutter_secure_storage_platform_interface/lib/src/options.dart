@@ -1,4 +1,4 @@
-part of flutter_secure_storage_platform_interface;
+part of '../flutter_secure_storage_platform_interface.dart';
 
 abstract class Options {
   const Options();

@@ -48,6 +48,10 @@ void main() {
         await pageObject.rowHasTitle('Row 0', 0);
         await pageObject.deleteRow(0);
         await pageObject.hasNoRow(0);
+
+        await Future.delayed(const Duration(seconds: 1));
+
+        await pageObject.isProtectedDataAvailable();
       },
       timeout: const Timeout(Duration(seconds: 120)),
     );
@@ -61,6 +65,8 @@ class HomePageObject {
   final _addRandomButtonFinder = find.byValueKey('add_random');
   final _deleteAllButtonFinder = find.byValueKey('delete_all');
   final _popUpMenuButtonFinder = find.byValueKey('popup_menu');
+  final _isProtectedDataAvailableButtonFinder =
+      find.byValueKey('is_protected_data_available');
 
   Future deleteAll() async {
     await driver.tap(_popUpMenuButtonFinder);
@@ -95,5 +101,10 @@ class HomePageObject {
 
   Future hasNoRow(int index) async {
     await driver.waitForAbsent(find.byValueKey('title_row_$index'));
+  }
+
+  Future<void> isProtectedDataAvailable() async {
+    await driver.tap(_popUpMenuButtonFinder);
+    await driver.tap(_isProtectedDataAvailableButtonFinder);
   }
 }

@@ -782,7 +782,7 @@ namespace
       BOOL ok = DeleteFile((appSupportPath + L"\\" + wstr + L".secure").c_str());
       if (!ok) {
           DWORD error = GetLastError();
-          if (error != ERROR_FILE_NOT_FOUND) {
+          if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) {
               throw error;
           }
       }

@@ -17,7 +17,7 @@ class ItemsWidget extends StatefulWidget {
   ItemsWidgetState createState() => ItemsWidgetState();
 }
 
-enum _Actions { deleteAll }
+enum _Actions { deleteAll, isProtectedDataAvailable }
 
 enum _ItemActions { delete, edit, containsKey, read }
 
@@ -54,6 +54,10 @@ class ItemsWidgetState extends State<ItemsWidget> {
       aOptions: _getAndroidOptions(),
     );
     _readAll();
+  }
+
+  Future<void> _isProtectedDataAvailable() async {
+    await _storage.isCupertinoProtectedDataAvailable();
   }
 
   Future<void> _addNewItem() async {
@@ -99,6 +103,9 @@ class ItemsWidgetState extends State<ItemsWidget> {
                   case _Actions.deleteAll:
                     _deleteAll();
                     break;
+                  case _Actions.isProtectedDataAvailable:
+                    _isProtectedDataAvailable();
+                    break;
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<_Actions>>[
@@ -107,8 +114,13 @@ class ItemsWidgetState extends State<ItemsWidget> {
                   value: _Actions.deleteAll,
                   child: Text('Delete all'),
                 ),
+                const PopupMenuItem(
+                  key: Key('is_protected_data_available'),
+                  value: _Actions.isProtectedDataAvailable,
+                  child: Text('IsProtectedDataAvailable'),
+                ),
               ],
-            )
+            ),
           ],
         ),
         body: Column(
@@ -193,6 +205,7 @@ class ItemsWidgetState extends State<ItemsWidget> {
 
         break;
       case _ItemActions.edit:
+        if (!context.mounted) return;
         final result = await showDialog<String>(
           context: context,
           builder: (context) => _EditItemWidget(item.value),
@@ -208,6 +221,7 @@ class ItemsWidgetState extends State<ItemsWidget> {
         }
         break;
       case _ItemActions.containsKey:
+        if (!context.mounted) return;
         final key = await _displayTextInputDialog(context, item.key);
         final result = await _storage.containsKey(key: key);
         if (!mounted) return;
@@ -219,6 +233,7 @@ class ItemsWidgetState extends State<ItemsWidget> {
         );
         break;
       case _ItemActions.read:
+        if (!context.mounted) return;
         final key = await _displayTextInputDialog(context, item.key);
         final result =
             await _storage.read(key: key, aOptions: _getAndroidOptions());
@@ -247,7 +262,7 @@ class ItemsWidgetState extends State<ItemsWidget> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('OK'),
-            )
+            ),
           ],
           content: TextField(
             controller: controller,

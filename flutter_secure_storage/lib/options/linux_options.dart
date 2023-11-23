@@ -1,4 +1,4 @@
-part of flutter_secure_storage;
+part of '../flutter_secure_storage.dart';
 
 /// Specific options for Linux platform.
 /// Currently there are no specific linux options available.

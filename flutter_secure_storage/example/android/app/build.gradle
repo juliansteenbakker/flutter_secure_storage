@@ -25,7 +25,7 @@ apply plugin: 'com.android.application'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    compileSdkVersion 33
+    compileSdk 33
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -48,6 +48,7 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    namespace 'com.it_nomads.fluttersecurestorageexample'
 }
 
 flutter {

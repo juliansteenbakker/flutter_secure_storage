@@ -1,3 +1,15 @@
+## 9.0.0
+Breaking changes:
+* [Windows] Migrated to FFI with win32 package.
+
+## 8.1.0
+* [Android] Upgraded to Gradle 8.
+* [Android] Fixed resetOnError not working.
+* [Windows] Changed PathNotFoundException to FileSystemException to be backwards compatible with Flutter SDK 2.12.0.
+* [Windows] Applied lint suggestions.
+* [Linux] Remove and replace libjsoncpp1 dependency.
+* [Linux, macOS, Windows, Web] Update Dart SDK Constraint to support <4.0.0 instead of <3.0.0.
+
 ## 8.0.0
 Breaking changes:
 * [macOS] The minimum macOS version supported is now 10.14.

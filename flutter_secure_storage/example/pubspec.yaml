@@ -15,6 +15,8 @@ dependencies:
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version.
     path: ../
+  flutter_secure_storage_platform_interface:
+    path: ../../flutter_secure_storage_platform_interface
 
 dev_dependencies:
   flutter_driver:

@@ -1,3 +1,6 @@
+## 1.1.2
+- Update Dart SDK Constraint to support <4.0.0 instead of <3.0.0.
+
 ## 1.1.1
 Updated flutter_secure_storage_platform_interface to latest version.
 

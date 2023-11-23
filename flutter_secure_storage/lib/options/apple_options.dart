@@ -1,4 +1,4 @@
-part of flutter_secure_storage;
+part of '../flutter_secure_storage.dart';
 
 /// KeyChain accessibility attributes as defined here:
 /// https://developer.apple.com/documentation/security/ksecattraccessible?language=objc
