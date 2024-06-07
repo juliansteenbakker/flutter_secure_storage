@@ -171,16 +171,14 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
     
     private func parseCall(_ call: FlutterMethodCall) -> FlutterSecureStorageRequest {
         let arguments = call.arguments as! [String : Any?]
-        let options = arguments["options"] as! [String : Any?]
+        let options = arguments["options"] as! [String : String]
         
-        let accountName = options["accountName"] as? String
-        let groupId = options["groupId"] as? String
-        let synchronizableString = options["synchronizable"] as? String
-        
-        let synchronizable: Bool = synchronizableString != nil ? Bool(synchronizableString!)! : false
+        let accountName = options["accountName"]
+        let groupId = options["groupId"]
+        let synchronizable = Bool(options["synchronizable"]!)!
+        let accessibility = options["accessibility"]!
         
         let key = arguments["key"] as? String
-        let accessibility = options["accessibility"] as? String
         let value = arguments["value"] as? String
         
         return FlutterSecureStorageRequest(
@@ -216,11 +214,11 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
         }
     }
     
-    struct FlutterSecureStorageRequest {
+    private struct FlutterSecureStorageRequest {
         var accountName: String?
         var groupId: String?
-        var synchronizable: Bool?
-        var accessibility: String?
+        var synchronizable: Bool
+        var accessibility: String
         var key: String?
         var value: String?
     }
