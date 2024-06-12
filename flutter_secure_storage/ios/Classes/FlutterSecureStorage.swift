@@ -57,20 +57,6 @@ class FlutterSecureStorage{
         return keychainQuery
     }
     
-    internal func containsKey(key: String, groupId: String?, accountName: String?, synchronizable: Bool?, accessibility: String?) -> Result<Bool, OSSecError> {  
-        let keychainQuery = baseQuery(key: key, groupId: groupId, accountName: accountName, synchronizable: synchronizable, accessibility: accessibility, returnData: false)
-        
-        let status = SecItemCopyMatching(keychainQuery as CFDictionary, nil)
-        switch status {
-        case errSecSuccess:
-            return .success(true)
-        case errSecItemNotFound:
-            return .success(false)
-        default:
-            return .failure(OSSecError(status: status))
-        }
-    }
-    
     internal func readAll(groupId: String?, accountName: String?, synchronizable: Bool?, accessibility: String?) -> FlutterSecureStorageResponse {
         var keychainQuery = baseQuery(key: nil, groupId: groupId, accountName: accountName, synchronizable: synchronizable, accessibility: accessibility, returnData: true)
         
@@ -148,17 +134,8 @@ class FlutterSecureStorage{
         return FlutterSecureStorageResponse(status: status, value: nil)
     }
     
-    internal func write(key: String, value: String, groupId: String?, accountName: String?, synchronizable: Bool?, accessibility: String?) -> FlutterSecureStorageResponse {        
-        var keyExists: Bool = false
-
-    	switch containsKey(key: key, groupId: groupId, accountName: accountName, synchronizable: synchronizable, accessibility: accessibility) {
-        case .success(let exists):
-            keyExists = exists
-            break;
-        case .failure(let err):
-            return FlutterSecureStorageResponse(status: err.status, value: nil)
-        }
-
+    internal func write(key: String, value: String, groupId: String?, accountName: String?, synchronizable: Bool?, accessibility: String?) -> FlutterSecureStorageResponse {
+        let keyExists = read(key: key, groupId: groupId, accountName: accountName, synchronizable: synchronizable, accessibility: accessibility).value != nil
         var keychainQuery = baseQuery(key: key, groupId: groupId, accountName: accountName, synchronizable: synchronizable, accessibility: accessibility, returnData: nil)
 
         if (keyExists) {
@@ -184,7 +161,7 @@ class FlutterSecureStorage{
 }
 
 struct FlutterSecureStorageResponse {
-    var status: OSStatus?
+    var status: OSStatus
     var value: Any?
 }
 

@@ -146,27 +146,10 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
             result(FlutterError.init(code: "Missing Parameter", message: "containsKey requires key parameter", details: nil))
         }
         
-        let response = flutterSecureStorageManager.containsKey(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
-        
-        switch response {
-        case .success(let exists):
-            result(exists)
-            break;
-        case .failure(let err):
-            var errorMessage = ""
-
-            if #available(iOS 11.3, *) {
-                if let errMsg = SecCopyErrorMessageString(err.status, nil) {
-                    errorMessage = "Code: \(err.status), Message: \(errMsg)"
-                } else {
-                    errorMessage = "Unknown security result code: \(err.status)"
-                }
-            } else {
-                errorMessage = "Unknown security result code: \(err.status)"
-            }
-            result(FlutterError.init(code: "Unexpected security result code", message: errorMessage, details: err.status))
-            break;
-        }
+        var response = flutterSecureStorageManager.read(key: values.key!, groupId: values.groupId, accountName: values.accountName, synchronizable: values.synchronizable, accessibility: values.accessibility)
+        // Update response from read method to match containsKey method
+        response.value = response.value != nil
+        handleResponse(response, result)
     }
     
     private func parseCall(_ call: FlutterMethodCall) -> FlutterSecureStorageRequest {
@@ -194,25 +177,22 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
     }
 
     private func handleResponse(_ response: FlutterSecureStorageResponse, _ result: @escaping FlutterResult) {
-        if let status = response.status {
-            if (status == noErr) {
-                result(response.value)
-            } else {
-                var errorMessage = ""
-
-                if #available(iOS 11.3, *) {
-                    if let errMsg = SecCopyErrorMessageString(status, nil) {
-                        errorMessage = "Code: \(status), Message: \(errMsg)"
-                    } else {
-                        errorMessage = "Unknown security result code: \(status)"
-                    }
+        let status = response.status
+        if (status == noErr) {
+            result(response.value)
+        } else {
+            var errorMessage = ""
+            
+            if #available(iOS 11.3, *) {
+                if let errMsg = SecCopyErrorMessageString(status, nil) {
+                    errorMessage = "Code: \(status), Message: \(errMsg)"
                 } else {
                     errorMessage = "Unknown security result code: \(status)"
                 }
-                result(FlutterError.init(code: "Unexpected security result code", message: errorMessage, details: status))
+            } else {
+                errorMessage = "Unknown security result code: \(status)"
             }
-        } else {
-            result(response.value)
+            result(FlutterError.init(code: "Unexpected security result code", message: errorMessage, details: status))
         }
     }
     
