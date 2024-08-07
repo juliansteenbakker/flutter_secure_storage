@@ -5,7 +5,7 @@ class IOSOptions extends AppleOptions {
   const IOSOptions({
     String? groupId,
     String? accountName = AppleOptions.defaultAccountName,
-    KeychainAccessibility accessibility = KeychainAccessibility.unlocked,
+    KeychainAccessibility? accessibility = KeychainAccessibility.unlocked,
     bool synchronizable = false,
   }) : super(
           groupId: groupId,

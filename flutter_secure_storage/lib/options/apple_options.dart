@@ -27,7 +27,7 @@ abstract class AppleOptions extends Options {
   const AppleOptions({
     String? groupId,
     String? accountName = AppleOptions.defaultAccountName,
-    KeychainAccessibility accessibility = KeychainAccessibility.unlocked,
+    KeychainAccessibility? accessibility = KeychainAccessibility.unlocked,
     bool synchronizable = false,
   })  : _groupId = groupId,
         _accessibility = accessibility,
@@ -38,14 +38,15 @@ abstract class AppleOptions extends Options {
 
   final String? _groupId;
   final String? _accountName;
-  final KeychainAccessibility _accessibility;
+  final KeychainAccessibility? _accessibility;
   final bool _synchronizable;
 
   @override
   Map<String, String> toMap() => <String, String>{
-        // TODO: Update min SDK from 2.12 to 2.15 in new major version to fix this deprecation warning
-        // ignore: deprecated_member_use
-        'accessibility': describeEnum(_accessibility),
+        if (_accessibility != null)
+          // TODO: Update min SDK from 2.12 to 2.15 in new major version to fix this deprecation warning
+          // ignore: deprecated_member_use
+          'accessibility': describeEnum(_accessibility!),
         if (_accountName != null) 'accountName': _accountName!,
         if (_groupId != null) 'groupId': _groupId!,
         'synchronizable': '$_synchronizable',
