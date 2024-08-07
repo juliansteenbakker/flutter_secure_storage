@@ -2,10 +2,10 @@
 A Flutter plugin to store data in secure storage:
 
 - [Keychain](https://developer.apple.com/library/content/documentation/Security/Conceptual/keychainServConcepts/01introduction/introduction.html#//apple_ref/doc/uid/TP30000897-CH203-TP1) is used for iOS
-- AES encryption is used for Android. AES secret key is encrypted with RSA and RSA key is stored in [KeyStore](https://developer.android.com/training/articles/keystore.html).   
-  By default following algorithms are used for AES and secret key encryption: AES/CBC/PKCS7Padding and RSA/ECB/PKCS1Padding  
-  From Android 6 you can use newer, recommended algoritms:  
-  AES/GCM/NoPadding and RSA/ECB/OAEPWithSHA-256AndMGF1Padding  
+- AES encryption is used for Android. AES secret key is encrypted with RSA and RSA key is stored in [KeyStore](https://developer.android.com/training/articles/keystore.html).
+  By default following algorithms are used for AES and secret key encryption: AES/CBC/PKCS7Padding and RSA/ECB/PKCS1Padding
+  From Android 6 you can use newer, recommended algoritms:
+  AES/GCM/NoPadding and RSA/ECB/OAEPWithSHA-256AndMGF1Padding
   You can set them in Android options like so:
 ```dart
   AndroidOptions _getAndroidOptions() => const AndroidOptions(
@@ -56,7 +56,7 @@ If not present already, please call WidgetsFlutterBinding.ensureInitialized() in
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Create storage
-final storage = new FlutterSecureStorage();
+final storage = FlutterSecureStorage();
 
 // Read value
 String value = await storage.read(key: key);

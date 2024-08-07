@@ -1,6 +1,6 @@
 name: flutter_secure_storage
 description: Flutter Secure Storage provides API to store data in secure storage. Keychain is used in iOS, KeyStore based solution is used in Android.
-version: 9.2.2
+version: 9.2.3
 repository: https://github.com/mogol/flutter_secure_storage/tree/develop/flutter_secure_storage
 
 environment:

@@ -2,7 +2,7 @@
 
 ## Note: usage of encryptedSharedPreference
 When using the `encryptedSharedPreferences` parameter on Android, make sure to pass the option to the
-constructor instead of the function like so: 
+constructor instead of the function like so:
 ```dart
   AndroidOptions _getAndroidOptions() => const AndroidOptions(
         encryptedSharedPreferences: true,
@@ -22,7 +22,7 @@ A Flutter plugin to store data in secure storage:
   AndroidOptions _getAndroidOptions() => const AndroidOptions(
         encryptedSharedPreferences: true,
       );
-```    
+```
   For more information see the example app.
 - [`libsecret`](https://wiki.gnome.org/Projects/Libsecret) is used for Linux.
 
@@ -34,7 +34,7 @@ _Note_ KeyStore was introduced in Android 4.3 (API level 18). The plugin wouldn'
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Create storage
-final storage = new FlutterSecureStorage();
+final storage = FlutterSecureStorage();
 
 // Read value
 String value = await storage.read(key: key);
