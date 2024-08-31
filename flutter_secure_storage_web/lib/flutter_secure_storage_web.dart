@@ -63,10 +63,9 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     }
   }
 
-  /// Encrypts and saves the [key] with the given [value].
+  /// Reads and decrypts the value for the given [key].
   ///
-  /// If the key was already in the storage, its associated value is changed.
-  /// If the value is null, deletes associated value for the given [key].
+  /// Returns null if the key does not exist or if decryption fails.
   @override
   Future<String?> read({
     required String key,
@@ -74,7 +73,16 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
   }) async {
     final value = web.window.localStorage["${options[_publicKey]!}.$key"];
 
-    return _decryptValue(value, options);
+    if (value == null) {
+      return null;
+    }
+
+    try {
+      return await _decryptValue(value, options);
+    } catch (e) {
+      print("Error decrypting value: $e");
+      return null;
+    }
   }
 
   /// Decrypts and returns all keys with associated values.
@@ -258,13 +266,6 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
 
     return plainText;
   }
-
-// @override
-// Future<bool> isCupertinoProtectedDataAvailable() => Future.value(false);
-//
-// @override
-// Stream<bool> get onCupertinoProtectedDataAvailabilityChanged =>
-//     Stream.empty();
 }
 
 extension on List<String> {
