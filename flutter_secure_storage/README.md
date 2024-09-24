@@ -115,7 +115,7 @@ parts:
 
 ## Configure Windows Version
 
-**Note** The current implementation does not support readAll and deleteAll and is subject to change.
+You need the C++ ATL libraries installed along with the rest of Visual Studio Build Tools. Download them from here and make sure the C++ ATL under optional is installed as well.
 
 ## Configure MacOS Version
 
