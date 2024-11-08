@@ -1,31 +1,33 @@
-name: code analysis
+name: code analysis & formatting
 
-on: [push, pull_request]
+on:
+  - push
+  - pull_request
+defaults:
+  run:
+    shell: bash
+env:
+  PUB_ENVIRONMENT: bot.github
 
 jobs:
-  analysis:
+  analysis_and_formatting:
+    name: Analysis & Formatting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
-          java-version: '12.x'
-      # Use the community Action to install Flutter
-      - uses: subosito/flutter-action@v1
+          channel: "stable"
       - name: Version
         run: flutter doctor -v
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Install melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          echo "$HOME/AppData/Local/Pub/Cache/bin" >> $GITHUB_PATH
+      - name: Initialize workspace through melos
+        run: melos bootstrap
       - name: Linter
-        run: flutter analyze
-  formatting:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
-        with:
-          java-version: '12.x'
-      # Use the community Action to install Flutter
-      - uses: subosito/flutter-action@v1
+        run: melos analyze
       - name: Format
-        run: flutter format -n --set-exit-if-changed .
+        run: melos format --output none --set-exit-if-changed

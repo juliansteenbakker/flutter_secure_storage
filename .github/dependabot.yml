@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "juliansteenbakker"
+  - package-ecosystem: gradle
+    directory: "flutter_secure_storage/android"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "juliansteenbakker"
+  - package-ecosystem: gradle
+    directory: "flutter_secure_storage/example/android"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "juliansteenbakker"
