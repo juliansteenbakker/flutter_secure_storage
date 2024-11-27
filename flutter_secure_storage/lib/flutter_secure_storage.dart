@@ -1,5 +1,6 @@
 library flutter_secure_storage;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,7 @@ part './options/macos_options.dart';
 part './options/web_options.dart';
 part './options/windows_options.dart';
 
-final Map<String, List<ValueChanged<String?>>> _listeners = {};
+final Map<String, List<ValueChanged<dynamic>>> _listeners = {};
 
 class FlutterSecureStorage {
   final IOSOptions iOptions;
@@ -44,7 +45,7 @@ class FlutterSecureStorage {
   ///This listener will be added to the list of registered listeners for that [key].
   void registerListener({
     required String key,
-    required ValueChanged<String?> listener,
+    required ValueChanged<dynamic> listener,
   }) {
     _listeners[key] = [..._listeners[key] ?? [], listener];
   }
@@ -53,7 +54,7 @@ class FlutterSecureStorage {
   ///The other registered listeners for [key] will be remained.
   void unregisterListener({
     required String key,
-    required ValueChanged<String?> listener,
+    required ValueChanged<dynamic> listener,
   }) {
     final listenersForKey = _listeners[key];
 
@@ -80,7 +81,7 @@ class FlutterSecureStorage {
   /// If the key was already in the storage, its associated value is changed.
   /// If the value is null, deletes associated value for the given [key].
   /// [key] shouldn't be null.
-  /// [value] required value
+  /// [value] required value (can be of any type)
   /// [iOptions] optional iOS options
   /// [aOptions] optional Android options
   /// [lOptions] optional Linux options
@@ -90,7 +91,7 @@ class FlutterSecureStorage {
   /// Can throw a [PlatformException].
   Future<void> write({
     required String key,
-    required String? value,
+    required dynamic value,
     IOSOptions? iOptions,
     AndroidOptions? aOptions,
     LinuxOptions? lOptions,
@@ -111,9 +112,12 @@ class FlutterSecureStorage {
         ),
       );
     } else {
+      // Serialize the value to JSON
+      final String jsonValue = jsonEncode(value);
+
       await _platform.write(
         key: key,
-        value: value,
+        value: jsonValue,
         options: _selectOptions(
           iOptions,
           aOptions,
@@ -138,7 +142,7 @@ class FlutterSecureStorage {
   /// [mOptions] optional MacOs options
   /// [wOptions] optional Windows options
   /// Can throw a [PlatformException].
-  Future<String?> read({
+  Future<dynamic> read({
     required String key,
     IOSOptions? iOptions,
     AndroidOptions? aOptions,
@@ -146,18 +150,31 @@ class FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) =>
-      _platform.read(
-        key: key,
-        options: _selectOptions(
-          iOptions,
-          aOptions,
-          lOptions,
-          webOptions,
-          mOptions,
-          wOptions,
-        ),
-      );
+  }) async {
+    final String? jsonString = await _platform.read(
+      key: key,
+      options: _selectOptions(
+        iOptions,
+        aOptions,
+        lOptions,
+        webOptions,
+        mOptions,
+        wOptions,
+      ),
+    );
+
+    if (jsonString == null) {
+      return null;
+    }
+
+    try {
+      // Deserialize the JSON string back to its original type
+      return jsonDecode(jsonString);
+    } catch (e) {
+      // If it's not a JSON string, return the string as is (for backward compatibility)
+      return jsonString;
+    }
+  }
 
   /// Returns true if the storage contains the given [key].
   ///
@@ -226,7 +243,7 @@ class FlutterSecureStorage {
     _callListenersForKey(key);
   }
 
-  void _callListenersForKey(String key, [String? value]) {
+  void _callListenersForKey(String key, [dynamic value]) {
     final listenersForKey = _listeners[key];
     if (listenersForKey == null || listenersForKey.isEmpty) {
       return;
@@ -246,24 +263,30 @@ class FlutterSecureStorage {
   /// [mOptions] optional MacOs options
   /// [wOptions] optional Windows options
   /// Can throw a [PlatformException].
-  Future<Map<String, String>> readAll({
+  Future<Map<String, dynamic>> readAll({
     IOSOptions? iOptions,
     AndroidOptions? aOptions,
     LinuxOptions? lOptions,
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) =>
-      _platform.readAll(
-        options: _selectOptions(
-          iOptions,
-          aOptions,
-          lOptions,
-          webOptions,
-          mOptions,
-          wOptions,
-        ),
-      );
+  }) async {
+    final Map<String, String> allValues = await _platform.readAll(
+      options: _selectOptions(
+        iOptions,
+        aOptions,
+        lOptions,
+        webOptions,
+        mOptions,
+        wOptions,
+      ),
+    );
+
+    final Map<String, dynamic> result = {};
+    allValues.forEach((key, value) {
+      try {
+        result[key] = jsonDecode(value);
+      } catch (e) {
 
   /// Deletes all keys with associated values.
   ///
@@ -302,13 +325,12 @@ class FlutterSecureStorage {
 
   /// Select correct options based on current platform
   Map<String, String> _selectOptions(
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  ) {
+  Map<String, String> _selectOptions(IOSOptions? iOptions,
+      AndroidOptions? aOptions,
+      LinuxOptions? lOptions,
+      WebOptions? webOptions,
+      MacOsOptions? mOptions,
+      WindowsOptions? wOptions,) {
     if (kIsWeb) {
       return webOptions?.params ?? this.webOptions.params;
     } else if (Platform.isLinux) {
@@ -350,8 +372,13 @@ class FlutterSecureStorage {
 
   /// Initializes the shared preferences with mock values for testing.
   @visibleForTesting
-  static void setMockInitialValues(Map<String, String> values) {
+  static void setMockInitialValues(Map<String, dynamic> values) {
+    // Serialize the mock values to JSON strings
+    final Map<String, String> serializedValues = {};
+    values.forEach((key, value) {
+      serializedValues[key] = jsonEncode(value);
+    });
     FlutterSecureStoragePlatform.instance =
-        TestFlutterSecureStoragePlatform(values);
+        TestFlutterSecureStoragePlatform(serializedValues);
   }
 }
