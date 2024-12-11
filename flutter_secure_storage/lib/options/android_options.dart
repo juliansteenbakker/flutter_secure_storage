@@ -15,9 +15,9 @@ class AndroidOptions extends Options {
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
-        KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
     StorageCipherAlgorithm storageCipherAlgorithm =
-        StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+        StorageCipherAlgorithm.AES_GCM_NoPadding,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
