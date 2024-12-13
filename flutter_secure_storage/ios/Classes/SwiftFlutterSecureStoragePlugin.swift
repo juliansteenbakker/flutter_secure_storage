@@ -12,6 +12,7 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
 
     private let flutterSecureStorageManager: FlutterSecureStorage = FlutterSecureStorage()
     private var secStoreAvailabilitySink: FlutterEventSink?
+    private let serialExecutionQueue = DispatchQueue(label: "flutter_secure_storage_service")
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "plugins.it_nomads.com/flutter_secure_storage", binaryMessenger: registrar.messenger())
@@ -29,7 +30,7 @@ public class SwiftFlutterSecureStoragePlugin: NSObject, FlutterPlugin, FlutterSt
             }
         }
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        serialExecutionQueue.async {
             switch (call.method) {
             case "read":
                 self.read(call, handleResult)
