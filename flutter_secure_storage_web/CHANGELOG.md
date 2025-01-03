@@ -1,3 +1,6 @@
+## 2.0.0-beta.2
+- Add js dependency. Fix #818
+
 ## 2.0.0-beta.1
 - Migrate away from `html` to `web`
 - Remove `js` in favor of using js-interop
