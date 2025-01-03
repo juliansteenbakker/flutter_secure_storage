@@ -1,11 +1,34 @@
 # flutter_secure_storage_web
 
-The web implementation of [`flutter_secure_storage`][1].
+This is the platform-specific implementation of `flutter_secure_storage` for web.
+
+---
+
+## Features
+
+- Secure storage using WebCrypto.
+- Application-specific key wrapping for enhanced security.
+
+---
+
+## Important Notice
+
+This plugin only works on HTTPS or localhost environments. Ensure that proper HTTP Strict Transport Security (HSTS) headers are configured to secure your application.
+
+---
+
+## Configuration
+
+You can use application-specific key wrapping to make keys more secure.
+
+---
 
 ## Usage
 
-This package is [endorsed][2], which means you can simply use `flutter_secure_storage`
-normally. This package will be automatically included in your app when you do.
+Refer to the main [flutter_secure_storage README](../README.md) for common usage instructions.
 
-[1]: https://pub.dev/packages/flutter_secure_storage
-[2]: https://flutter.dev/docs/development/packages-and-plugins/developing-packages#endorsed-federated-plugin
+---
+
+## License
+
+This project is licensed under the BSD 3 License. See the [LICENSE](../LICENSE) file for details.

@@ -8,7 +8,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
@@ -29,21 +28,6 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
 
-    public void initInstance(BinaryMessenger messenger, Context context) {
-        try {
-            secureStorage = new FlutterSecureStorage(context, new HashMap<>());
-
-            workerThread = new HandlerThread("com.it_nomads.fluttersecurestorage.worker");
-            workerThread.start();
-            workerThreadHandler = new Handler(workerThread.getLooper());
-
-            channel = new MethodChannel(messenger, "plugins.it_nomads.com/flutter_secure_storage");
-            channel.setMethodCallHandler(this);
-        } catch (Exception e) {
-            Log.e(TAG, "Registration failed", e);
-        }
-    }
-
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
         initInstance(binding.getBinaryMessenger(), binding.getApplicationContext());
@@ -52,39 +36,134 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
         if (channel != null) {
-            workerThread.quitSafely();
-            workerThread = null;
-
+            if (workerThread != null) {
+                workerThread.quitSafely();
+                workerThread = null;
+            }
             channel.setMethodCallHandler(null);
             channel = null;
         }
         secureStorage = null;
     }
 
+    private void initInstance(BinaryMessenger messenger, Context context) {
+        try {
+            secureStorage = new FlutterSecureStorage(context, new HashMap<>());
+            workerThread = new HandlerThread("fluttersecurestorage.worker");
+            workerThread.start();
+            workerThreadHandler = new Handler(workerThread.getLooper());
+            channel = new MethodChannel(messenger, "plugins.it_nomads.com/flutter_secure_storage");
+            channel.setMethodCallHandler(this);
+        } catch (Exception e) {
+            Log.e(TAG, "Plugin initialization failed", e);
+        }
+    }
+
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result rawResult) {
         MethodResultWrapper result = new MethodResultWrapper(rawResult);
-        // Run all method calls inside the worker thread instead of the platform thread.
         workerThreadHandler.post(new MethodRunner(call, result));
     }
 
-    @SuppressWarnings("unchecked")
-    private String getKeyFromCall(MethodCall call) {
-        Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return secureStorage.addPrefixToKey((String) arguments.get("key"));
+    class MethodRunner implements Runnable {
+        private final MethodCall call;
+        private final Result result;
+
+        MethodRunner(MethodCall call, Result result) {
+            this.call = call;
+            this.result = result;
+        }
+
+        @Override
+        public void run() {
+            try {
+                handleMethodCall(call, result);
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+
+        private void handleMethodCall(MethodCall call, Result result) {
+            String method = call.method;
+            Map<String, Object> args = extractArguments(call);
+
+            switch (method) {
+                case "write":
+                    handleWrite(args, result);
+                    break;
+                case "read":
+                    handleRead(args, result);
+                    break;
+                case "readAll":
+                    handleReadAll(result);
+                    break;
+                case "containsKey":
+                    handleContainsKey(args, result);
+                    break;
+                case "delete":
+                    handleDelete(args, result);
+                    break;
+                case "deleteAll":
+                    handleDeleteAll(result);
+                    break;
+                default:
+                    result.notImplemented();
+            }
+        }
+
+        private void handleWrite(Map<String, Object> args, Result result) {
+            String key = (String) args.get("key");
+            String value = (String) args.get("value");
+            if (value != null) {
+                secureStorage.write(key, value);
+                result.success(null);
+            } else {
+                result.error("InvalidArgument", "Value is null", null);
+            }
+        }
+
+        private void handleRead(Map<String, Object> args, Result result) {
+            String key = (String) args.get("key");
+            if (secureStorage.containsKey(key)) {
+                result.success(secureStorage.read(key));
+            } else {
+                result.success(null);
+            }
+        }
+
+        private void handleReadAll(Result result) {
+            result.success(secureStorage.readAll());
+        }
+
+        private void handleContainsKey(Map<String, Object> args, Result result) {
+            String key = (String) args.get("key");
+            result.success(secureStorage.containsKey(key));
+        }
+
+        private void handleDelete(Map<String, Object> args, Result result) {
+            String key = (String) args.get("key");
+            secureStorage.delete(key);
+            result.success(null);
+        }
+
+        private void handleDeleteAll(Result result) {
+            secureStorage.deleteAll();
+            result.success(null);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> extractArguments(MethodCall call) {
+            return (Map<String, Object>) call.arguments;
+        }
+
+        private void handleException(Exception e) {
+            StringWriter stringWriter = new StringWriter();
+            e.printStackTrace(new PrintWriter(stringWriter));
+            result.error("Exception", "Error while executing method: " + call.method, stringWriter.toString());
+        }
     }
 
-    @SuppressWarnings("unchecked")
-    private String getValueFromCall(MethodCall call) {
-        Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return (String) arguments.get("value");
-    }
-
-    /**
-     * MethodChannel.Result wrapper that responds on the platform thread.
-     */
     static class MethodResultWrapper implements Result {
-
         private final Result methodResult;
         private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -105,100 +184,6 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         @Override
         public void notImplemented() {
             handler.post(methodResult::notImplemented);
-        }
-    }
-
-    /**
-     * Wraps the functionality of onMethodCall() in a Runnable for execution in the worker thread.
-     */
-    class MethodRunner implements Runnable {
-        private final MethodCall call;
-        private final Result result;
-
-        MethodRunner(MethodCall call, Result result) {
-            this.call = call;
-            this.result = result;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public void run() {
-            boolean resetOnError = false;
-            try {
-                secureStorage.options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
-                secureStorage.ensureOptions();
-                resetOnError = secureStorage.getResetOnError();
-                switch (call.method) {
-                    case "write": {
-                        String key = getKeyFromCall(call);
-                        String value = getValueFromCall(call);
-
-                        if (value != null) {
-                            secureStorage.write(key, value);
-                            result.success(null);
-                        } else {
-                            result.error("null", null, null);
-                        }
-                        break;
-                    }
-                    case "read": {
-                        String key = getKeyFromCall(call);
-
-                        if (secureStorage.containsKey(key)) {
-                            String value = secureStorage.read(key);
-                            result.success(value);
-                        } else {
-                            result.success(null);
-                        }
-                        break;
-                    }
-                    case "readAll": {
-                        result.success(secureStorage.readAll());
-                        break;
-                    }
-                    case "containsKey": {
-                        String key = getKeyFromCall(call);
-
-                        boolean containsKey = secureStorage.containsKey(key);
-                        result.success(containsKey);
-                        break;
-                    }
-                    case "delete": {
-                        String key = getKeyFromCall(call);
-
-                        secureStorage.delete(key);
-                        result.success(null);
-                        break;
-                    }
-                    case "deleteAll": {
-                        secureStorage.deleteAll();
-                        result.success(null);
-                        break;
-                    }
-                    default:
-                        result.notImplemented();
-                        break;
-                }
-            } catch (FileNotFoundException e) {
-                Log.i("Creating sharedPrefs", e.getLocalizedMessage());
-            } catch (Exception e) {
-                if (resetOnError) {
-                    try {
-                        secureStorage.deleteAll();
-                        result.success("Data has been reset");
-                    } catch (Exception ex) {
-                        handleException(ex);
-                    }
-                } else {
-                    handleException(e);
-                }
-            }
-        }
-
-        private void handleException(Exception e) {
-            StringWriter stringWriter = new StringWriter();
-            e.printStackTrace(new PrintWriter(stringWriter));
-            result.error("Exception encountered", call.method, stringWriter.toString());
         }
     }
 }

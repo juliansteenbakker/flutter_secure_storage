@@ -8,7 +8,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.5.1'
+        classpath 'com.android.tools.build:gradle:8.5.2'
     }
 }
 
@@ -30,19 +30,19 @@ android {
         buildConfig = true
     }
 
-    compileSdk 34
+    compileSdk 35
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        minSdkVersion 19
+        minSdkVersion 23
     }
     
 }
 
 dependencies {
-    implementation "androidx.security:security-crypto:1.1.0-alpha06"
+    implementation("com.google.crypto.tink:tink-android:1.16.0")
 }

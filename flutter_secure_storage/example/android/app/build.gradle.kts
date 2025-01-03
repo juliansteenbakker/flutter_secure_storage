@@ -25,7 +25,7 @@ val flutterVersionName: String = localProperties.getProperty("flutter.versionNam
 android {
     namespace = "com.it_nomads.fluttersecurestorageexample"
 
-    compileSdk = 34
+    compileSdk = 35
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -44,8 +44,8 @@ android {
 
     defaultConfig {
         applicationId = "com.it_nomads.fluttersecurestorageexample"
-        minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        minSdk = 23
+        targetSdk = 35
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
     }

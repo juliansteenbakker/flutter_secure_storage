@@ -1,36 +1,24 @@
 # flutter_secure_storage
+
+[![Pub](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![style: lint](https://img.shields.io/badge/style-lint-4BC0F5.svg)](https://pub.dev/packages/lint)
-[![pub package](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![flutter_secure_storage](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter.yml)
 [![flutter_secure_storage](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter_drive.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter_drive.yml)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
 
-A Flutter plugin to store data in secure storage:
+A Flutter plugin to securely store sensitive data in a key-value pair format using platform-specific secure storage solutions. It supports Android, iOS, macOS, Windows, and Linux.
 
-- [Keychain](https://developer.apple.com/library/content/documentation/Security/Conceptual/keychainServConcepts/01introduction/introduction.html#//apple_ref/doc/uid/TP30000897-CH203-TP1) is used for iOS
-- AES encryption is used for Android. AES secret key is encrypted with RSA and RSA key is stored in [KeyStore](https://developer.android.com/training/articles/keystore.html).
-  By default following algorithms are used for AES and secret key encryption: AES/CBC/PKCS7Padding and RSA/ECB/PKCS1Padding
-  From Android 6 you can use newer, recommended algoritms:
-  AES/GCM/NoPadding and RSA/ECB/OAEPWithSHA-256AndMGF1Padding
-  You can set them in Android options like so:
-```dart
-  AndroidOptions _getAndroidOptions() => const AndroidOptions(
-         keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-         storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
-      );
-```
-On devices running Android with version less than 6, plugin will fall back to default implementation. You can change the algorithm, even if you already have some encrypted preferences - they will be re-encrypted using selected algorithms.
-Choosing algorithm is irrelevant if you are using EncryptedSharedPreferences as described below.
-- With v5.0.0 we can use [EncryptedSharedPreferences](https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences) on Android by enabling it in the Android Options like so:
-```dart
-  AndroidOptions _getAndroidOptions() => const AndroidOptions(
-  encryptedSharedPreferences: true,
-);
-```
-For more information see the example app.
-- [`libsecret`](https://wiki.gnome.org/Projects/Libsecret) is used for Linux.
+---
 
-_Note_ KeyStore was introduced in Android 4.3 (API level 18). The plugin wouldn't work for earlier versions.
+## Features
+
+- **Secure Data Storage**: Uses Keychain for iOS, Encrypted Shared Preferences via Tink for Android, and secure mechanisms on other supported platforms.
+- **Encryption**: Encrypts data before storing it in the underlying storage system.
+- **Cross-Platform**: Works seamlessly across multiple platforms.
+- **Customizable Options**: Set accessibility attributes, key expiration, and more.
+
+---
+
 ## Important notice for Web
 flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/mogol/flutter_secure_storage/issues/320#issuecomment-976308930)
 
@@ -42,69 +30,78 @@ dependency_overrides:
   flutter_secure_storage_web: ^2.0.0-beta.2
 ```
 
-## Platform Implementation
-Please note that this table represents the functions implemented in this repository and it is possible that changes haven't yet been released on pub.dev
+---
 
-|         | read               | write              | delete             | containsKey        | readAll            | deleteAll          | isCupertinoProtectedDataAvailable | onCupertinoProtectedDataAvailabilityChanged |
-|---------|--------------------|--------------------|--------------------|--------------------|--------------------|--------------------|-----------------------------------|---------------------------------------------|
-| Android | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |                                   |
-| iOS     | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark:                | :white_check_mark:                          |
-| Windows | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |                                   |
-| Linux   | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |                                   |
-| macOS   | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark:                | :white_check_mark: (on macOS 12 and newer)  |
-| Web     | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |                                   |
-
-## Getting Started
+## Installation
 
 If not present already, please call WidgetsFlutterBinding.ensureInitialized() in your main before you do anything with the MethodChannel. [Please see this issue  for more info.](https://github.com/mogol/flutter_secure_storage/issues/336)
 
-```dart
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-// Create storage
-final storage = FlutterSecureStorage();
-
-// Read value
-String value = await storage.read(key: key);
-
-// Read all values
-Map<String, String> allValues = await storage.readAll();
-
-// Delete value
-await storage.delete(key: key);
-
-// Delete all
-await storage.deleteAll();
-
-// Write value
-await storage.write(key: key, value: value);
+Add the dependency in your `pubspec.yaml` file:
 
 ```
+dependencies:
+flutter_secure_storage: ^<latest_version>
+```
 
-This allows us to be able to fetch secure values while the app is backgrounded, by specifying first_unlock or first_unlock_this_device. The default if not specified is unlocked.
-An example:
+Then run:
+
+`flutter pub get`
+
+---
+
+## Usage
+
+### Import the Package
+
+
+`import 'package:flutter_secure_storage/flutter_secure_storage.dart';`
+
+### Create an Instance
+
+`final storage = FlutterSecureStorage();`
+
+### Write Data
+
+`await storage.write(key: 'username', value: 'flutter_user');`
+
+### Read Data
+
+`String? username = await storage.read(key: 'username');`
+
+### Delete Data
+
+`await storage.delete(key: 'username');`
+
+### Delete All Data
+
+`await storage.deleteAll();`
+
+### Check for Key Existence
+
+`bool containsKey = await storage.containsKey(key: 'username');`
+
+---
+
+## Configuration
+
+Each platform provides its own set of configuration options to tailor secure storage behavior. For example, on iOS, the `IOSOptions` class includes an `accessibility` option that determines when the app can access secure values stored in the Keychain.
+
+The `accessibility` option allows you to specify conditions under which secure values are accessible. For instance:
+
+- `first_unlock`: Enables access to secure values after the device is unlocked for the first time after a reboot.
+- `first_unlock_this_device`: Allows access to secure values only after the device is unlocked for the first time since installation on this device.
+- `unlocked` (default): Values are accessible only when the device is unlocked.
+
+Here’s an example of configuring the accessibility option on iOS:
 
 ```dart
 final options = IOSOptions(accessibility: KeychainAccessibility.first_unlock);
 await storage.write(key: key, value: value, iOptions: options);
 ```
 
-### Configure Android version
+By setting `accessibility`, you can control when secure values are accessible, enhancing security and usability for your app on iOS. Similar platform-specific options are available for other platforms as well.
 
-In `[project]/android/app/build.gradle` set `minSdkVersion` to >= 18.
-
-```
-android {
-    ...
-
-    defaultConfig {
-        ...
-        minSdkVersion 18
-        ...
-    }
-
-}
-```
+### Android
 
 _Note_ By default Android backups data on Google Drive. It can cause exception java.security.InvalidKeyException:Failed to unwrap key.
 You need to
@@ -112,7 +109,43 @@ You need to
 - [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/mogol/flutter_secure_storage/issues/13#issuecomment-421083742)
 - [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/mogol/flutter_secure_storage/issues/43#issuecomment-471642126)
 
-### Configure Web Version
+Add the following to your `android/app/src/main/AndroidManifest.xml`:
+
+<application
+android:allowBackup="false"
+...>
+</application>
+
+### iOS
+
+Set the `Keychain` accessibility options in the `Info.plist` file (if needed):
+
+<key>keychain-access-groups</key>
+<array>
+<string>$(AppIdentifierPrefix)com.example.flutterSecureStorageExample</string>
+</array>
+
+### macOS
+
+You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` (you need to change both files).
+
+```
+<key>keychain-access-groups</key>
+<array/>
+```
+
+If you have set your application up to use App Groups then you will need to add the name of the App Group to the `keychain-access-groups` argument above. Failure to do so will result in values appearing to be written successfully but never actually being written at all. For example if your app has an App Group named "aoeu" then your value for above would instead read:
+
+```
+<key>keychain-access-groups</key>
+<array>
+	<string>$(AppIdentifierPrefix)aoeu</string>
+</array>
+```
+
+If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
+
+### Web
 
 Flutter Secure Storage uses an experimental implementation using WebCrypto. Use at your own risk at this time. Feedback welcome to improve it. The intent is that the browser is creating the private key, and as a result, the encrypted strings in local_storage are not portable to other browsers or other machines and will only work on the same domain.
 
@@ -136,10 +169,11 @@ final _storage = const FlutterSecureStorage(
 );
 ```
 
-This option encrypts the key stored in LocalStorage with [WebCrypto wrapKey](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey). It is decrypted with [WebCrypto unwrapKey](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey) when used.
-Generating and managing application-specific keys requires careful attention from developers. See (https://github.com/mogol/flutter_secure_storage/issues/726) for more information.
+### Windows
 
-### Configure Linux Version
+You need the C++ ATL libraries installed along with the rest of Visual Studio Build Tools. Download them from [here](https://visualstudio.microsoft.com/downloads/?q=build+tools) and make sure the C++ ATL under optional is installed as well.
+
+### Linux
 
 You need `libsecret-1-dev` and `libjsoncpp-dev` on your machine to build the project, and `libsecret-1-0` and `libjsoncpp1` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
 
@@ -159,43 +193,38 @@ parts:
 
 Apart from `libsecret` you also need a keyring service, for that you need either `gnome-keyring` (for Gnome users) or `ksecretsservice` (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
 
-### Configure MacOS Version
-
-You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` (you need to change both files).
-
-```
-<key>keychain-access-groups</key>
-<array/>
-```
-
-If you have set your application up to use App Groups then you will need to add the name of the App Group to the `keychain-access-groups` argument above. Failure to do so will result in values appearing to be written successfully but never actually being written at all. For example if your app has an App Group named "aoeu" then your value for above would instead read:
-
-```
-<key>keychain-access-groups</key>
-<array>
-	<string>$(AppIdentifierPrefix)aoeu</string>
-</array>
-```
-
-If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
-
-### Configure Windows Version
-
-You need the C++ ATL libraries installed along with the rest of Visual Studio Build Tools. Download them from [here](https://visualstudio.microsoft.com/downloads/?q=build+tools) and make sure the C++ ATL under optional is installed as well.
+---
 
 ## Integration Tests
 
-Run the following command from `example` directory
+To run the integration tests, navigate to the `example` directory and execute the following command:
 
-```
-flutter drive --target=test_driver/app.dart
-```
+`flutter drive --target=test_driver/app.dart`
+
+This will launch the integration tests specified in the `test_driver` directory.
+
+---
 
 ## Contributing
 
-If you want to contribute, you need to initialise the workspace after cloning the repo with `melos` like this:
-```
-flutter pub get
-melos bootstrap
-```
-After that, everything should be set up and working!
+We welcome contributions to this project! To set up your workspace after cloning the repository, follow these steps:
+
+1. Fetch the Flutter dependencies:
+   `flutter pub get`
+
+2. Bootstrap the workspace with `melos`:
+   `melos bootstrap`
+
+This will prepare the project for development by linking and configuring all required dependencies.
+
+---
+
+## API Reference
+
+For a complete list of available methods and configuration options, refer to the [API documentation](https://pub.dev/documentation/flutter_secure_storage/latest/).
+
+---
+
+## License
+
+This project is licensed under the BSD 3 License. See the [LICENSE](LICENSE) file for details.

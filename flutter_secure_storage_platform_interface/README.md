@@ -1,25 +1,27 @@
 # flutter_secure_storage_platform_interface
 
-A common platform interface for the [`flutter_secure_storage`][1] plugin.
+This is the common platform interface for `flutter_secure_storage`.
 
-This interface allows platform-specific implementations of the `flutter_secure_storage`
-plugin, as well as the plugin itself, to ensure they are supporting the
-same interface.
+---
 
-# Usage
+## Features
 
-To implement a new platform-specific implementation of `flutter_secure_storage`, extend
-[`FlutterSecureStoragePlatform`][2] with an implementation that performs the
-platform-specific behavior, and when you register your plugin, set the default
-`FlutterSecureStorageLoader` by calling the `FlutterSecureStoragePlatform.loader` setter.
+- Provides a standardized API for all platform implementations.
 
-# Note on breaking changes
+---
 
-Strongly prefer non-breaking changes (such as adding a method to the interface)
-over breaking changes for this package.
+## Installation
 
-See https://flutter.dev/go/platform-interface-breaking-changes for a discussion
-on why a less-clean interface is preferable to a breaking change.
+Add the dependency in your `pubspec.yaml` and run `flutter pub get`.
 
-[1]: ../flutter_secure_storage
-[2]: lib/flutter_secure_storage_platform_interface.dart
+---
+
+## Usage
+
+This package is not used directly. It provides the foundation for all other platform implementations of `flutter_secure_storage`.
+
+---
+
+## License
+
+This project is licensed under the BSD 3 License. See the [LICENSE](../LICENSE) file for details.
