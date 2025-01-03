@@ -1,5 +1,5 @@
 ## 2.0.0-beta.2
-- Add js dependency. Fix #818
+- Add [js](https://pub.dev/packages/js) dependency. Fix [#818](https://github.com/juliansteenbakker/flutter_secure_storage/issues/818)
 
 ## 2.0.0-beta.1
 - Migrate away from `html` to `web`
