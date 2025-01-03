@@ -34,7 +34,12 @@ dependencies:
   flutter_secure_storage_linux: ^1.2.1
   flutter_secure_storage_macos: ^3.1.2
   flutter_secure_storage_platform_interface: ^1.1.2
-  flutter_secure_storage_web: ^1.2.1
+  # flutter_secure_storage_web: ^1.2.1
+  flutter_secure_storage_web:
+    git:
+      url: https://github.com/dfdgsdfg/flutter_secure_storage.git
+      ref: 499ac6cc8d09439218cf057abb809733890839a2
+      path: flutter_secure_storage_web
   flutter_secure_storage_windows: ^3.1.2
   meta: ^1.3.0
 
