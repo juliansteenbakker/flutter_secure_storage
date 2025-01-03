@@ -7,6 +7,7 @@ class WebOptions extends Options {
     this.publicKey = 'FlutterSecureStorage',
     this.wrapKey = '',
     this.wrapKeyIv = '',
+    this.useSessionStorage = false,
   });
 
   static const WebOptions defaultOptions = WebOptions();
@@ -15,6 +16,7 @@ class WebOptions extends Options {
   final String publicKey;
   final String wrapKey;
   final String wrapKeyIv;
+  final bool useSessionStorage;
 
   @override
   Map<String, String> toMap() => <String, String>{
@@ -22,5 +24,6 @@ class WebOptions extends Options {
         'publicKey': publicKey,
         'wrapKey': wrapKey,
         'wrapKeyIv': wrapKeyIv,
+        'useSessionStorage': useSessionStorage.toString(),
       };
 }
