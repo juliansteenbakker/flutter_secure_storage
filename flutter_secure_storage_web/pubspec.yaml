@@ -1,7 +1,7 @@
 name: flutter_secure_storage_web
 description: Web implementation of flutter_secure_storage. Use flutter_secure_storage for the full flutter package.
 repository: https://github.com/mogol/flutter_secure_storage
-version: 2.0.0-beta.1
+version: 2.0.0-beta.2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
