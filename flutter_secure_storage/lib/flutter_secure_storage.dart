@@ -1,7 +1,5 @@
 library;
 
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
@@ -350,18 +348,20 @@ class FlutterSecureStorage {
   ) {
     if (kIsWeb) {
       return webOptions?.params ?? this.webOptions.params;
-    } else if (Platform.isLinux) {
-      return lOptions?.params ?? this.lOptions.params;
-    } else if (Platform.isIOS) {
-      return iOptions?.params ?? this.iOptions.params;
-    } else if (Platform.isAndroid) {
-      return aOptions?.params ?? this.aOptions.params;
-    } else if (Platform.isWindows) {
-      return wOptions?.params ?? this.wOptions.params;
-    } else if (Platform.isMacOS) {
-      return mOptions?.params ?? this.mOptions.params;
-    } else {
-      throw UnsupportedError(_unsupportedPlatform);
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return aOptions?.params ?? this.aOptions.params;
+      case TargetPlatform.iOS:
+        return iOptions?.params ?? this.iOptions.params;
+      case TargetPlatform.linux:
+        return lOptions?.params ?? this.lOptions.params;
+      case TargetPlatform.macOS:
+        return mOptions?.params ?? this.mOptions.params;
+      case TargetPlatform.windows:
+        return wOptions?.params ?? this.wOptions.params;
+      case TargetPlatform.fuchsia:
+        throw UnsupportedError(_unsupportedPlatform);
     }
   }
 
