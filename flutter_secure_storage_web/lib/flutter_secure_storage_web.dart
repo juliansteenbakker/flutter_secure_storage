@@ -80,6 +80,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     required Map<String, String> options,
   }) async {
     final value = _getStorage(options)['${options[_publicKey]!}.$key'];
+    if (value == null) return null;
 
     return _decryptValue(value, options);
   }
@@ -98,11 +99,13 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
         continue;
       }
 
-      final value = await _decryptValue(storage.getItem(key), options);
+      final keyItem = storage.getItem(key);
 
-      if (value == null) {
-        continue;
-      }
+      if (keyItem == null) continue;
+
+      final value = await _decryptValue(storage.getItem(key)!, options);
+
+      if (value == null) continue;
 
       map[key.substring(prefix.length)] = value;
     }
@@ -236,10 +239,9 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
   }
 
   Future<String?> _decryptValue(
-    String? cypherText,
+    String cypherText,
     Map<String, String> options,
   ) async {
-    if (cypherText != null) {
       try {
         final parts = cypherText.split('.');
 
@@ -269,10 +271,8 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
           debugPrintStack(stackTrace: s);
         }
       }
+      return null;
     }
-
-    return null;
-  }
 }
 
 extension on List<String> {
