@@ -20,7 +20,7 @@ class MacOsOptions extends AppleOptions {
     super.resultLimit,
     super.shouldReturnPersistentReference,
     super.authenticationUIBehavior,
-    super.accessControlSettings,
+    super.accessControlFlags,
     this.usesDataProtectionKeychain = true,
   });
 

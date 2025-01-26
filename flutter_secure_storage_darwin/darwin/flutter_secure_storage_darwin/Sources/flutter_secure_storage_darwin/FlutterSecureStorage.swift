@@ -60,8 +60,8 @@ struct KeychainQueryParameters {
     /// `kSecUseAuthenticationUI` (iOS/macOS): Controls how authentication UI is presented during secure operations.
     var authenticationUIBehavior: String?
     
-    /// `kSecAttrAccessControl` (iOS/macOS): Specifies access control settings (e.g., biometrics, passcode).
-    var accessControlSettings: SecAccessControl?
+    /// `accessControlFlags` (iOS/macOS): Specifies access control settings (e.g., biometrics, passcode).
+    var accessControlFlags: String?
 }
 
 /// Represents the response from a keychain operation.
@@ -88,6 +88,52 @@ class FlutterSecureStorage {
         default: return kSecAttrAccessibleWhenUnlocked
         }
     }
+    
+    /// Parses a string of comma-separated access control flags into SecAccessControlCreateFlags.
+    private func parseAccessControlFlags(_ flagString: String?) -> SecAccessControlCreateFlags {
+        guard let flagString = flagString else { return [] }
+        var flags: SecAccessControlCreateFlags = []
+        let flagList = flagString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        for dirtyFlag in flagList {
+            let flag = dirtyFlag.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+               
+            switch flag {
+            case "userPresence":
+                flags.insert(.userPresence)
+            case "biometryAny":
+                flags.insert(.biometryAny)
+            case "biometryCurrentSet":
+                flags.insert(.biometryCurrentSet)
+            case "devicePasscode":
+                flags.insert(.devicePasscode)
+            case "or":
+                flags.insert(.or)
+            case "and":
+                flags.insert(.and)
+            case "privateKeyUsage":
+                flags.insert(.privateKeyUsage)
+            case "applicationPassword":
+                flags.insert(.applicationPassword)
+            default:
+                continue
+            }
+        }
+        return flags
+    }
+    
+    /// Creates an access control object based on the provided parameters.
+    private func createAccessControl(params: KeychainQueryParameters) -> SecAccessControl? {
+        guard let accessibilityLevel = params.accessibilityLevel else { return nil }
+        let protection = parseAccessibleAttr(accessibilityLevel)
+        let flags = parseAccessControlFlags(params.accessControlFlags)
+        var error: Unmanaged<CFError>?
+        let accessControl = SecAccessControlCreateWithFlags(nil, protection, flags, &error)
+        if let error = error?.takeRetainedValue() {
+            print("Error creating access control: \(error.localizedDescription)")
+            return nil
+        }
+        return accessControl
+    }
 
     /// Constructs a keychain query dictionary from the given parameters.
     private func baseQuery(from params: KeychainQueryParameters) -> [CFString: Any] {
@@ -106,14 +152,6 @@ class FlutterSecureStorage {
         
         if let service = params.service {
             query[kSecAttrService] = service
-        }
-
-        if let isSynchronizable = params.isSynchronizable {
-            query[kSecAttrSynchronizable] = isSynchronizable
-        }
-
-        if let accessibilityLevel = params.accessibilityLevel {
-            query[kSecAttrAccessible] = parseAccessibleAttr(accessibilityLevel)
         }
 
         if let shouldReturnData = params.shouldReturnData {
@@ -152,8 +190,15 @@ class FlutterSecureStorage {
             query[kSecUseAuthenticationUI] = authenticationUIBehavior
         }
 
-        if let accessControlSettings = params.accessControlSettings {
-            query[kSecAttrAccessControl] = accessControlSettings
+        if let accessControl = createAccessControl(params: params) {
+            query[kSecAttrAccessControl] = accessControl
+        } else {
+            if let accessibilityLevel = params.accessibilityLevel {
+                query[kSecAttrAccessible] = parseAccessibleAttr(accessibilityLevel)
+            }
+            if let isSynchronizable = params.isSynchronizable {
+                query[kSecAttrSynchronizable] = isSynchronizable
+            }
         }
         
         #if os(macOS)
@@ -172,11 +217,6 @@ class FlutterSecureStorage {
     }
     
     private func validateQueryParameters(params: KeychainQueryParameters) throws {
-        // Accessibility and access control
-        if params.accessibilityLevel != nil, params.accessControlSettings != nil {
-            throw OSSecError(status: errSecParam, message: "Cannot use kSecAttrAccessible and kSecAttrAccessControl together.")
-        }
-
         // Match limit
         if params.resultLimit == 1, params.shouldReturnData == true {
             throw OSSecError(status: errSecParam, message: "Cannot use kSecMatchLimitAll when expecting a single result with kSecReturnData.")

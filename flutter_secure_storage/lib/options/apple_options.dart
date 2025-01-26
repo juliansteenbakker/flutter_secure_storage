@@ -30,6 +30,38 @@ enum KeychainAccessibility {
   first_unlock_this_device,
 }
 
+/// Keychain access control flags that define security conditions for accessing
+/// items. These flags can be combined to create complex access control
+/// policies.
+enum AccessControlFlag {
+  /// Constraint to access an item with a passcode.
+  devicePasscode,
+
+  /// Constraint to access an item with biometrics (Touch ID/Face ID).
+  biometryAny,
+
+  /// Constraint to access an item with the currently enrolled biometrics.
+  biometryCurrentSet,
+
+  /// Constraint to access an item with either biometry or passcode.
+  userPresence,
+
+  /// Constraint to access an item with a paired watch.
+  watch,
+
+  /// Combine multiple constraints with an OR operation.
+  or,
+
+  /// Combine multiple constraints with an AND operation.
+  and,
+
+  /// Use an application-provided password for encryption.
+  applicationPassword,
+
+  /// Enable private key usage for signing operations.
+  privateKeyUsage,
+}
+
 /// Specific options for Apple platform.
 abstract class AppleOptions extends Options {
   /// Creates an instance of `AppleOptions` with configurable parameters
@@ -49,7 +81,7 @@ abstract class AppleOptions extends Options {
     this.resultLimit,
     this.shouldReturnPersistentReference,
     this.authenticationUIBehavior,
-    this.accessControlSettings,
+    this.accessControlFlags = const [],
   });
 
   /// The default account name associated with the keychain items.
@@ -130,11 +162,29 @@ abstract class AppleOptions extends Options {
   /// Determines whether authentication prompts are displayed to the user.
   final String? authenticationUIBehavior;
 
-  /// `kSecAttrAccessControl`: **Shared or Unique**.
-  /// Specifies access control settings for the item
-  /// (e.g., biometrics, passcode).
-  /// Shared if multiple items use the same access control.
-  final String? accessControlSettings;
+  /// Keychain access control flags define security conditions for accessing
+  /// items. These flags can be combined to create custom security policies.
+  ///
+  /// ### Using Logical Operators:
+  /// - Use `AccessControlFlag.or` to allow access if **any** of the specified
+  ///   conditions are met.
+  /// - Use `AccessControlFlag.and` to require that **all** specified conditions
+  ///   are met.
+  ///
+  /// **Rules for Combining Flags:**
+  /// - Only one logical operator (`or` or `and`) can be used per combination.
+  /// - Logical operators should be placed after the security constraints.
+  ///
+  /// **Supported Flags:**
+  /// - `userPresence`: Requires user authentication via biometrics or passcode.
+  /// - `biometryAny`: Allows access with any enrolled biometrics.
+  /// - `biometryCurrentSet`: Requires currently enrolled biometrics.
+  /// - `devicePasscode`: Requires device passcode authentication.
+  /// - `watch`: Allows access with a paired Apple Watch.
+  /// - `privateKeyUsage`: Enables use of a private key for signing operations.
+  /// - `applicationPassword`: Uses an app-defined password for encryption.
+  ///
+  final List<AccessControlFlag> accessControlFlags;
 
   @override
   Map<String, String> toMap() => <String, String>{
@@ -156,7 +206,8 @@ abstract class AppleOptions extends Options {
           'shouldReturnPersistentReference': '$shouldReturnPersistentReference',
         if (authenticationUIBehavior != null)
           'authenticationUIBehavior': authenticationUIBehavior!,
-        if (accessControlSettings != null)
-          'accessControlSettings': accessControlSettings!,
+        if (accessControlFlags.isNotEmpty)
+          'accessControlFlags':
+              accessControlFlags.map((e) => e.name).toList().toString(),
       };
 }

@@ -21,7 +21,7 @@ class IOSOptions extends AppleOptions {
     super.resultLimit,
     super.shouldReturnPersistentReference,
     super.authenticationUIBehavior,
-    super.accessControlSettings,
+    super.accessControlFlags,
   });
 
   /// A predefined `IosOptions` instance with default settings.

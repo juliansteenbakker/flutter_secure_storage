@@ -164,7 +164,8 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
             isHidden: (options["isHidden"] as? String).flatMap { Bool($0) },
             isPlaceholder: (options["isPlaceholder"] as? String).flatMap { Bool($0) },
             shouldReturnPersistentReference: (options["persistentReference"] as? String).flatMap { Bool($0) },
-            authenticationUIBehavior: options["authenticationUIBehavior"] as? String
+            authenticationUIBehavior: options["authenticationUIBehavior"] as? String,
+            accessControlFlags: options["accessControlFlags"] as? String
         )
 
         return (parameters, value)
