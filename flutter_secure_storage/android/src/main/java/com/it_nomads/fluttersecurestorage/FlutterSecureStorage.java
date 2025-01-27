@@ -2,12 +2,17 @@ package com.it_nomads.fluttersecurestorage;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
+import android.os.Build;
+import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipher;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipherFactory;
@@ -18,8 +23,11 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.KeyStoreException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class FlutterSecureStorage {
 
@@ -36,7 +44,9 @@ public class FlutterSecureStorage {
     @NonNull
     private String preferencesKeyPrefix = DEFAULT_KEY_PREFIX;
 
-    public FlutterSecureStorage(Context context, Map<String, Object> options) throws GeneralSecurityException, IOException {
+    boolean shouldAuthenticate = true;
+
+    public FlutterSecureStorage(Context context, Map<String, Object> options) throws GeneralSecurityException, IOException, KeyStoreException {
         String sharedPreferencesName = DEFAULT_PREF_NAME;
         if (options.containsKey(PREF_OPTION_NAME)) {
             var value = options.get(PREF_OPTION_NAME);
@@ -60,6 +70,9 @@ public class FlutterSecureStorage {
                 deleteOnFailure = Boolean.parseBoolean((String) value);
             }
         }
+
+        authenticateUser(context);
+
 
         encryptedPreferences = getEncryptedSharedPreferences(deleteOnFailure, options, context.getApplicationContext(), sharedPreferencesName);
     }
@@ -110,6 +123,10 @@ public class FlutterSecureStorage {
                 migrateToEncryptedPreferences(context, sharedPreferencesName, encryptedPreferences, deleteOnFailure, options);
             }
             return encryptedPreferences;
+        } catch (KeyStoreException f){
+            // not authenticated
+            Log.w(TAG, "Not authenticated", f);
+            throw f;
         } catch (GeneralSecurityException | IOException e) {
 
             if (!deleteOnFailure) {
@@ -136,6 +153,9 @@ public class FlutterSecureStorage {
                         KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setUserAuthenticationRequired(shouldAuthenticate)  // Enforce user authentication
+                        .setUserAuthenticationValidityDurationSeconds(-1)  // Require authentication every 60 seconds
+                        .setInvalidatedByBiometricEnrollment(true)
                         .setKeySize(256)
                         .build())
                 .build();
@@ -207,5 +227,46 @@ public class FlutterSecureStorage {
     private String decryptValue(String value, StorageCipher cipher) throws Exception {
         byte[] data = Base64.decode(value, Base64.DEFAULT);
         return new String(cipher.decrypt(data), CHARSET);
+    }
+
+    private void authenticateUser(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            BiometricPrompt promptInfo = null;
+            promptInfo = new BiometricPrompt.Builder(context)
+                    .setTitle("Authenticate to access")
+                    .setSubtitle("Use biometrics or device credentials")
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                    .build();
+
+            // 1. Create a CancellationSignal to allow cancelling the authentication if needed
+            CancellationSignal cancellationSignal = new CancellationSignal();
+
+            // 2. Create an Executor to run the callback methods on a background thread
+            Executor executor = Executors.newSingleThreadExecutor();
+
+            // 3. Define the AuthenticationCallback to handle success and failure
+            BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    System.out.println("Authentication Succeeded!");
+                    // Perform actions after successful authentication
+                }
+
+                @Override
+                public void onAuthenticationFailed() {
+                    super.onAuthenticationFailed();
+                    System.out.println("Authentication Failed. Try again.");
+                }
+
+                @Override
+                public void onAuthenticationError(int errorCode, CharSequence errString) {
+                    super.onAuthenticationError(errorCode, errString);
+                    System.out.println("Authentication Error: " + errString);
+                }
+            };
+
+            promptInfo.authenticate(cancellationSignal, executor, callback);
+        }
     }
 }
