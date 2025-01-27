@@ -48,23 +48,39 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         secureStorage = null;
     }
 
-    private boolean initSecureStorage(Result result, Map<String, Object> options) {
-        if (secureStorage != null) return true;
+    public void initSecureStorage(Result result, Map<String, Object> options, SecureStorageInitCallback callback) {
+        if (secureStorage != null) {
+            callback.onComplete(true);
+            return;
+        }
 
         try {
-            secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options);
-            return true;
+            secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options, success -> {
+                if (success) {
+                    callback.onComplete(true);
+                } else {
+                    if (result != null) {
+                        result.error(
+                                "INIT_FAILED",
+                                "Failed to initialize encrypted preferences",
+                                "Biometric authentication or encryption failure"
+                        );
+                    }
+                    callback.onComplete(false);
+                }
+            });
         } catch (Exception e) {
             if (result != null) {
                 result.error(
-                        "RESET_FAILED",  // Error code
-                        "Failed to reset and initialize encrypted preferences", // Error message
-                        e.toString()     // Details (stack trace or additional info)
+                        "INIT_FAILED",
+                        "Exception during initialization",
+                        e.toString()
                 );
             }
-            return false;
+            callback.onComplete(false);
         }
     }
+
 
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result rawResult) {
@@ -101,31 +117,34 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
             Map<String, Object> options = extractMapFromObject(arguments.get("options"));
 
-            boolean isInitialized = initSecureStorage(result, options);
-            if (!isInitialized) return;
+            initSecureStorage(result, options, isInitialized -> {
+                if (!isInitialized) {
+                    return;
+                }
 
-            switch (method) {
-                case "write":
-                    handleWrite(arguments, result);
-                    break;
-                case "read":
-                    handleRead(arguments, result);
-                    break;
-                case "readAll":
-                    handleReadAll(result);
-                    break;
-                case "containsKey":
-                    handleContainsKey(arguments, result);
-                    break;
-                case "delete":
-                    handleDelete(arguments, result);
-                    break;
-                case "deleteAll":
-                    handleDeleteAll(result);
-                    break;
-                default:
-                    result.notImplemented();
-            }
+                switch (method) {
+                    case "write":
+                        handleWrite(arguments, result);
+                        break;
+                    case "read":
+                        handleRead(arguments, result);
+                        break;
+                    case "readAll":
+                        handleReadAll(result);
+                        break;
+                    case "containsKey":
+                        handleContainsKey(arguments, result);
+                        break;
+                    case "delete":
+                        handleDelete(arguments, result);
+                        break;
+                    case "deleteAll":
+                        handleDeleteAll(result);
+                        break;
+                    default:
+                        result.notImplemented();
+                }
+            });
         }
 
         private void handleWrite(Map<String, Object> args, Result result) {

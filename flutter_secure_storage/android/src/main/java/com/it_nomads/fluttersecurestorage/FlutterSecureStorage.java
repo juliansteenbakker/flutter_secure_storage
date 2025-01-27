@@ -39,14 +39,17 @@ public class FlutterSecureStorage {
     private static final String PREF_OPTION_PREFIX = "preferencesKeyPrefix";
     private static final String PREF_OPTION_DELETE_ON_FAILURE = "resetOnError";
     private static final String PREF_KEY_MIGRATED = "preferencesMigrated";
-    @NonNull
-    private final SharedPreferences encryptedPreferences;
+
+    private SharedPreferences encryptedPreferences;
     @NonNull
     private String preferencesKeyPrefix = DEFAULT_KEY_PREFIX;
 
     boolean shouldAuthenticate = true;
+    private final Context context;
 
-    public FlutterSecureStorage(Context context, Map<String, Object> options) throws GeneralSecurityException, IOException, KeyStoreException {
+    public FlutterSecureStorage(Context context, Map<String, Object> options, SecureStorageInitCallback callback) {
+        this.context = context;
+
         String sharedPreferencesName = DEFAULT_PREF_NAME;
         if (options.containsKey(PREF_OPTION_NAME)) {
             var value = options.get(PREF_OPTION_NAME);
@@ -71,10 +74,28 @@ public class FlutterSecureStorage {
             }
         }
 
-        authenticateUser(context);
+        getEncryptedSharedPreferences(context, deleteOnFailure, options, sharedPreferencesName, sharedPreferences -> {
+            if (sharedPreferences != null) {
+                Log.d(TAG, "Encrypted preferences initialized successfully.");
+                encryptedPreferences = sharedPreferences;
+                callback.onComplete(true); // Notify caller of success
+            } else {
+                Log.e(TAG, "Failed to initialize encrypted preferences.");
+                callback.onComplete(false); // Notify caller of failure
+            }
+        });
+    }
 
+    private boolean biometric = false;
 
-        encryptedPreferences = getEncryptedSharedPreferences(deleteOnFailure, options, context.getApplicationContext(), sharedPreferencesName);
+    private void authenticateIfNeeded(Runnable onSuccess) {
+        if (!biometric) {
+            onSuccess.run();
+        } else {
+            authenticateUser(() -> {
+                onSuccess.run();
+            });
+        }
     }
 
     public boolean containsKey(String key) {
@@ -115,50 +136,75 @@ public class FlutterSecureStorage {
         return preferencesKeyPrefix + "_" + key;
     }
 
-    private SharedPreferences getEncryptedSharedPreferences(boolean deleteOnFailure, Map<String, Object> options, Context context, String sharedPreferencesName) throws GeneralSecurityException, IOException {
-        try {
-            final SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName);
-            boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
-            if (!migrated) {
-                migrateToEncryptedPreferences(context, sharedPreferencesName, encryptedPreferences, deleteOnFailure, options);
-            }
-            return encryptedPreferences;
-        } catch (KeyStoreException f){
-            // not authenticated
-            Log.w(TAG, "Not authenticated", f);
-            throw f;
-        } catch (GeneralSecurityException | IOException e) {
-
-            if (!deleteOnFailure) {
-                Log.w(TAG, "initialization failed, resetOnError false, so throwing exception.", e);
-                throw e;
-            }
-            Log.w(TAG, "initialization failed, resetting storage", e);
-
-            context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE).edit().clear().apply();
-
+    private void getEncryptedSharedPreferences(Context context, boolean deleteOnFailure, Map<String, Object> options,
+                                               String sharedPreferencesName, SharedPreferencesCallback callback) {
+        authenticateIfNeeded(() -> {
             try {
-                return initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName);
-            } catch (Exception f) {
-                Log.e(TAG, "initialization after reset failed", f);
-                throw f;
+                SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(sharedPreferencesName);
+                boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
+                if (!migrated) {
+                    migrateToEncryptedPreferences(sharedPreferencesName, encryptedPreferences, deleteOnFailure, options);
+                }
+                callback.onResult(encryptedPreferences);
+            } catch (KeyStoreException f) {
+                Log.w(TAG, "Not authenticated", f);
+                callback.onResult(null);
+            } catch (GeneralSecurityException | IOException e) {
+                if (!deleteOnFailure) {
+                    Log.w(TAG, "Initialization failed, resetOnError false, throwing exception.", e);
+                    callback.onResult(null);
+                } else {
+                    Log.w(TAG, "Initialization failed, resetting storage", e);
+                    context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE).edit().clear().apply();
+                    try {
+                        SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(sharedPreferencesName);
+                        callback.onResult(encryptedPreferences);
+                    } catch (Exception f) {
+                        Log.e(TAG, "Initialization after reset failed", f);
+                        callback.onResult(null);
+                    }
+                }
             }
-        }
+        });
     }
 
-    private SharedPreferences initializeEncryptedSharedPreferencesManager(Context context, String sharedPreferencesName) throws GeneralSecurityException, IOException {
-        MasterKey masterKey = new MasterKey.Builder(context)
+    @RequiresApi(api = Build.VERSION_CODES.R)
+    private MasterKey createSecretKeyApi30() throws GeneralSecurityException, IOException {
+        return new MasterKey.Builder(context)
                 .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
                         MasterKey.DEFAULT_MASTER_KEY_ALIAS,
                         KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                         .setUserAuthenticationRequired(shouldAuthenticate)  // Enforce user authentication
-                        .setUserAuthenticationValidityDurationSeconds(-1)  // Require authentication every 60 seconds
+                        .setUserAuthenticationValidityDurationSeconds(10)  // Require authentication every 60 seconds
                         .setInvalidatedByBiometricEnrollment(true)
                         .setKeySize(256)
                         .build())
                 .build();
+    }
+
+    private MasterKey createSecretKeyApi2329() throws GeneralSecurityException, IOException {
+        return new MasterKey.Builder(context)
+                .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
+                        MasterKey.DEFAULT_MASTER_KEY_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setUserAuthenticationRequired(shouldAuthenticate)  // Enforce user authentication
+                        .setUserAuthenticationValidityDurationSeconds(10)  // Require authentication every 60 seconds
+                        .setKeySize(256)
+                        .build())
+                .build();
+    }
+    private SharedPreferences initializeEncryptedSharedPreferencesManager(String sharedPreferencesName) throws GeneralSecurityException, IOException {
+        MasterKey masterKey;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            masterKey = createSecretKeyApi30();
+        } else {
+            masterKey = createSecretKeyApi2329();
+        }
 
         return EncryptedSharedPreferences.create(
                 context,
@@ -169,7 +215,7 @@ public class FlutterSecureStorage {
         );
     }
 
-    private void migrateToEncryptedPreferences(Context context, String sharedPreferencesName, SharedPreferences target, boolean deleteOnFailure, Map<String, Object> options) {
+    private void migrateToEncryptedPreferences(String sharedPreferencesName, SharedPreferences target, boolean deleteOnFailure, Map<String, Object> options) {
         SharedPreferences source = context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE);
 
         Map<String, ?> sourceEntries = source.getAll();
@@ -229,44 +275,50 @@ public class FlutterSecureStorage {
         return new String(cipher.decrypt(data), CHARSET);
     }
 
-    private void authenticateUser(Context context) {
+    private void authenticateUser(Runnable onSuccess) {
+        BiometricPrompt promptInfo = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            BiometricPrompt promptInfo = null;
             promptInfo = new BiometricPrompt.Builder(context)
                     .setTitle("Authenticate to access")
                     .setSubtitle("Use biometrics or device credentials")
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
                     .build();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            promptInfo = new BiometricPrompt.Builder(context)
+                    .setTitle("Authenticate to access")
+                    .setSubtitle("Use biometrics or device credentials")
+                    .build();
+        }
 
-            // 1. Create a CancellationSignal to allow cancelling the authentication if needed
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             CancellationSignal cancellationSignal = new CancellationSignal();
-
-            // 2. Create an Executor to run the callback methods on a background thread
             Executor executor = Executors.newSingleThreadExecutor();
 
-            // 3. Define the AuthenticationCallback to handle success and failure
             BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
                 @Override
                 public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                     super.onAuthenticationSucceeded(result);
-                    System.out.println("Authentication Succeeded!");
-                    // Perform actions after successful authentication
+                    Log.d(TAG, "Authentication Succeeded!");
+                    onSuccess.run();
                 }
 
                 @Override
                 public void onAuthenticationFailed() {
                     super.onAuthenticationFailed();
-                    System.out.println("Authentication Failed. Try again.");
+                    Log.d(TAG, "Authentication Failed. Try again.");
                 }
 
                 @Override
                 public void onAuthenticationError(int errorCode, CharSequence errString) {
                     super.onAuthenticationError(errorCode, errString);
-                    System.out.println("Authentication Error: " + errString);
+                    Log.e(TAG, "Authentication Error: " + errString);
                 }
             };
 
             promptInfo.authenticate(cancellationSignal, executor, callback);
+        } else {
+            onSuccess.run();  // Proceed without authentication on unsupported devices
         }
     }
+
 }
