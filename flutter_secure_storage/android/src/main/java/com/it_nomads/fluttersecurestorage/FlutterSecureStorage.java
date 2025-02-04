@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.security.keystore.UserNotAuthenticatedException;
 import android.util.Base64;
 import android.util.Log;
 
@@ -33,69 +34,59 @@ public class FlutterSecureStorage {
 
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset CHARSET = StandardCharsets.UTF_8;
-    private static final String DEFAULT_PREF_NAME = "FlutterSecureStorage";
-    private static final String DEFAULT_KEY_PREFIX = "VGhpcyBpcyB0aGUgcHJlZml4IGZvciBhIHNlY3VyZSBzdG9yYWdlCg";
-    private static final String PREF_OPTION_NAME = "sharedPreferencesName";
-    private static final String PREF_OPTION_PREFIX = "preferencesKeyPrefix";
-    private static final String PREF_OPTION_DELETE_ON_FAILURE = "resetOnError";
     private static final String PREF_KEY_MIGRATED = "preferencesMigrated";
 
-    private SharedPreferences encryptedPreferences;
     @NonNull
-    private String preferencesKeyPrefix = DEFAULT_KEY_PREFIX;
-
-    boolean shouldAuthenticate = true;
+    private final FlutterSecureStorageConfig config;
+    @NonNull
     private final Context context;
 
-    public FlutterSecureStorage(Context context, Map<String, Object> options, SecureStorageInitCallback callback) {
+    private SharedPreferences encryptedPreferences;
+
+    private FlutterSecureStorage(@NonNull Context context, Map<String, Object> options) {
         this.context = context;
-
-        String sharedPreferencesName = DEFAULT_PREF_NAME;
-        if (options.containsKey(PREF_OPTION_NAME)) {
-            var value = options.get(PREF_OPTION_NAME);
-            if (value instanceof String && !((String) value).isEmpty()) {
-                sharedPreferencesName = (String) value;
-            }
-        }
-
-        if (options.containsKey(PREF_OPTION_PREFIX)) {
-            var value = options.get(PREF_OPTION_PREFIX);
-            if (value instanceof String && !((String) value).isEmpty()) {
-                preferencesKeyPrefix = (String) value;
-            }
-        }
-
-        boolean deleteOnFailure = false;
-
-        if (options.containsKey(PREF_OPTION_DELETE_ON_FAILURE)) {
-            var value = options.get(PREF_OPTION_DELETE_ON_FAILURE);
-            if (value instanceof String) {
-                deleteOnFailure = Boolean.parseBoolean((String) value);
-            }
-        }
-
-        getEncryptedSharedPreferences(context, deleteOnFailure, options, sharedPreferencesName, sharedPreferences -> {
-            if (sharedPreferences != null) {
-                Log.d(TAG, "Encrypted preferences initialized successfully.");
-                encryptedPreferences = sharedPreferences;
-                callback.onComplete(true); // Notify caller of success
-            } else {
-                Log.e(TAG, "Failed to initialize encrypted preferences.");
-                callback.onComplete(false); // Notify caller of failure
-            }
-        });
+        this.config = new FlutterSecureStorageConfig(options);
     }
 
-    private boolean biometric = false;
+    public static void create(@NonNull Context context, Map<String, Object> options, SecureStorageInitCallback callback) {
+        FlutterSecureStorage storage = new FlutterSecureStorage(context, options);
 
-    private void authenticateIfNeeded(Runnable onSuccess) {
-        if (!biometric) {
-            onSuccess.run();
-        } else {
-            authenticateUser(() -> {
-                onSuccess.run();
-            });
-        }
+        storage.authenticateIfNeeded(() -> {
+            try {
+                SharedPreferences encryptedPreferences = storage.initializeEncryptedSharedPreferencesManager(storage.config.getSharedPreferencesName());
+                boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
+                if (!migrated) {
+                    storage.migrateToEncryptedPreferences(storage.config.getSharedPreferencesName(), encryptedPreferences, storage.config.shouldDeleteOnFailure(), options);
+                }
+
+                Log.d(TAG, "Encrypted preferences initialized successfully.");
+                storage.encryptedPreferences = encryptedPreferences;
+                callback.onComplete(storage, null);  // Initialization successful
+
+             } catch (KeyStoreException | UserNotAuthenticatedException e) {
+                Log.w(TAG, "Authentication failed: Unable to access secure keystore. Check biometric settings.", e);
+                callback.onComplete(null, e);
+
+            } catch (GeneralSecurityException | IOException e) {
+                if (!storage.config.shouldDeleteOnFailure()) {
+                    Log.w(TAG, "Initialization failed: Secure storage could not be initialized. 'deleteOnFailure' is false, skipping reset.", e);
+                    callback.onComplete(null, e);
+                } else {
+                    Log.w(TAG, "Initialization failed: Resetting storage as 'deleteOnFailure' is enabled.", e);
+                    context.getSharedPreferences(storage.config.getSharedPreferencesName(), Context.MODE_PRIVATE).edit().clear().apply();
+
+                    try {
+                        SharedPreferences encryptedPreferences = storage.initializeEncryptedSharedPreferencesManager(storage.config.getSharedPreferencesName());
+                        Log.i(TAG, "Secure storage successfully re-initialized after reset.");
+                        storage.encryptedPreferences = encryptedPreferences;
+                        callback.onComplete(storage, null);  // Re-initialization successful
+                    } catch (Exception f) {
+                        Log.e(TAG, "Critical failure: Initialization after reset failed.", f);
+                        callback.onComplete(null, f);
+                    }
+                }
+            }
+        });
     }
 
     public boolean containsKey(String key) {
@@ -124,60 +115,39 @@ public class FlutterSecureStorage {
         for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
-            if (key.startsWith(preferencesKeyPrefix) && value instanceof String) {
-                String originalKey = key.replaceFirst(preferencesKeyPrefix + "_", "");
+            if (key.startsWith(config.getSharedPreferencesKeyPrefix()) && value instanceof String) {
+                String originalKey = key.replaceFirst(config.getSharedPreferencesKeyPrefix() + "_", "");
                 result.put(originalKey, (String) value);
             }
         }
         return result;
     }
 
-    private String addPrefixToKey(String key) {
-        return preferencesKeyPrefix + "_" + key;
+    private void authenticateIfNeeded(Runnable onSuccess) {
+        if (config.shouldUseBiometrics()) {
+            authenticateUser(onSuccess);
+        } else {
+            onSuccess.run();
+        }
     }
 
-    private void getEncryptedSharedPreferences(Context context, boolean deleteOnFailure, Map<String, Object> options,
-                                               String sharedPreferencesName, SharedPreferencesCallback callback) {
-        authenticateIfNeeded(() -> {
-            try {
-                SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(sharedPreferencesName);
-                boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
-                if (!migrated) {
-                    migrateToEncryptedPreferences(sharedPreferencesName, encryptedPreferences, deleteOnFailure, options);
-                }
-                callback.onResult(encryptedPreferences);
-            } catch (KeyStoreException f) {
-                Log.w(TAG, "Not authenticated", f);
-                callback.onResult(null);
-            } catch (GeneralSecurityException | IOException e) {
-                if (!deleteOnFailure) {
-                    Log.w(TAG, "Initialization failed, resetOnError false, throwing exception.", e);
-                    callback.onResult(null);
-                } else {
-                    Log.w(TAG, "Initialization failed, resetting storage", e);
-                    context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE).edit().clear().apply();
-                    try {
-                        SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(sharedPreferencesName);
-                        callback.onResult(encryptedPreferences);
-                    } catch (Exception f) {
-                        Log.e(TAG, "Initialization after reset failed", f);
-                        callback.onResult(null);
-                    }
-                }
-            }
-        });
+    private String addPrefixToKey(String key) {
+        return config.getSharedPreferencesKeyPrefix() + "_" + key;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.R)
     private MasterKey createSecretKeyApi30() throws GeneralSecurityException, IOException {
         return new MasterKey.Builder(context)
+                .setUserAuthenticationRequired(config.shouldUseBiometrics(), 2)
+                .setRequestStrongBoxBacked(true)
                 .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
                         MasterKey.DEFAULT_MASTER_KEY_ALIAS,
                         KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setIsStrongBoxBacked(true)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setUserAuthenticationRequired(shouldAuthenticate)  // Enforce user authentication
-                        .setUserAuthenticationValidityDurationSeconds(10)  // Require authentication every 60 seconds
+                        .setUserAuthenticationRequired(config.shouldUseBiometrics())  // Enforce user authentication
+                        .setUserAuthenticationValidityDurationSeconds(2)
                         .setInvalidatedByBiometricEnrollment(true)
                         .setKeySize(256)
                         .build())
@@ -191,8 +161,8 @@ public class FlutterSecureStorage {
                         KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setUserAuthenticationRequired(shouldAuthenticate)  // Enforce user authentication
-                        .setUserAuthenticationValidityDurationSeconds(10)  // Require authentication every 60 seconds
+                        .setUserAuthenticationRequired(config.shouldUseBiometrics())  // Enforce user authentication
+                        .setUserAuthenticationValidityDurationSeconds(1)
                         .setKeySize(256)
                         .build())
                 .build();
@@ -230,7 +200,7 @@ public class FlutterSecureStorage {
             for (Map.Entry<String, ?> entry : sourceEntries.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
-                if (key.startsWith(preferencesKeyPrefix) && value instanceof String) {
+                if (key.startsWith(config.getSharedPreferencesKeyPrefix()) && value instanceof String) {
                     try {
                         String decryptedValue = decryptValue((String) value, cipher);
                         target.edit().putString(key, decryptedValue).apply();
@@ -279,14 +249,14 @@ public class FlutterSecureStorage {
         BiometricPrompt promptInfo = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             promptInfo = new BiometricPrompt.Builder(context)
-                    .setTitle("Authenticate to access")
-                    .setSubtitle("Use biometrics or device credentials")
+                    .setTitle(config.getBiometricPromptTitle())
+                    .setSubtitle(config.getPrefOptionBiometricPromptSubtitle())
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
                     .build();
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             promptInfo = new BiometricPrompt.Builder(context)
-                    .setTitle("Authenticate to access")
-                    .setSubtitle("Use biometrics or device credentials")
+                    .setTitle(config.getBiometricPromptTitle())
+                    .setSubtitle(config.getPrefOptionBiometricPromptSubtitle())
                     .build();
         }
 

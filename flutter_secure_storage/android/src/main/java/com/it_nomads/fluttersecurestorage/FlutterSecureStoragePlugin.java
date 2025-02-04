@@ -3,6 +3,7 @@ package com.it_nomads.fluttersecurestorage;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.security.keystore.UserNotAuthenticatedException;
 
 import androidx.annotation.NonNull;
 
@@ -19,11 +20,11 @@ import io.flutter.plugin.common.MethodChannel.Result;
 
 public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlugin {
 
+    private FlutterPluginBinding binding;
     private MethodChannel channel;
     private FlutterSecureStorage secureStorage;
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
-    private FlutterPluginBinding binding;
 
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
@@ -48,39 +49,21 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         secureStorage = null;
     }
 
-    public void initSecureStorage(Result result, Map<String, Object> options, SecureStorageInitCallback callback) {
+    public void initSecureStorage(Map<String, Object> options, SecureStorageInitCallback callback) {
         if (secureStorage != null) {
-            callback.onComplete(true);
+            callback.onComplete(secureStorage, null);
             return;
         }
 
-        try {
-            secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options, success -> {
-                if (success) {
-                    callback.onComplete(true);
-                } else {
-                    if (result != null) {
-                        result.error(
-                                "INIT_FAILED",
-                                "Failed to initialize encrypted preferences",
-                                "Biometric authentication or encryption failure"
-                        );
-                    }
-                    callback.onComplete(false);
-                }
-            });
-        } catch (Exception e) {
-            if (result != null) {
-                result.error(
-                        "INIT_FAILED",
-                        "Exception during initialization",
-                        e.toString()
-                );
+        FlutterSecureStorage.create(binding.getApplicationContext(), options, (initializedStorage, exception) -> {
+            if (initializedStorage != null) {
+                secureStorage = initializedStorage;
+                callback.onComplete(secureStorage, null);
+            } else {
+                callback.onComplete(null, exception);
             }
-            callback.onComplete(false);
-        }
+        });
     }
-
 
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result rawResult) {
@@ -117,8 +100,13 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
             Map<String, Object> options = extractMapFromObject(arguments.get("options"));
 
-            initSecureStorage(result, options, isInitialized -> {
-                if (!isInitialized) {
+            initSecureStorage(options, (secureStorage, exception) -> {
+                if (secureStorage == null) {
+                    String code = "INIT_FAILED";
+                    if (exception instanceof UserNotAuthenticatedException) {
+                        code = "AUTHENTICATION_FAILED";
+                    }
+                    result.error(code, exception.getMessage(), null);
                     return;
                 }
 
