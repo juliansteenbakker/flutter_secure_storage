@@ -183,18 +183,23 @@ class HomePageState extends State<HomePage> {
                       value: _ItemActions.read,
                       child: Text(
                         'Read',
-                        key: Key('contains_row_$index'),
+                        key: Key('read_row_$index'),
                       ),
                     ),
                   ],
                 ),
+                leading: const Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [Text('Value'), Text('Key')],
+                ),
                 title: Text(
                   _items[index].value,
-                  key: Key('title_row_$index'),
+                  key: Key('value_row_$index'),
                 ),
                 subtitle: Text(
                   _items[index].key,
-                  key: Key('subtitle_row_$index'),
+                  key: Key('key_row_$index'),
                 ),
               ),
             ),
@@ -265,7 +270,10 @@ class HomePageState extends State<HomePage> {
             child: const Text('OK'),
           ),
         ],
-        content: TextField(controller: controller),
+        content: TextField(
+          controller: controller,
+          key: const Key('key_field'),
+        ),
       ),
     );
     return controller.text;
@@ -291,7 +299,7 @@ class _EditItemWidget extends StatelessWidget {
     return AlertDialog(
       title: const Text('Edit item'),
       content: TextField(
-        key: const Key('title_field'),
+        key: const Key('value_field'),
         controller: _controller,
         autofocus: true,
       ),

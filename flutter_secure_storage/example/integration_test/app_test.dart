@@ -3,138 +3,216 @@ import 'package:flutter_secure_storage_example/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Secure Storage Example', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: HomePage()));
-    await tester.pumpAndSettle();
+  group('Secure Storage Tests', () {
+    testWidgets('Add a Random Row', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      pageObject.verifyRowExists(0);
+    });
 
-    final pageObject = HomePageObject(tester);
+    testWidgets('Edit a Row Value', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.editValue('Updated Row', 0);
+      pageObject.verifyValue('Updated Row', 0);
+    });
 
-    await pageObject.deleteAll();
-    pageObject.hasNoRow(0);
+    testWidgets('Delete a Row', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.deleteRow(0);
+      pageObject.verifyRowDoesNotExist(0);
+    });
 
-    await pageObject.addRandom();
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    pageObject.hasRow(0);
-    await pageObject.addRandom();
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    pageObject.hasRow(1);
+    testWidgets('Check Protected Data Availability',
+        (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.checkProtectedDataAvailability();
+    });
 
-    await pageObject.editRow('Row 0', 0);
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    await pageObject.editRow('Row 1', 1);
+    testWidgets('Contains Key for a Row', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.containsKeyForRow(0, expectedResult: true);
+    });
 
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
+    testWidgets('Read Value for a Row', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.editValue('Read Test', 0); // Ensure there's a value
+      await pageObject.readValueForRow(
+        0,
+        expectedValue: 'Read Test',
+      );
+    });
 
-    pageObject.rowHasTitle('Row 0', 0);
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    pageObject.rowHasTitle('Row 1', 1);
+    testWidgets('Add Multiple Rows and Verify', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.addRandomRow();
+      pageObject
+        ..verifyRowExists(0)
+        ..verifyRowExists(1);
+    });
 
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
+    testWidgets('Edit Multiple Rows', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.addRandomRow();
+      await pageObject.editValue('First Row', 0);
+      await pageObject.editValue('Second Row', 1);
+      pageObject
+        ..verifyValue('First Row', 0)
+        ..verifyValue('Second Row', 1);
+    });
 
-    await pageObject.deleteRow(1);
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    pageObject.hasNoRow(1);
-
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-
-    pageObject.rowHasTitle('Row 0', 0);
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    await pageObject.deleteRow(0);
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-    pageObject.hasNoRow(0);
-
-    await Future<dynamic>.delayed(const Duration(seconds: 5));
-
-    await pageObject.isProtectedDataAvailable();
-
-    await pageObject.deleteAll();
+    testWidgets('Delete All Rows', (WidgetTester tester) async {
+      final pageObject = await _setupHomePage(tester);
+      await pageObject.addRandomRow();
+      await pageObject.addRandomRow();
+      await pageObject.deleteAll();
+      pageObject
+        ..verifyRowDoesNotExist(0)
+        ..verifyRowDoesNotExist(1);
+    });
   });
+}
+
+Future<HomePageObject> _setupHomePage(WidgetTester tester) async {
+  await tester.pumpWidget(const MaterialApp(home: HomePage()));
+  await tester.pumpAndSettle();
+  final pageObject = HomePageObject(tester);
+  await pageObject.deleteAll();
+  return pageObject;
 }
 
 class HomePageObject {
   HomePageObject(this.tester);
 
   final WidgetTester tester;
-  final Finder _addRandomButtonFinder = find.byKey(const Key('add_random'));
-  final Finder _deleteAllButtonFinder = find.byKey(const Key('delete_all'));
-  final Finder _popUpMenuButtonFinder = find.byKey(const Key('popup_menu'));
-  final Finder _isProtectedDataAvailableButtonFinder =
+  final Finder _addRandomButton = find.byKey(const Key('add_random'));
+  final Finder _deleteAllButton = find.byKey(const Key('delete_all'));
+  final Finder _popupMenuButton = find.byKey(const Key('popup_menu'));
+  final Finder _protectedDataButton =
       find.byKey(const Key('is_protected_data_available'));
 
   Future<void> deleteAll() async {
-    expect(_popUpMenuButtonFinder, findsOneWidget);
-    await tester.tap(_popUpMenuButtonFinder);
-    await tester.pumpAndSettle();
-
-    expect(_deleteAllButtonFinder, findsOneWidget);
-    await tester.tap(_deleteAllButtonFinder);
-    await tester.pumpAndSettle();
+    await _tap(_popupMenuButton);
+    await _tap(_deleteAllButton);
   }
 
-  Future<void> addRandom() async {
-    expect(_addRandomButtonFinder, findsOneWidget);
-    await tester.tap(_addRandomButtonFinder);
-    await tester.pumpAndSettle();
+  Future<void> addRandomRow() async {
+    await _tap(_addRandomButton);
   }
 
-  Future<void> editRow(String title, int index) async {
-    final popupRow = find.byKey(Key('popup_row_$index'));
-    expect(popupRow, findsOneWidget);
-    await tester.tap(popupRow);
+  Future<void> editValue(String newValue, int index) async {
+    await _tap(find.byKey(Key('popup_row_$index')));
+    await _tap(find.byKey(Key('edit_row_$index')));
+
+    final textField = find.byKey(const Key('value_field'));
+    expect(textField, findsOneWidget, reason: 'Value text field not found');
+    await tester.enterText(textField, newValue);
     await tester.pumpAndSettle();
 
-    final editRow = find.byKey(Key('edit_row_$index'));
-    expect(editRow, findsOneWidget);
-    await tester.tap(editRow);
-    await tester.pumpAndSettle();
-
-    final textFieldFinder = find.byKey(const Key('title_field'));
-    expect(textFieldFinder, findsOneWidget);
-    await tester.tap(textFieldFinder);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(textFieldFinder, title);
-    await tester.pumpAndSettle();
-
-    final saveButtonFinder = find.byKey(const Key('save'));
-    expect(saveButtonFinder, findsOneWidget);
-    await tester.tap(saveButtonFinder);
-    await tester.pumpAndSettle();
-  }
-
-  void rowHasTitle(String title, int index) {
-    final titleRow = find.byKey(Key('title_row_$index'));
-    expect(titleRow, findsOneWidget);
-    expect((titleRow.evaluate().single.widget as Text).data, equals(title));
-  }
-
-  void hasRow(int index) {
-    expect(find.byKey(Key('title_row_$index')), findsOneWidget);
+    await _tap(find.byKey(const Key('save')));
   }
 
   Future<void> deleteRow(int index) async {
-    final popupRow = find.byKey(Key('popup_row_$index'));
-    expect(popupRow, findsOneWidget);
-    await tester.tap(popupRow);
-    await tester.pumpAndSettle();
-
-    final deleteRow = find.byKey(Key('delete_row_$index'));
-    expect(deleteRow, findsOneWidget);
-    await tester.tap(deleteRow);
-    await tester.pumpAndSettle();
+    await _tap(find.byKey(Key('popup_row_$index')));
+    await _tap(find.byKey(Key('delete_row_$index')));
   }
 
-  void hasNoRow(int index) {
-    expect(find.byKey(Key('title_row_$index')), findsNothing);
+  Future<void> checkProtectedDataAvailability() async {
+    await _tap(_popupMenuButton);
+    await _tap(_protectedDataButton);
   }
 
-  Future<void> isProtectedDataAvailable() async {
-    expect(_popUpMenuButtonFinder, findsOneWidget);
-    await tester.tap(_popUpMenuButtonFinder);
+  Future<void> containsKeyForRow(
+    int index, {
+    required bool expectedResult,
+  }) async {
+    await _tap(find.byKey(Key('popup_row_$index')));
+    await _tap(find.byKey(Key('contains_row_$index')));
+
+    final keyFinder = find.byKey(Key('key_row_$index'));
+    expect(keyFinder, findsOneWidget, reason: 'Row $index not found');
+    final keyWidget = tester.widget<Text>(keyFinder);
+
+    // Enter key in the dialog
+    final textField = find.byKey(const Key('key_field'));
+    expect(textField, findsOneWidget);
+    await tester.enterText(textField, keyWidget.data!);
     await tester.pumpAndSettle();
 
-    expect(_isProtectedDataAvailableButtonFinder, findsOneWidget);
-    await tester.tap(_isProtectedDataAvailableButtonFinder);
+    // Confirm the action
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // Verify the SnackBar message
+    final expectedText = 'Contains Key: $expectedResult';
+    expect(find.textContaining(expectedText), findsOneWidget);
+  }
+
+  Future<void> readValueForRow(
+    int index, {
+    required String expectedValue,
+  }) async {
+    await _tap(find.byKey(Key('popup_row_$index')));
+    await _tap(find.byKey(Key('read_row_$index')));
+
+    final keyFinder = find.byKey(Key('key_row_$index'));
+    expect(keyFinder, findsOneWidget, reason: 'Row $index not found');
+    final keyWidget = tester.widget<Text>(keyFinder);
+
+    // Enter key in the dialog
+    final textField = find.byKey(const Key('key_field'));
+    expect(textField, findsOneWidget);
+    await tester.enterText(textField, keyWidget.data!);
+    await tester.pumpAndSettle();
+
+    // Confirm the action
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // Verify the SnackBar message
+    expect(find.text('value: $expectedValue'), findsOneWidget);
+  }
+
+  void verifyValue(String expectedValue, int index) {
+    final valueFinder = find.byKey(Key('value_row_$index'));
+    expect(valueFinder, findsOneWidget, reason: 'Row $index not found');
+    final textWidget = tester.widget<Text>(valueFinder);
+    expect(
+      textWidget.data,
+      equals(expectedValue),
+      reason: 'Expected "$expectedValue" but found "${textWidget.data}" in row '
+          '$index',
+    );
+  }
+
+  void verifyRowExists(int index) {
+    expect(
+      find.byKey(Key('value_row_$index')),
+      findsOneWidget,
+      reason: 'Expected row $index to exist',
+    );
+  }
+
+  void verifyRowDoesNotExist(int index) {
+    expect(
+      find.byKey(Key('value_row_$index')),
+      findsNothing,
+      reason: 'Expected row $index to be absent',
+    );
+  }
+
+  Future<void> _tap(Finder finder) async {
+    expect(
+      finder,
+      findsOneWidget,
+      reason: 'Widget not found for tapping: $finder',
+    );
+    await tester.tap(finder);
     await tester.pumpAndSettle();
   }
 }

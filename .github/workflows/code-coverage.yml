@@ -1,0 +1,66 @@
+name: 📊 Code Coverage
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  test_with_coverage:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: flutter_secure_storage
+
+    steps:
+      # Checkout the Repository
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # Setup Flutter SDK with Cache
+      - name: ⚡ Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Cache Pub Dependencies
+      - name: 📦 Cache Pub Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            flutter_secure_storage/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # Install Project Dependencies
+      - name: 🚀 Install Dependencies
+        run: flutter pub get
+
+      # Run Tests with Code Coverage
+      - name: ✅ Run Unit Tests with Coverage
+        run: flutter test --coverage
+
+      # Upload Coverage Report as Artifact
+      - name: 📊 Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+
+      # Upload Coverage to Codecov
+      - name: ☁️ Upload Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: unittests
+          name: codecov-flutter
+          fail_ci_if_error: true

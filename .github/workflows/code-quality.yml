@@ -1,0 +1,78 @@
+name: 📝 Code Quality
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  analysis:
+    name: 🔍 Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚡ Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 🔍 Flutter Version Info
+        run: flutter doctor -v
+
+      - name: 📦 Cache Pub Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: 🚀 Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: 🔧 Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: ✅ Lint Code
+        run: melos analyze
+
+  formatting:
+    name: 🎨 Formatting
+    needs: analysis  # This makes formatting start after analysis is complete
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚡ Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 🚀 Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: 🔧 Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: 🎯 Check Code Formatting
+        run: melos format --output none --set-exit-if-changed

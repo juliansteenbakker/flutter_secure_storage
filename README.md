@@ -1,9 +1,10 @@
 # flutter_secure_storage
 
-[![Pub](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
-[![style: lint](https://img.shields.io/badge/style-lint-4BC0F5.svg)](https://pub.dev/packages/lint)
-[![flutter_secure_storage](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter.yml)
-[![flutter_secure_storage](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter_drive.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/flutter_drive.yml)
+[![Pub Version](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
+[![Pub Version Prerelease](https://img.shields.io/pub/v/flutter_secure_storage.svg?include_prereleases)](https://pub.dev/packages/flutter_secure_storage)
+[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml)
+[![Code Quality: Very Good Analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
+[![Codecov](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage/graph/badge.svg?token=UUVTJ6MS4A)](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
 
 A Flutter plugin to securely store sensitive data in a key-value pair format using platform-specific secure storage solutions. It supports Android, iOS, macOS, Windows, and Linux.

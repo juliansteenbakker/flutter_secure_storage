@@ -1,0 +1,63 @@
+name: 📱 Code Integration
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Android Integration Tests
+  integration_tests_android:
+    name: 🤖 Android Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Melos
+        run: flutter pub global activate melos
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          script: flutter test integration_test
+          working-directory: flutter_secure_storage/example
+
+  # iOS Integration Tests
+  integration_tests_ios:
+    name: 🍏 iOS Tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Melos
+        run: flutter pub global activate melos
+      - uses: futureware-tech/simulator-action@v4
+        with:
+          os: iOS
+          os_version: ">=18.1"
+          model: "iPhone 15"
+      - run: flutter test integration_test
+        working-directory: flutter_secure_storage/example
