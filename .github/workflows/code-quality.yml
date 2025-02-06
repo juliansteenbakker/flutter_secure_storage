@@ -1,9 +1,6 @@
 name: 📝 Code Quality
 
-on:
-  push:
-    branches: [master, develop]
-  pull_request:
+on: [push, pull_request]
 
 defaults:
   run:

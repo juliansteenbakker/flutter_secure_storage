@@ -1,5 +1,7 @@
 library;
 
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
@@ -73,6 +75,11 @@ class FlutterSecureStorage {
 
   FlutterSecureStoragePlatform get _platform =>
       FlutterSecureStoragePlatform.instance;
+
+  /// Returns all listeners for testing purposes
+  @visibleForTesting
+  Map<String, List<ValueChanged<String?>>> get getListeners =>
+      UnmodifiableMapView(_listeners);
 
   /// Register [listener] for [key] with the value injected for the listener.
   /// The [listener] will still be called when you delete the [key] with the

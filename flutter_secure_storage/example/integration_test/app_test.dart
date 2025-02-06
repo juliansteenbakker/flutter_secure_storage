@@ -78,9 +78,11 @@ void main() {
   });
 }
 
+Duration duration = const Duration(milliseconds: 300);
+
 Future<HomePageObject> _setupHomePage(WidgetTester tester) async {
   await tester.pumpWidget(const MaterialApp(home: HomePage()));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(duration);
   final pageObject = HomePageObject(tester);
   await pageObject.deleteAll();
   return pageObject;
@@ -112,7 +114,7 @@ class HomePageObject {
     final textField = find.byKey(const Key('value_field'));
     expect(textField, findsOneWidget, reason: 'Value text field not found');
     await tester.enterText(textField, newValue);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
 
     await _tap(find.byKey(const Key('save')));
   }
@@ -142,11 +144,11 @@ class HomePageObject {
     final textField = find.byKey(const Key('key_field'));
     expect(textField, findsOneWidget);
     await tester.enterText(textField, keyWidget.data!);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
 
     // Confirm the action
     await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
 
     // Verify the SnackBar message
     final expectedText = 'Contains Key: $expectedResult';
@@ -168,11 +170,11 @@ class HomePageObject {
     final textField = find.byKey(const Key('key_field'));
     expect(textField, findsOneWidget);
     await tester.enterText(textField, keyWidget.data!);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
 
     // Confirm the action
     await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
 
     // Verify the SnackBar message
     expect(find.text('value: $expectedValue'), findsOneWidget);
@@ -213,6 +215,6 @@ class HomePageObject {
       reason: 'Widget not found for tapping: $finder',
     );
     await tester.tap(finder);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(duration);
   }
 }
