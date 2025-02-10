@@ -156,7 +156,7 @@ You need the C++ ATL libraries installed along with the rest of Visual Studio Bu
 
 ### Linux
 
-You need `libsecret-1-dev` and `libjsoncpp-dev` on your machine to build the project, and `libsecret-1-0` and `libjsoncpp1` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
+You need `libsecret-1-dev` on your machine to build the project, and `libsecret-1-0` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
 
 ```yaml
 parts:
@@ -166,10 +166,8 @@ parts:
     flutter-target: lib/main.dart
     build-packages:
       - libsecret-1-dev
-      - libjsoncpp-dev
     stage-packages:
       - libsecret-1-0
-      - libjsoncpp-dev
 ```
 
 Apart from `libsecret` you also need a keyring service, for that you need either `gnome-keyring` (for Gnome users) or `ksecretsservice` (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
