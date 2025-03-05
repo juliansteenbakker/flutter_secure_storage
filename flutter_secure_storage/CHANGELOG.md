@@ -1,3 +1,8 @@
+## 10.0.1
+* Enabled StrongBox by default, use fallback if it's not available.
+
+# Before fork
+
 ## 10.0.0-beta.4
 * [Apple] Merged ios and macos implementation into a new package flutter_secure_storage_darwin
 * [Apple] Refactored code and added missing options
