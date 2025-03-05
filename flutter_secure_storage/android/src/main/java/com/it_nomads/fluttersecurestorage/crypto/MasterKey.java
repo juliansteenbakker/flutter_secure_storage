@@ -264,8 +264,8 @@ public final class MasterKey {
          * @return The master key.
          */
         @NonNull
-        public MasterKey build() throws GeneralSecurityException, IOException {
-            return Api23Impl.build(this);
+        public MasterKey build(boolean isStrongBoxBacked) throws GeneralSecurityException, IOException {
+            return Api23Impl.build(this, isStrongBoxBacked);
         }
 
         static class Api23Impl {
@@ -277,7 +277,7 @@ public final class MasterKey {
                 return keyGenParameterSpec.getKeystoreAlias();
             }
             @SuppressWarnings("deprecation")
-            static MasterKey build(Builder builder) throws GeneralSecurityException, IOException {
+            static MasterKey build(Builder builder, boolean isStrongBoxBacked) throws GeneralSecurityException, IOException {
                 if (builder.mKeyScheme == null && builder.mKeyGenParameterSpec == null) {
                     throw new IllegalArgumentException("build() called before "
                             + "setKeyGenParameterSpec or setKeyScheme.");
@@ -289,6 +289,9 @@ public final class MasterKey {
                             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                             .setKeySize(DEFAULT_AES_GCM_MASTER_KEY_SIZE);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isStrongBoxBacked) {
+                        keyGenBuilder.setIsStrongBoxBacked(true);
+                    }
                     if (builder.mAuthenticationRequired) {
                         keyGenBuilder.setUserAuthenticationRequired(true);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
