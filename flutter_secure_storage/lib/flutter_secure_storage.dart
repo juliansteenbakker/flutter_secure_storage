@@ -344,9 +344,13 @@ class FlutterSecureStorage {
     });
   }
 
-  Future<bool> isStrongBoxSupported() async {
+  Future<bool> isStrongBoxSupported({
+    AndroidOptions? aOptions,
+  }) async {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return await _platform.isStrongBoxSupported();
+      return _platform.isStrongBoxSupported(
+        options: aOptions?.params ?? this.aOptions.params,
+      );
     } else {
       throw UnsupportedError(_unsupportedPlatform);
     }

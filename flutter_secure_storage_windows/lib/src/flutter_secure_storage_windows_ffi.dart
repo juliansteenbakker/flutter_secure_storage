@@ -180,7 +180,9 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   }
 
   @override
-  Future<bool> isStrongBoxSupported() async {
+  Future<bool> isStrongBoxSupported({
+    required Map<String, String> options,
+  }) async {
     throw UnsupportedError(
       'isStrongBoxSupported() is not available on this platform',
     );
