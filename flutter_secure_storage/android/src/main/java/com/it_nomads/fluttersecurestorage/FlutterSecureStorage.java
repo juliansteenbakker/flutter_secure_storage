@@ -129,7 +129,7 @@ public class FlutterSecureStorage {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     if (cause instanceof StrongBoxUnavailableException && !isOnlyStrongBoxAllowed) {
                         // Fallback to not using Strongbox
-                        return getEncryptedSharedPreferences(deleteOnFailure, options, context, sharedPreferencesName, false);
+                        return getEncryptedSharedPreferences(deleteOnFailure, options, context, sharedPreferencesName, false, isOnlyStrongBoxAllowed);
                     }
                 }
             }
