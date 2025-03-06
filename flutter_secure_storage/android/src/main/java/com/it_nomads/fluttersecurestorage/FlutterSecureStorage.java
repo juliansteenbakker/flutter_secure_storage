@@ -94,40 +94,6 @@ public class FlutterSecureStorage {
     public void deleteAll() {
         encryptedPreferences.edit().clear().apply();
     }
-
-    public boolean isStrongBoxAvailable() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                // Check if the device supports StrongBox
-                KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-                keyStore.load(null);
-    
-                String keyAlias = "strongboxCheck";
-                KeyGenParameterSpec keyGenParameterSpec = new KeyGenParameterSpec.Builder(keyAlias,
-                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setKeySize(256)
-                        .build();
-    
-                KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-                keyGenerator.init(keyGenParameterSpec);
-                keyGenerator.generateKey();
-    
-                // Check if the key was generated in StrongBox
-                KeyInfo keyInfo = (KeyInfo) KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-                        .getKeySpec(keyGenerator.generateKey(), KeyInfo.class);
-    
-                return keyInfo.isInsideStrongBox();
-    
-            } catch (Exception e) {
-                Log.e(TAG, "StrongBox check failed", e);
-                return false;
-            }
-        }
-    
-        return false;
-    }
     
 
     public Map<String, String> readAll() {

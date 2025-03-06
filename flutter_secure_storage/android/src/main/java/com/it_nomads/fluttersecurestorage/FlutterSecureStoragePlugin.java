@@ -1,5 +1,6 @@
 package com.it_nomads.fluttersecurestorage;
 
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -24,6 +25,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
     private FlutterPluginBinding binding;
+    private boolean isStrongBoxAvailable;
 
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
@@ -52,6 +54,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         if (secureStorage != null) return true;
 
         try {
+            isStrongBoxAvailable = getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE);
             secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options);
             return true;
         } catch (Exception e) {
@@ -168,7 +171,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         }
 
         private void handleStrongBoxAvailable(Result result) {
-            result.success(secureStorage.isStrongBoxAvailable());
+            result.success(isStrongBoxAvailable);
         }
 
         @SuppressWarnings("unchecked")
