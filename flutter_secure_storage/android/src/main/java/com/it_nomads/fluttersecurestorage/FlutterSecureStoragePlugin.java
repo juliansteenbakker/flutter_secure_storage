@@ -54,7 +54,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         if (secureStorage != null) return true;
 
         try {
-            isStrongBoxAvailable = getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE);
+            isStrongBoxAvailable = binding.getApplicationContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE);
             secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options);
             return true;
         } catch (Exception e) {
