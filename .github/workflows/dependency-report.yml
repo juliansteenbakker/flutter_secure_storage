@@ -1,0 +1,12 @@
+name: Dependency Report Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dependency-report:
+    uses: QuickBirdEng/workflows/.github/workflows/vulnerability-and-outdated-packages-report.yml@main
+    with:
+      flutter-working-directory: flutter_secure_storage
+      flutter-report: true
+    secrets: inherit
