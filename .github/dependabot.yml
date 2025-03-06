@@ -1,20 +1,24 @@
 version: 2
+enable-beta-ecosystems: true
+
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+  - package-ecosystem: "pub"
+    directory: "/flutter_secure_storage"
     reviewers:
-      - "juliansteenbakker"
-  - package-ecosystem: gradle
-    directory: "flutter_secure_storage/android"
+      - "westracer"
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
-  - package-ecosystem: gradle
-    directory: "flutter_secure_storage/example/android"
+      interval: "daily"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "pub"
+  - package-ecosystem: "gradle"
+    directory: "/flutter_secure_storage/android"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     reviewers:
-      - "juliansteenbakker"
+      - "westracer"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "maven"
