@@ -27,10 +27,12 @@ class AndroidOptions extends Options {
         StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
+    bool onlyAllowStrongBox = false,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _keyCipherAlgorithm = keyCipherAlgorithm,
-        _storageCipherAlgorithm = storageCipherAlgorithm;
+        _storageCipherAlgorithm = storageCipherAlgorithm,
+        _onlyAllowStrongBox = onlyAllowStrongBox;
 
   /// EncryptedSharedPrefences are only available on API 23 and greater
   final bool _encryptedSharedPreferences;
@@ -70,6 +72,12 @@ class AndroidOptions extends Options {
   /// WARNING: If you change this you can't retrieve already saved preferences.
   final String? preferencesKeyPrefix;
 
+  /// If true, only allow keys to be stored in StrongBox backed keymaster.
+  /// This option is only available on API 28 and greater. If set to true some phones might now work
+  /// Defaults to false.
+  /// https://developer.android.com/training/articles/keystore#HardwareSecurityModule
+  final bool _onlyAllowStrongBox;
+
   static const AndroidOptions defaultOptions = AndroidOptions();
 
   @override
@@ -80,6 +88,7 @@ class AndroidOptions extends Options {
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
         'sharedPreferencesName': sharedPreferencesName ?? '',
         'preferencesKeyPrefix': preferencesKeyPrefix ?? '',
+        'onlyAllowStrongBox': '$_onlyAllowStrongBox',
       };
 
   AndroidOptions copyWith({
@@ -89,6 +98,7 @@ class AndroidOptions extends Options {
     StorageCipherAlgorithm? storageCipherAlgorithm,
     String? preferencesKeyPrefix,
     String? sharedPreferencesName,
+    bool? onlyAllowStrongBox,
   }) =>
       AndroidOptions(
         encryptedSharedPreferences:
@@ -99,5 +109,6 @@ class AndroidOptions extends Options {
             storageCipherAlgorithm ?? _storageCipherAlgorithm,
         sharedPreferencesName: sharedPreferencesName,
         preferencesKeyPrefix: preferencesKeyPrefix,
+        onlyAllowStrongBox: onlyAllowStrongBox ?? _onlyAllowStrongBox,
       );
 }

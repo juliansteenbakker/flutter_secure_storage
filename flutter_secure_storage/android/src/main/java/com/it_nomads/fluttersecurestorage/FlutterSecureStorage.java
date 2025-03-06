@@ -33,6 +33,7 @@ public class FlutterSecureStorage {
     private static final String PREF_OPTION_PREFIX = "preferencesKeyPrefix";
     private static final String PREF_OPTION_DELETE_ON_FAILURE = "resetOnError";
     private static final String PREF_KEY_MIGRATED = "preferencesMigrated";
+    private static final String PREF_OPTION_ONLY_ALLOW_STRONGBOX = "onlyAllowStrongBox";
     @NonNull
     private final SharedPreferences encryptedPreferences;
     @NonNull
@@ -63,7 +64,15 @@ public class FlutterSecureStorage {
             }
         }
 
-        encryptedPreferences = getEncryptedSharedPreferences(deleteOnFailure, options, context.getApplicationContext(), sharedPreferencesName, true);
+        boolean onlyAllowStrongbox = false;
+         if (options.containsKey(PREF_OPTION_ONLY_ALLOW_STRONGBOX)) {
+            var value = options.get(PREF_OPTION_ONLY_ALLOW_STRONGBOX);
+            if (value instanceof String) {
+                onlyAllowStrongbox = Boolean.parseBoolean((String) value);
+            }
+        }
+
+        encryptedPreferences = getEncryptedSharedPreferences(deleteOnFailure, options, context.getApplicationContext(), sharedPreferencesName, true, onlyAllowStrongbox);
     }
 
     public boolean containsKey(String key) {
@@ -104,7 +113,7 @@ public class FlutterSecureStorage {
         return preferencesKeyPrefix + "_" + key;
     }
 
-    private SharedPreferences getEncryptedSharedPreferences(boolean deleteOnFailure, Map<String, Object> options, Context context, String sharedPreferencesName, boolean isStrongBoxBacked) throws GeneralSecurityException, IOException {
+    private SharedPreferences getEncryptedSharedPreferences(boolean deleteOnFailure, Map<String, Object> options, Context context, String sharedPreferencesName, boolean isStrongBoxBacked, boolean isOnlyStrongBoxAllowed) throws GeneralSecurityException, IOException {
         try {
             final SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName, isStrongBoxBacked);
             boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
@@ -117,7 +126,7 @@ public class FlutterSecureStorage {
                 Throwable cause = e.getCause();
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    if (cause instanceof StrongBoxUnavailableException) {
+                    if (cause instanceof StrongBoxUnavailableException && !isOnlyStrongBoxAllowed) {
                         // Fallback to not using Strongbox
                         return getEncryptedSharedPreferences(deleteOnFailure, options, context, sharedPreferencesName, false);
                     }
