@@ -121,12 +121,14 @@ abstract class FlutterSecureStoragePlatform extends PlatformInterface {
     required Map<String, String> options,
   });
 
-
   /// Checks if the android device supports secure hardware-backed storage.
-  /// 
+  ///
   /// Returns:
-  /// - A [Future] that resolves to `true` if the device supports secure hardware-backed storage, or `false` otherwise.
+  /// - A [Future] that resolves to `true` if the device supports secure
+  /// hardware-backed storage, or `false` otherwise.
   Future<bool> isStrongBoxSupported() {
-    throw UnsupportedError('isStrongBoxSupported() is not available on this platform');
+    throw UnsupportedError(
+      'isStrongBoxSupported() is not available on this platform',
+    );
   }
 }
