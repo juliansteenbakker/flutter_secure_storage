@@ -123,6 +123,9 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                 case "deleteAll":
                     handleDeleteAll(result);
                     break;
+                case "isStrongBoxSupported":
+                    handleStrongBoxAvailable(result);
+                    break;
                 default:
                     result.notImplemented();
             }
@@ -162,6 +165,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         private void handleDeleteAll(Result result) {
             secureStorage.deleteAll();
             result.success(null);
+        }
+
+        private void handleStrongBoxAvailable(Result result) {
+            result.success(secureStorage.isStrongBoxAvailable());
         }
 
         @SuppressWarnings("unchecked")
