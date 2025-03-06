@@ -344,6 +344,7 @@ class FlutterSecureStorage {
     });
   }
 
+  /// [aOptions] optional Android options
   Future<bool> isStrongBoxSupported({
     AndroidOptions? aOptions,
   }) async {
