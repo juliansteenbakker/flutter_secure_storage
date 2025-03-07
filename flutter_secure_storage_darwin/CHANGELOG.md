@@ -1,3 +1,6 @@
+## 0.1.1
+ - Fix warnings with Privacy Manifest
+
 ## 0.1.0
 This package combines flutter_secure_storage_macos together with the ios part of flutter_secure_storage.
 
