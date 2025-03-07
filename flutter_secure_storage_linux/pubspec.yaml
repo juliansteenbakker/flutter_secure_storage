@@ -14,7 +14,7 @@ dependencies:
     git:
       url: git@github.com:QuickBirdEng/flutter_secure_storage.git
       path: flutter_secure_storage_platform_interface
-      ref: strongbox-enabled
+      ref: develop
 
 flutter:
   plugin:
