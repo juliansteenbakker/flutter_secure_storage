@@ -49,6 +49,15 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   }) =>
       Future.value();
 
+  @override
+  Future<bool> isStrongBoxSupported({
+    required Map<String, String> options,
+  }) async {
+    throw UnsupportedError(
+      'isStrongBoxSupported() is not available on this platform',
+    );
+  }
+
   // @override
   // Future<bool> isCupertinoProtectedDataAvailable() => Future.value(true);
   //

@@ -114,4 +114,20 @@ class MethodChannelFlutterSecureStorage extends FlutterSecureStoragePlatform {
         'value': value,
         'options': options,
       });
+
+  @override
+  Future<bool> isStrongBoxSupported({
+    required Map<String, String> options,
+  }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      throw UnsupportedError('StrongBox is only supported on Android.');
+    }
+    return (await _channel.invokeMethod<bool>(
+          'isStrongBoxSupported',
+          {
+            'options': options,
+          },
+        )) ??
+        false;
+  }
 }

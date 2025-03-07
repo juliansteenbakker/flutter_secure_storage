@@ -1,3 +1,10 @@
+## 10.0.1
+* Enabled StrongBox by default, use fallback if it's not available.
+* [Android] Allow to force StrongBox with a flag (onlyAllowStrongBox)
+* [Android] Method to check if an Android device supports Strongbox
+
+# Before fork
+
 ## 10.0.0-beta.4
 * [Apple] Merged ios and macos implementation into a new package flutter_secure_storage_darwin
 * [Apple] Refactored code and added missing options

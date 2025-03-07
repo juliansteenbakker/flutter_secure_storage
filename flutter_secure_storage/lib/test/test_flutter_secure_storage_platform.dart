@@ -52,4 +52,10 @@ class TestFlutterSecureStoragePlatform extends FlutterSecureStoragePlatform {
     required Map<String, String> options,
   }) async =>
       data[key] = value;
+
+  @override
+  Future<bool> isStrongBoxSupported({
+    required Map<String, String> options,
+  }) async =>
+      true;
 }

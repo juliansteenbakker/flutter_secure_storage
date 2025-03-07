@@ -178,6 +178,15 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
       await _backwardCompatible.delete(key: key, options: options);
     }
   }
+
+  @override
+  Future<bool> isStrongBoxSupported({
+    required Map<String, String> options,
+  }) async {
+    throw UnsupportedError(
+      'isStrongBoxSupported() is not available on this platform',
+    );
+  }
 }
 
 /// Creates a custom instance of `FlutterSecureStorageWindows` for testing.
