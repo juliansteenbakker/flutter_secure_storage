@@ -1,7 +1,6 @@
 package com.it_nomads.fluttersecurestorage;
 
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.Looper;
 
 import androidx.annotation.NonNull;
@@ -10,6 +9,8 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.plugin.common.MethodCall;
@@ -21,16 +22,15 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
     private MethodChannel channel;
     private FlutterSecureStorage secureStorage;
-    private HandlerThread workerThread;
-    private Handler workerThreadHandler;
+    private ExecutorService executor;
     private FlutterPluginBinding binding;
 
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
         this.binding = binding;
-        workerThread = new HandlerThread("fluttersecurestorage.worker");
-        workerThread.start();
-        workerThreadHandler = new Handler(workerThread.getLooper());
+        int threadCount = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+        this.executor = Executors.newFixedThreadPool(threadCount);
+
         channel = new MethodChannel(binding.getBinaryMessenger(), "plugins.it_nomads.com/flutter_secure_storage");
         channel.setMethodCallHandler(this);
     }
@@ -38,12 +38,12 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
         if (channel != null) {
-            if (workerThread != null) {
-                workerThread.quitSafely();
-                workerThread = null;
-            }
             channel.setMethodCallHandler(null);
             channel = null;
+        }
+        if (executor != null) {
+            executor.shutdown();
+            executor = null;
         }
         secureStorage = null;
     }
@@ -69,7 +69,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result rawResult) {
         MethodResultWrapper result = new MethodResultWrapper(rawResult);
-        workerThreadHandler.post(new MethodRunner(call, result));
+        executor.execute(new MethodRunner(call, result));
     }
 
     class MethodRunner implements Runnable {
