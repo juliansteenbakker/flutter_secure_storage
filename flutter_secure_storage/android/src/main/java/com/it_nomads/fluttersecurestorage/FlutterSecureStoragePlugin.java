@@ -28,7 +28,8 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
         this.binding = binding;
-        int threadCount = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+        int availableCores = Runtime.getRuntime().availableProcessors();
+        int threadCount = Math.min(4, Math.max(2, availableCores));
         this.executor = Executors.newFixedThreadPool(threadCount);
 
         channel = new MethodChannel(binding.getBinaryMessenger(), "plugins.it_nomads.com/flutter_secure_storage");
