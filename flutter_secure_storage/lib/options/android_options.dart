@@ -27,6 +27,9 @@ class AndroidOptions extends Options {
         StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
+    this.biometricPromptTitle,
+    this.biometricPromptSubtitle,
+    this.shouldUseBiometrics = false,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _keyCipherAlgorithm = keyCipherAlgorithm,
@@ -70,6 +73,10 @@ class AndroidOptions extends Options {
   /// WARNING: If you change this you can't retrieve already saved preferences.
   final String? preferencesKeyPrefix;
 
+  final String? biometricPromptTitle;
+  final String? biometricPromptSubtitle;
+  final bool shouldUseBiometrics;
+
   static const AndroidOptions defaultOptions = AndroidOptions();
 
   @override
@@ -80,6 +87,12 @@ class AndroidOptions extends Options {
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
         'sharedPreferencesName': sharedPreferencesName ?? '',
         'preferencesKeyPrefix': preferencesKeyPrefix ?? '',
+        'biometricPromptTitle': biometricPromptTitle ??
+            'Authenticate to access',
+        'biometricPromptSubtitle': biometricPromptSubtitle ??
+            'Use biometrics or device credentials',
+        'shouldUseBiometrics': '$shouldUseBiometrics',
+
       };
 
   AndroidOptions copyWith({

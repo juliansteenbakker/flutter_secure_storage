@@ -3,6 +3,7 @@ package com.it_nomads.fluttersecurestorage;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.security.keystore.UserNotAuthenticatedException;
 
 import androidx.annotation.NonNull;
 
@@ -19,11 +20,11 @@ import io.flutter.plugin.common.MethodChannel.Result;
 
 public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlugin {
 
+    private FlutterPluginBinding binding;
     private MethodChannel channel;
     private FlutterSecureStorage secureStorage;
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
-    private FlutterPluginBinding binding;
 
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
@@ -48,22 +49,20 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         secureStorage = null;
     }
 
-    private boolean initSecureStorage(Result result, Map<String, Object> options) {
-        if (secureStorage != null) return true;
-
-        try {
-            secureStorage = new FlutterSecureStorage(binding.getApplicationContext(), options);
-            return true;
-        } catch (Exception e) {
-            if (result != null) {
-                result.error(
-                        "RESET_FAILED",  // Error code
-                        "Failed to reset and initialize encrypted preferences", // Error message
-                        e.toString()     // Details (stack trace or additional info)
-                );
-            }
-            return false;
+    public void initSecureStorage(Map<String, Object> options, SecureStorageInitCallback callback) {
+        if (secureStorage != null) {
+            callback.onComplete(secureStorage, null);
+            return;
         }
+
+        FlutterSecureStorage.create(binding.getApplicationContext(), options, (initializedStorage, exception) -> {
+            if (initializedStorage != null) {
+                secureStorage = initializedStorage;
+                callback.onComplete(secureStorage, null);
+            } else {
+                callback.onComplete(null, exception);
+            }
+        });
     }
 
     @Override
@@ -101,31 +100,39 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
             Map<String, Object> options = extractMapFromObject(arguments.get("options"));
 
-            boolean isInitialized = initSecureStorage(result, options);
-            if (!isInitialized) return;
+            initSecureStorage(options, (secureStorage, exception) -> {
+                if (secureStorage == null) {
+                    String code = "INIT_FAILED";
+                    if (exception instanceof UserNotAuthenticatedException) {
+                        code = "AUTHENTICATION_FAILED";
+                    }
+                    result.error(code, exception.getMessage(), null);
+                    return;
+                }
 
-            switch (method) {
-                case "write":
-                    handleWrite(arguments, result);
-                    break;
-                case "read":
-                    handleRead(arguments, result);
-                    break;
-                case "readAll":
-                    handleReadAll(result);
-                    break;
-                case "containsKey":
-                    handleContainsKey(arguments, result);
-                    break;
-                case "delete":
-                    handleDelete(arguments, result);
-                    break;
-                case "deleteAll":
-                    handleDeleteAll(result);
-                    break;
-                default:
-                    result.notImplemented();
-            }
+                switch (method) {
+                    case "write":
+                        handleWrite(arguments, result);
+                        break;
+                    case "read":
+                        handleRead(arguments, result);
+                        break;
+                    case "readAll":
+                        handleReadAll(result);
+                        break;
+                    case "containsKey":
+                        handleContainsKey(arguments, result);
+                        break;
+                    case "delete":
+                        handleDelete(arguments, result);
+                        break;
+                    case "deleteAll":
+                        handleDeleteAll(result);
+                        break;
+                    default:
+                        result.notImplemented();
+                }
+            });
         }
 
         private void handleWrite(Map<String, Object> args, Result result) {
