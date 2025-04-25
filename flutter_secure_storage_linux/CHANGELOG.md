@@ -1,3 +1,6 @@
+## 1.2.3
+- Adds application ID to cmake file
+
 ## 1.2.2
 - Fix json.dump with indentations 
 
