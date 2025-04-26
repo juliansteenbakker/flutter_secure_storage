@@ -31,7 +31,8 @@ dependencies:
   # implementation constraints as "any". We cannot do it right now as it fails pub publish
   # validation, so we set a ^ constraint.
   # https://github.com/flutter/flutter/issues/46264
-  flutter_secure_storage_darwin: ^0.1.0
+  flutter_secure_storage_darwin: #^0.1.0
+    path: '../flutter_secure_storage_darwin'
   flutter_secure_storage_linux: ^2.0.0
   flutter_secure_storage_platform_interface: ^2.0.1
   flutter_secure_storage_web: ^2.0.0
