@@ -58,6 +58,11 @@ class RSACipher18Implementation implements KeyCipher {
         return cipher.unwrap(wrappedKey, algorithm, Cipher.SECRET_KEY);
     }
 
+    @Override
+    public Cipher getCipher(Context context) {
+        return null;
+    }
+
     private PrivateKey getPrivateKey() throws Exception {
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
         ks.load(null);

@@ -21,7 +21,7 @@ public class StorageCipher18Implementation implements StorageCipher {
     private final SecureRandom secureRandom;
     private Key secretKey;
 
-    public StorageCipher18Implementation(Context context, KeyCipher rsaCipher) throws Exception {
+    public StorageCipher18Implementation(Context context, KeyCipher rsaCipher, Cipher cipherr) throws Exception {
         secureRandom = new SecureRandom();
         String aesPreferencesKey = getAESPreferencesKey();
 

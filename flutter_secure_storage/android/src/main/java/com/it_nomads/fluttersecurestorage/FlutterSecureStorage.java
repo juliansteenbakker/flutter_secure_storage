@@ -8,13 +8,12 @@ import android.os.Build;
 import android.os.CancellationSignal;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
-import android.security.keystore.UserNotAuthenticatedException;
 import android.util.Base64;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
+import com.it_nomads.fluttersecurestorage.ciphers.BiometricCallback;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipher;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipherFactory;
 import com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences;
@@ -24,271 +23,311 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.KeyStoreException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+import javax.crypto.Cipher;
+
 public class FlutterSecureStorage {
 
     private static final String TAG = "FlutterSecureStorage";
-    private static final Charset CHARSET = StandardCharsets.UTF_8;
-    private static final String PREF_KEY_MIGRATED = "preferencesMigrated";
+    private static final Charset charset = StandardCharsets.UTF_8;
+    private String SHARED_PREFERENCES_NAME = "FlutterSecureStorage1";
 
     @NonNull
-    private final FlutterSecureStorageConfig config;
+    private FlutterSecureStorageConfig config;
     @NonNull
     private final Context context;
 
-    private SharedPreferences encryptedPreferences;
+    protected String ELEMENT_PREFERENCES_KEY_PREFIX = "VGhpcyBpcyB0aGUgcHJlZml4IGZvciBhIHNlY3VyZSBzdG9yYWdlCg";
+    protected Map<String, Object> options;
 
-    private FlutterSecureStorage(@NonNull Context context, Map<String, Object> options) {
-        this.context = context;
+    private SharedPreferences preferences;
+    private StorageCipher storageCipher;
+    private StorageCipherFactory storageCipherFactory;
+
+    public FlutterSecureStorage(Context context, Map<String, Object> options) {
+        this.options = options;
+        this.context = context.getApplicationContext();
         this.config = new FlutterSecureStorageConfig(options);
     }
 
-    public static void create(@NonNull Context context, Map<String, Object> options, SecureStorageInitCallback callback) {
-        FlutterSecureStorage storage = new FlutterSecureStorage(context, options);
+    public String addPrefixToKey(String key) {
+        return ELEMENT_PREFERENCES_KEY_PREFIX + "_" + key;
+    }
 
-        storage.authenticateIfNeeded(() -> {
-            try {
-                SharedPreferences encryptedPreferences = storage.initializeEncryptedSharedPreferencesManager(storage.config.getSharedPreferencesName());
-                boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
-                if (!migrated) {
-                    storage.migrateToEncryptedPreferences(storage.config.getSharedPreferencesName(), encryptedPreferences, storage.config.shouldDeleteOnFailure(), options);
-                }
+    public boolean containsKey(String key) {
+        return preferences.contains(key);
+    }
 
-                Log.d(TAG, "Encrypted preferences initialized successfully.");
-                storage.encryptedPreferences = encryptedPreferences;
-                callback.onComplete(storage, null);  // Initialization successful
+    public String read(String key) throws Exception {
+        String rawValue = preferences.getString(key, null);
+        if (config.isUseEncryptedSharedPreferences()) {
+            return rawValue;
+        }
+        return decodeRawValue(rawValue);
+    }
 
-             } catch (KeyStoreException | UserNotAuthenticatedException e) {
-                Log.w(TAG, "Authentication failed: Unable to access secure keystore. Check biometric settings.", e);
-                callback.onComplete(null, e);
+    @SuppressWarnings("unchecked")
+    public Map<String, String> readAll() throws Exception {
+        Map<String, String> raw = (Map<String, String>) preferences.getAll();
 
-            } catch (GeneralSecurityException | IOException e) {
-                if (!storage.config.shouldDeleteOnFailure()) {
-                    Log.w(TAG, "Initialization failed: Secure storage could not be initialized. 'deleteOnFailure' is false, skipping reset.", e);
-                    callback.onComplete(null, e);
+        Map<String, String> all = new HashMap<>();
+        for (Map.Entry<String, String> entry : raw.entrySet()) {
+            String keyWithPrefix = entry.getKey();
+            if (keyWithPrefix.contains(ELEMENT_PREFERENCES_KEY_PREFIX)) {
+                String key = entry.getKey().replaceFirst(ELEMENT_PREFERENCES_KEY_PREFIX + '_', "");
+                if (config.isUseEncryptedSharedPreferences()) {
+                    all.put(key, entry.getValue());
                 } else {
-                    Log.w(TAG, "Initialization failed: Resetting storage as 'deleteOnFailure' is enabled.", e);
-                    context.getSharedPreferences(storage.config.getSharedPreferencesName(), Context.MODE_PRIVATE).edit().clear().apply();
+                    String rawValue = entry.getValue();
+                    String value = decodeRawValue(rawValue);
 
-                    try {
-                        SharedPreferences encryptedPreferences = storage.initializeEncryptedSharedPreferencesManager(storage.config.getSharedPreferencesName());
-                        Log.i(TAG, "Secure storage successfully re-initialized after reset.");
-                        storage.encryptedPreferences = encryptedPreferences;
-                        callback.onComplete(storage, null);  // Re-initialization successful
-                    } catch (Exception f) {
-                        Log.e(TAG, "Critical failure: Initialization after reset failed.", f);
-                        callback.onComplete(null, f);
-                    }
+                    all.put(key, value);
                 }
+            }
+        }
+        return all;
+    }
+
+    public void write(String key, String value) throws Exception {
+        SharedPreferences.Editor editor = preferences.edit();
+
+        if (config.isUseEncryptedSharedPreferences()) {
+            editor.putString(key, value);
+        } else {
+            byte[] result = storageCipher.encrypt(value.getBytes(charset));
+            editor.putString(key, Base64.encodeToString(result, 0));
+        }
+        editor.apply();
+    }
+
+    public void delete(String key) {
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.remove(key);
+        editor.apply();
+    }
+
+    public void deleteAll() {
+        final SharedPreferences.Editor editor = preferences.edit();
+        editor.clear();
+        if (!config.isUseEncryptedSharedPreferences()) {
+            storageCipherFactory.storeCurrentAlgorithms(editor);
+        }
+        editor.apply();
+    }
+
+    protected void ensureOptions(){
+
+        this.config = new FlutterSecureStorageConfig(options);
+        if (options.containsKey("sharedPreferencesName") && !((String) options.get("sharedPreferencesName")).isEmpty()) {
+            SHARED_PREFERENCES_NAME = (String) options.get("sharedPreferencesName");
+        }
+
+        if (options.containsKey("preferencesKeyPrefix") && !((String) options.get("preferencesKeyPrefix")).isEmpty()) {
+            ELEMENT_PREFERENCES_KEY_PREFIX = (String) options.get("preferencesKeyPrefix");
+        }
+    }
+
+    protected void ensureInitializedAsync(SecurePreferencesCallback<Void> callback) {
+        if (preferences != null) {
+            callback.onSuccess(null);
+            return;
+        }
+
+        ensureOptions();
+
+        SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
+                SHARED_PREFERENCES_NAME,
+                Context.MODE_PRIVATE
+        );
+
+        initStorageCipherAsync(nonEncryptedPreferences, new SecurePreferencesCallback<>() {
+            @Override
+            public void onSuccess(Void unused) {
+                if (config.isUseEncryptedSharedPreferences()) {
+                    try {
+                        preferences = initializeEncryptedSharedPreferencesManager(context);
+                        checkAndMigrateToEncrypted(nonEncryptedPreferences, preferences);
+                    } catch (Exception e) {
+                        Log.e(TAG, "EncryptedSharedPreferences init failed", e);
+                        preferences = nonEncryptedPreferences;
+                    }
+                } else {
+                    preferences = nonEncryptedPreferences;
+                }
+                callback.onSuccess(null);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                callback.onError(e);
             }
         });
     }
 
-    public boolean containsKey(String key) {
-        return encryptedPreferences.contains(addPrefixToKey(key));
-    }
+    private void initStorageCipherAsync(SharedPreferences source, SecurePreferencesCallback<Void> callback) {
+        storageCipherFactory = new StorageCipherFactory(source, options);
 
-    public String read(String key) {
-        return encryptedPreferences.getString(addPrefixToKey(key), null);
-    }
-
-    public void write(String key, String value) {
-        encryptedPreferences.edit().putString(addPrefixToKey(key), value).apply();
-    }
-
-    public void delete(String key) {
-        encryptedPreferences.edit().remove(addPrefixToKey(key)).apply();
-    }
-
-    public void deleteAll() {
-        encryptedPreferences.edit().clear().apply();
-    }
-
-    public Map<String, String> readAll() {
-        Map<String, String> result = new HashMap<>();
-        Map<String, ?> allEntries = encryptedPreferences.getAll();
-        for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
-            if (key.startsWith(config.getSharedPreferencesKeyPrefix()) && value instanceof String) {
-                String originalKey = key.replaceFirst(config.getSharedPreferencesKeyPrefix() + "_", "");
-                result.put(originalKey, (String) value);
+        if (!config.shouldUseBiometrics()) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+                }
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
             }
         }
-        return result;
-    }
 
-    private void authenticateIfNeeded(Runnable onSuccess) {
-        if (config.shouldUseBiometrics()) {
-            authenticateUser(onSuccess);
-        } else {
-            onSuccess.run();
+        BiometricCallback biometricCallback = result -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, result.getCryptoObject().getCipher());
+                }
+                callback.onSuccess(null);
+            } catch (Exception e) {
+                callback.onError(e);
+            }
+        };
+
+        try {
+            authenticateIfNeeded(biometricCallback);
+        } catch (Exception e) {
+            callback.onError(e);
         }
     }
 
-    private String addPrefixToKey(String key) {
-        return config.getSharedPreferencesKeyPrefix() + "_" + key;
+    private void authenticateIfNeeded(BiometricCallback biometricCallback) throws Exception {
+        if (true) {
+            authenticateUser(biometricCallback);
+        } else {
+            biometricCallback.onAuthenticationSuccessful(null);
+        }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.R)
-    private MasterKey createSecretKeyApi30() throws GeneralSecurityException, IOException {
-        return new MasterKey.Builder(context)
-                .setUserAuthenticationRequired(config.shouldUseBiometrics(), 2)
-                .setRequestStrongBoxBacked(true)
-                .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
-                        MasterKey.DEFAULT_MASTER_KEY_ALIAS,
-                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                        .setIsStrongBoxBacked(true)
-                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setUserAuthenticationRequired(config.shouldUseBiometrics())  // Enforce user authentication
-                        .setUserAuthenticationValidityDurationSeconds(2)
-                        .setInvalidatedByBiometricEnrollment(true)
-                        .setKeySize(256)
-                        .build())
-                .build();
-    }
+    private void authenticateUser(BiometricCallback biometricCallback) throws Exception {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            biometricCallback.onAuthenticationSuccessful(null);  // Proceed without authentication on unsupported devices
+            return;
+        }
 
-    private MasterKey createSecretKeyApi2329() throws GeneralSecurityException, IOException {
-        return new MasterKey.Builder(context)
-                .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
-                        MasterKey.DEFAULT_MASTER_KEY_ALIAS,
-                        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setUserAuthenticationRequired(config.shouldUseBiometrics())  // Enforce user authentication
-                        .setUserAuthenticationValidityDurationSeconds(1)
-                        .setKeySize(256)
-                        .build())
-                .build();
-    }
-    private SharedPreferences initializeEncryptedSharedPreferencesManager(String sharedPreferencesName) throws GeneralSecurityException, IOException {
-        MasterKey masterKey;
+        Cipher cipher = storageCipherFactory.getCurrentKeyCipher(context).getCipher(context);
+        if (cipher == null) return;
+        BiometricPrompt.CryptoObject crypto = new BiometricPrompt.CryptoObject(cipher);
+
+        BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
+                .setTitle(config.getBiometricPromptTitle())
+                .setSubtitle(config.getPrefOptionBiometricPromptSubtitle());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            masterKey = createSecretKeyApi30();
-        } else {
-            masterKey = createSecretKeyApi2329();
+            promptInfoBuilder
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
         }
 
+        BiometricPrompt promptInfo = promptInfoBuilder
+                .build();
+
+        CancellationSignal cancellationSignal = new CancellationSignal();
+        Executor executor = Executors.newSingleThreadExecutor();
+
+        BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
+            @Override
+            public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                super.onAuthenticationSucceeded(result);
+                Log.d(TAG, "Authentication Succeeded!");
+                biometricCallback.onAuthenticationSuccessful(result);
+            }
+
+            @Override
+            public void onAuthenticationFailed() {
+                super.onAuthenticationFailed();
+                Log.d(TAG, "Authentication Failed. Try again.");
+            }
+
+            @Override
+            public void onAuthenticationError(int errorCode, CharSequence errString) {
+                super.onAuthenticationError(errorCode, errString);
+                Log.e(TAG, "Authentication Error: " + errString);
+            }
+        };
+
+        promptInfo.authenticate(crypto, cancellationSignal, executor, callback);
+
+    }
+
+    private void reEncryptPreferences(StorageCipherFactory storageCipherFactory, SharedPreferences source) throws Exception {
+        try {
+            storageCipher = storageCipherFactory.getSavedStorageCipher(context, null);
+            final Map<String, String> cache = new HashMap<>();
+            for (Map.Entry<String, ?> entry : source.getAll().entrySet()) {
+                Object v = entry.getValue();
+                String key = entry.getKey();
+                if (v instanceof String && key.contains(ELEMENT_PREFERENCES_KEY_PREFIX)) {
+                    final String decodedValue = decodeRawValue((String) v);
+                    cache.put(key, decodedValue);
+                }
+            }
+            storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+            final SharedPreferences.Editor editor = source.edit();
+            for (Map.Entry<String, String> entry : cache.entrySet()) {
+                byte[] result = storageCipher.encrypt(entry.getValue().getBytes(charset));
+                editor.putString(entry.getKey(), Base64.encodeToString(result, 0));
+            }
+            storageCipherFactory.storeCurrentAlgorithms(editor);
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "re-encryption failed", e);
+            storageCipher = storageCipherFactory.getSavedStorageCipher(context, null);
+        }
+    }
+
+    private void checkAndMigrateToEncrypted(SharedPreferences source, SharedPreferences target) {
+        try {
+            for (Map.Entry<String, ?> entry : source.getAll().entrySet()) {
+                Object v = entry.getValue();
+                String key = entry.getKey();
+                if (v instanceof String && key.contains(ELEMENT_PREFERENCES_KEY_PREFIX)) {
+                    final String decodedValue = decodeRawValue((String) v);
+                    target.edit().putString(key, (decodedValue)).apply();
+                    source.edit().remove(key).apply();
+                }
+            }
+            final SharedPreferences.Editor sourceEditor = source.edit();
+            storageCipherFactory.removeCurrentAlgorithms(sourceEditor);
+            sourceEditor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Data migration failed", e);
+        }
+    }
+
+    private SharedPreferences initializeEncryptedSharedPreferencesManager(Context context) throws GeneralSecurityException, IOException {
+        MasterKey key = new MasterKey.Builder(context)
+                .setKeyGenParameterSpec(
+                        new KeyGenParameterSpec
+                                .Builder(MasterKey.DEFAULT_MASTER_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                                .setKeySize(256).build())
+                .build();
         return EncryptedSharedPreferences.create(
                 context,
-                sharedPreferencesName,
-                masterKey,
+                SHARED_PREFERENCES_NAME,
+                key,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         );
     }
 
-    private void migrateToEncryptedPreferences(String sharedPreferencesName, SharedPreferences target, boolean deleteOnFailure, Map<String, Object> options) {
-        SharedPreferences source = context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE);
-
-        Map<String, ?> sourceEntries = source.getAll();
-        if (sourceEntries.isEmpty()) return;
-
-        int succesfull = 0;
-        int failed = 0;
-
-        try {
-            StorageCipher cipher = new StorageCipherFactory(source, options).getSavedStorageCipher(context);
-
-            for (Map.Entry<String, ?> entry : sourceEntries.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (key.startsWith(config.getSharedPreferencesKeyPrefix()) && value instanceof String) {
-                    try {
-                        String decryptedValue = decryptValue((String) value, cipher);
-                        target.edit().putString(key, decryptedValue).apply();
-                        source.edit().remove(key).apply();
-                        succesfull++;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Migration failed for key: " + key, e);
-                        failed++;
-
-                        if (deleteOnFailure) {
-                            source.edit().remove(key).apply();
-                        }
-                    }
-                }
-            }
-
-            if (succesfull > 0) {
-                Log.i(TAG, "Successfully migrated " + succesfull + " keys.");
-            }
-
-            if (failed > 0) {
-                Log.w(TAG, "Failed to migrate " + failed + " keys.");
-            }
-
-            if (failed == 0 || deleteOnFailure) {
-                target.edit().putBoolean(PREF_KEY_MIGRATED, true).apply();
-            }
-
-        } catch(Exception e) {
-            Log.e(TAG, "Migration failed due to initialisation error.", e);
-
-            // If a failure has occurred during StorageCipher initialization, set migrated to true
-            // so migration is not run again
-            if (deleteOnFailure) {
-                target.edit().putBoolean(PREF_KEY_MIGRATED, true).apply();
-            }
+    private String decodeRawValue(String value) throws Exception {
+        if (value == null) {
+            return null;
         }
+        byte[] data = Base64.decode(value, 0);
+        byte[] result = storageCipher.decrypt(data);
+
+        return new String(result, charset);
     }
-
-    private String decryptValue(String value, StorageCipher cipher) throws Exception {
-        byte[] data = Base64.decode(value, Base64.DEFAULT);
-        return new String(cipher.decrypt(data), CHARSET);
-    }
-
-    private void authenticateUser(Runnable onSuccess) {
-        BiometricPrompt promptInfo = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            promptInfo = new BiometricPrompt.Builder(context)
-                    .setTitle(config.getBiometricPromptTitle())
-                    .setSubtitle(config.getPrefOptionBiometricPromptSubtitle())
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                    .build();
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            promptInfo = new BiometricPrompt.Builder(context)
-                    .setTitle(config.getBiometricPromptTitle())
-                    .setSubtitle(config.getPrefOptionBiometricPromptSubtitle())
-                    .build();
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            CancellationSignal cancellationSignal = new CancellationSignal();
-            Executor executor = Executors.newSingleThreadExecutor();
-
-            BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
-                @Override
-                public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-                    super.onAuthenticationSucceeded(result);
-                    Log.d(TAG, "Authentication Succeeded!");
-                    onSuccess.run();
-                }
-
-                @Override
-                public void onAuthenticationFailed() {
-                    super.onAuthenticationFailed();
-                    Log.d(TAG, "Authentication Failed. Try again.");
-                }
-
-                @Override
-                public void onAuthenticationError(int errorCode, CharSequence errString) {
-                    super.onAuthenticationError(errorCode, errString);
-                    Log.e(TAG, "Authentication Error: " + errString);
-                }
-            };
-
-            promptInfo.authenticate(cancellationSignal, executor, callback);
-        } else {
-            onSuccess.run();  // Proceed without authentication on unsupported devices
-        }
-    }
-
 }

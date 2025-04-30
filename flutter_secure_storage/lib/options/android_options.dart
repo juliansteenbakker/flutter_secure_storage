@@ -7,11 +7,13 @@ part of '../flutter_secure_storage.dart';
 enum KeyCipherAlgorithm {
   RSA_ECB_PKCS1Padding,
   RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+  AES_GCM_NoPadding,
 }
 
 enum StorageCipherAlgorithm {
   AES_CBC_PKCS7Padding,
   AES_GCM_NoPadding,
+  AES_GCM_NoPadding_BIOMETRIC,
 }
 
 /// Specific options for Android platform.
@@ -19,7 +21,7 @@ class AndroidOptions extends Options {
   const AndroidOptions({
     @Deprecated('EncryptedSharedPreferences will always be true, and will be '
         'removed in the next release')
-    bool encryptedSharedPreferences = false,
+    bool encryptedSharedPreferences = true,
     bool resetOnError = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
         KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,

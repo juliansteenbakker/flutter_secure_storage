@@ -6,10 +6,12 @@ import android.os.Build;
 
 import java.util.Map;
 
+import javax.crypto.Cipher;
+
 enum KeyCipherAlgorithm {
     RSA_ECB_PKCS1Padding(RSACipher18Implementation::new, 1),
-    @SuppressWarnings({"UnusedDeclaration"})
-    RSA_ECB_OAEPwithSHA_256andMGF1Padding(RSACipherOAEPImplementation::new, Build.VERSION_CODES.M);
+    RSA_ECB_OAEPwithSHA_256andMGF1Padding(RSACipherOAEPImplementation::new, Build.VERSION_CODES.M),
+    AES_GCM_NoPadding(AESCipher23Implementation::new, Build.VERSION_CODES.M);
     final KeyCipherFunction keyCipher;
     final int minVersionCode;
 
@@ -21,8 +23,8 @@ enum KeyCipherAlgorithm {
 
 enum StorageCipherAlgorithm {
     AES_CBC_PKCS7Padding(StorageCipher18Implementation::new, 1),
-    @SuppressWarnings({"UnusedDeclaration"})
-    AES_GCM_NoPadding(StorageCipherGCMImplementation::new, Build.VERSION_CODES.M);
+    AES_GCM_NoPadding(StorageCipherGCMImplementation::new, Build.VERSION_CODES.M),
+    AES_GCM_NoPadding_BIOMETRIC(StorageCipher23Implementation::new, Build.VERSION_CODES.M);
     final StorageCipherFunction storageCipher;
     final int minVersionCode;
 
@@ -34,7 +36,7 @@ enum StorageCipherAlgorithm {
 
 @FunctionalInterface
 interface StorageCipherFunction {
-    StorageCipher apply(Context context, KeyCipher keyCipher) throws Exception;
+    StorageCipher apply(Context context, KeyCipher keyCipher, Cipher cipher) throws Exception;
 }
 
 @FunctionalInterface
@@ -73,14 +75,18 @@ public class StorageCipherFactory {
         return savedKeyAlgorithm != currentKeyAlgorithm || savedStorageAlgorithm != currentStorageAlgorithm;
     }
 
-    public StorageCipher getSavedStorageCipher(Context context) throws Exception {
+    public StorageCipher getSavedStorageCipher(Context context, Cipher cipher) throws Exception {
         final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context);
-        return savedStorageAlgorithm.storageCipher.apply(context, keyCipher);
+        return savedStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
     }
 
-    public StorageCipher getCurrentStorageCipher(Context context) throws Exception {
+    public StorageCipher getCurrentStorageCipher(Context context, Cipher cipher) throws Exception {
         final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context);
-        return currentStorageAlgorithm.storageCipher.apply(context, keyCipher);
+        return currentStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
+    }
+
+    public KeyCipher getCurrentKeyCipher(Context context) throws Exception {
+        return currentKeyAlgorithm.keyCipher.apply(context);
     }
 
     public void storeCurrentAlgorithms(SharedPreferences.Editor editor) {

@@ -14,8 +14,8 @@ public class StorageCipherGCMImplementation extends StorageCipher18Implementatio
 
     private static final int AUTHENTICATION_TAG_SIZE = 128;
 
-    public StorageCipherGCMImplementation(Context context, KeyCipher keyCipher) throws Exception {
-        super(context, keyCipher);
+    public StorageCipherGCMImplementation(Context context, KeyCipher keyCipher, Cipher cipherr) throws Exception {
+        super(context, keyCipher, cipherr);
     }
 
     @Override
