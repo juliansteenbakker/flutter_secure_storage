@@ -22,6 +22,18 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     FlutterSecureStoragePlatform.instance = FlutterSecureStorageWeb();
   }
 
+  web.Crypto get _crypto {
+    if (web.window.isSecureContext) {
+      return web.window.crypto;
+    }
+
+    throw UnsupportedError(
+      'FlutterSecureStorageWeb only works in secure contexts '
+      'Refer to the documentation for more information: '
+      'https://pub.dev/packages/flutter_secure_storage#configure-web-version',
+    );
+  }
+
   web.Storage _getStorage(Map<String, String> options) {
     return options[_useSessionStorage] == 'true'
         ? web.window.sessionStorage
@@ -129,7 +141,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
       if (useWrapKey) {
         final unwrappingKey = await _getWrapKey(options);
         final unwrapAlgorithm = _getWrapAlgorithm(options);
-        encryptionKey = await web.window.crypto.subtle
+        encryptionKey = await _crypto.subtle
             .unwrapKey(
               'raw',
               jwk.toJS,
@@ -141,7 +153,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
             )
             .toDart;
       } else {
-        encryptionKey = await web.window.crypto.subtle
+        encryptionKey = await _crypto.subtle
             .importKey(
               'raw',
               jwk.toJS,
@@ -152,7 +164,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
             .toDart;
       }
     } else {
-      encryptionKey = (await web.window.crypto.subtle
+      encryptionKey = (await _crypto.subtle
           .generateKey(algorithm, true, ['encrypt', 'decrypt'].toJS)
           .toDart)! as web.CryptoKey;
 
@@ -160,7 +172,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
       if (useWrapKey) {
         final wrappingKey = await _getWrapKey(options);
         final wrapAlgorithm = _getWrapAlgorithm(options);
-        jsonWebKey = await web.window.crypto.subtle
+        jsonWebKey = await _crypto.subtle
             .wrapKey(
               'raw',
               encryptionKey,
@@ -169,9 +181,8 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
             )
             .toDart;
       } else {
-        jsonWebKey = await web.window.crypto.subtle
-            .exportKey('raw', encryptionKey)
-            .toDart;
+        jsonWebKey =
+            await _crypto.subtle.exportKey('raw', encryptionKey).toDart;
       }
 
       storage[key] = base64Encode(
@@ -185,7 +196,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
   Future<web.CryptoKey> _getWrapKey(Map<String, String> options) async {
     final wrapKey = base64Decode(options[_wrapKey]!);
     final algorithm = _getWrapAlgorithm(options);
-    return web.window.crypto.subtle
+    return _crypto.subtle
         .importKey(
           'raw',
           wrapKey.toJS,
@@ -211,15 +222,15 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     required String value,
     required Map<String, String> options,
   }) async {
-    final iv = (web.window.crypto.getRandomValues(Uint8List(12).toJS)
-            as js_interop.JSUint8Array)
-        .toDart;
+    final iv =
+        (_crypto.getRandomValues(Uint8List(12).toJS) as js_interop.JSUint8Array)
+            .toDart;
 
     final algorithm = _getAlgorithm(iv);
 
     final encryptionKey = await _getEncryptionKey(algorithm, options);
 
-    final encryptedContent = (await web.window.crypto.subtle
+    final encryptedContent = (await _crypto.subtle
         .encrypt(
           algorithm,
           encryptionKey,
@@ -250,7 +261,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
 
         final value = base64Decode(parts[1]);
 
-        final decryptedContent = await web.window.crypto.subtle
+        final decryptedContent = await _crypto.subtle
             .decrypt(
               _getAlgorithm(iv),
               decryptionKey,
