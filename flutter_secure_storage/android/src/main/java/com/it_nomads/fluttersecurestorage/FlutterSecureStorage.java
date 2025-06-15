@@ -104,7 +104,7 @@ public class FlutterSecureStorage {
 
     private SharedPreferences getEncryptedSharedPreferences(boolean deleteOnFailure, Map<String, Object> options, Context context, String sharedPreferencesName) throws GeneralSecurityException, IOException {
         try {
-            final SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName);
+            final SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName, deleteOnFailure);
             boolean migrated = encryptedPreferences.getBoolean(PREF_KEY_MIGRATED, false);
             if (!migrated) {
                 migrateToEncryptedPreferences(context, sharedPreferencesName, encryptedPreferences, deleteOnFailure, options);
@@ -121,7 +121,7 @@ public class FlutterSecureStorage {
             context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE).edit().clear().apply();
 
             try {
-                return initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName);
+                return initializeEncryptedSharedPreferencesManager(context, sharedPreferencesName, deleteOnFailure);
             } catch (Exception f) {
                 Log.e(TAG, "initialization after reset failed", f);
                 throw f;
@@ -129,7 +129,7 @@ public class FlutterSecureStorage {
         }
     }
 
-    private SharedPreferences initializeEncryptedSharedPreferencesManager(Context context, String sharedPreferencesName) throws GeneralSecurityException, IOException {
+    private SharedPreferences initializeEncryptedSharedPreferencesManager(Context context, String sharedPreferencesName, boolean deleteOnFailure) throws GeneralSecurityException, IOException {
         MasterKey masterKey = new MasterKey.Builder(context)
                 .setKeyGenParameterSpec(new KeyGenParameterSpec.Builder(
                         MasterKey.DEFAULT_MASTER_KEY_ALIAS,
@@ -140,12 +140,24 @@ public class FlutterSecureStorage {
                         .build())
                 .build();
 
-        return EncryptedSharedPreferences.create(
+        try {
+            return EncryptedSharedPreferences.create(
                 context,
                 sharedPreferencesName,
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            );
+        } catch (Exception e) {
+            context.deleteSharedPreferences(sharedPreferencesName);
+        }
+        
+        return EncryptedSharedPreferences.create(
+            context,
+            sharedPreferencesName,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         );
     }
 
