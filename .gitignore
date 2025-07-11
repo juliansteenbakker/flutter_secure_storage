@@ -30,3 +30,4 @@ pubspec_overrides.yaml
 .dart_tool/
 .packages
 build/
+/flutter_secure_storage/example/android/app/.cxx
