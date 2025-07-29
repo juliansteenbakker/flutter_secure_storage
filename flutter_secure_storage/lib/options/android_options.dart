@@ -21,17 +21,17 @@ class AndroidOptions extends Options {
   const AndroidOptions({
     @Deprecated('EncryptedSharedPreferences will always be true, and will be '
         'removed in the next release')
-    bool encryptedSharedPreferences = true,
+    bool encryptedSharedPreferences = false,
     bool resetOnError = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
-        KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        KeyCipherAlgorithm.AES_GCM_NoPadding,
     StorageCipherAlgorithm storageCipherAlgorithm =
-        StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+        StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
-    this.shouldUseBiometrics = false,
+    this.shouldUseBiometrics = true,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _keyCipherAlgorithm = keyCipherAlgorithm,

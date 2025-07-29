@@ -171,16 +171,17 @@ public class FlutterSecureStorage {
     private void initStorageCipherAsync(SharedPreferences source, SecurePreferencesCallback<Void> callback) {
         storageCipherFactory = new StorageCipherFactory(source, options);
 
-        if (!config.shouldUseBiometrics()) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
-                }
-                callback.onSuccess(null);
-            } catch (Exception e) {
-                callback.onError(e);
-            }
-        }
+//        if (!config.shouldUseBiometrics()) {
+//            try {
+////                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+//                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+////                }
+//                callback.onSuccess(null);
+//            } catch (Exception e) {
+//                callback.onError(e);
+//            }
+//            return;
+//        }
 
         BiometricCallback biometricCallback = result -> {
             try {
@@ -201,11 +202,12 @@ public class FlutterSecureStorage {
     }
 
     private void authenticateIfNeeded(BiometricCallback biometricCallback) throws Exception {
-        if (true) {
-            authenticateUser(biometricCallback);
-        } else {
-            biometricCallback.onAuthenticationSuccessful(null);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            biometricCallback.onAuthenticationSuccessful(null);  // Proceed without authentication on unsupported devices
+            return;
         }
+
+        authenticateUser(biometricCallback);
     }
 
     private void authenticateUser(BiometricCallback biometricCallback) throws Exception {

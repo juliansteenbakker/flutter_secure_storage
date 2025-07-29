@@ -31,7 +31,7 @@ class HomePageState extends State<HomePage> {
       TextEditingController(text: AppleOptions.defaultAccountName);
 
   final List<_SecItem> _items = [];
-  bool useBiometrics = false;
+  bool useBiometrics = true;
 
   void _initializeFlutterSecureStorage(String accountName) {
     _storage = FlutterSecureStorage(
