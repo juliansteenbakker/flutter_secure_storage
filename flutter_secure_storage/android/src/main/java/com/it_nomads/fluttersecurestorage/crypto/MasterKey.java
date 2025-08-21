@@ -314,8 +314,37 @@ public final class MasterKey {
                     throw new NullPointerException(
                             "KeyGenParameterSpec was null after build() check");
                 }
-                String keyAlias = MasterKeys.getOrCreate(builder.mKeyGenParameterSpec);
-                return new MasterKey(keyAlias, builder.mKeyGenParameterSpec);
+                try {
+                    String keyAlias = MasterKeys.getOrCreate(builder.mKeyGenParameterSpec);
+                    return new MasterKey(keyAlias, builder.mKeyGenParameterSpec);
+                } catch (GeneralSecurityException e) {
+                    if (builder.mKeyGenParameterSpec.getKeySize() == 256) {
+                        try {
+                            KeyGenParameterSpec.Builder newSpecBuilder = new KeyGenParameterSpec.Builder(
+                                    builder.mKeyGenParameterSpec.getKeystoreAlias(),
+                                    builder.mKeyGenParameterSpec.getPurposes())
+                                    .setBlockModes(builder.mKeyGenParameterSpec.getBlockModes())
+                                    .setEncryptionPaddings(builder.mKeyGenParameterSpec.getEncryptionPaddings())
+                                    .setKeySize(128);
+                            if (builder.mKeyGenParameterSpec.isUserAuthenticationRequired()) {
+                                newSpecBuilder.setUserAuthenticationRequired(true);
+                                newSpecBuilder.setUserAuthenticationValidityDurationSeconds(
+                                        builder.mKeyGenParameterSpec.getUserAuthenticationValidityDurationSeconds());
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                if (Api28Impl.isStrongBoxBacked(builder.mKeyGenParameterSpec)) {
+                                    Api28Impl.setIsStrongBoxBacked(newSpecBuilder);
+                                }
+                            }
+                            builder.mKeyGenParameterSpec = newSpecBuilder.build();
+                            String keyAlias = MasterKeys.getOrCreate(builder.mKeyGenParameterSpec);
+                            return new MasterKey(keyAlias, builder.mKeyGenParameterSpec);
+                        } catch (Exception fallbackException) {
+                            throw e;
+                        }
+                    }
+                    throw e;
+                }
             }
             @RequiresApi(28)
             static class Api28Impl {

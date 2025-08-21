@@ -60,9 +60,9 @@ public final class MasterKeys {
     }
     @VisibleForTesting
     static void validate(KeyGenParameterSpec spec) {
-        if (spec.getKeySize() != KEY_SIZE) {
+        if (spec.getKeySize() != 256 && spec.getKeySize() != 128) {
             throw new IllegalArgumentException(
-                    "invalid key size, want " + KEY_SIZE + " bits got " + spec.getKeySize()
+                    "invalid key size, want 256 or 128 bits got " + spec.getKeySize()
                             + " bits");
         }
         if (!Arrays.equals(spec.getBlockModes(), new String[]{KeyProperties.BLOCK_MODE_GCM})) {
