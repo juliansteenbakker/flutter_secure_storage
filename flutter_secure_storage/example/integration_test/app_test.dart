@@ -118,6 +118,90 @@ void main() {
       );
       expect(afterDelete, isNull);
     });
+
+    testWidgets(
+        'iOS device: baseline (useSecureEnclave=false) write/read/delete',
+        (WidgetTester tester) async {
+      if (!(Platform.isIOS &&
+          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
+        return; // Skip when not running on a physical iOS device
+      }
+
+      const storage = FlutterSecureStorage();
+      const key = 'it_enclave_device_baseline_key';
+      const value = 'device_baseline_secret';
+
+      await storage.write(
+        key: key,
+        value: value,
+        iOptions: const IOSOptions(),
+      );
+
+      final readBack = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(),
+      );
+      expect(readBack, value);
+
+      await storage.delete(
+        key: key,
+        iOptions: const IOSOptions(),
+      );
+      final afterDelete = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(),
+      );
+      expect(afterDelete, isNull);
+    });
+
+    testWidgets(
+        'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
+        (WidgetTester tester) async {
+      if (!(Platform.isIOS &&
+          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
+        return; // Skip when not running on a physical iOS device
+      }
+
+      const storage = FlutterSecureStorage();
+      const key = 'it_enclave_device_enabled_key';
+      const value = 'device_enclave_secret';
+
+      await storage.write(
+        key: key,
+        value: value,
+        // Use a non-prompting flag to make test automation stable.
+        // ignore: undefined_named_parameter
+        iOptions: const IOSOptions(
+          useSecureEnclave: true,
+          accessControlFlags: [AccessControlFlag.applicationPassword],
+        ),
+      );
+
+      final readBack = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(
+          useSecureEnclave: true,
+          accessControlFlags: [AccessControlFlag.applicationPassword],
+        ),
+      );
+      expect(readBack, value);
+
+      await storage.delete(
+        key: key,
+        iOptions: const IOSOptions(
+          useSecureEnclave: true,
+          accessControlFlags: [AccessControlFlag.applicationPassword],
+        ),
+      );
+      final afterDelete = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(
+          useSecureEnclave: true,
+          accessControlFlags: [AccessControlFlag.applicationPassword],
+        ),
+      );
+      expect(afterDelete, isNull);
+    });
   });
 }
 
