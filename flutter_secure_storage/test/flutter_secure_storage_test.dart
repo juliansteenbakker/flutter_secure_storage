@@ -602,6 +602,7 @@ void main() {
         'authenticationUIBehavior': 'require_auth',
         'accessControlFlags':
             [AccessControlFlag.biometryCurrentSet.name].toString(),
+        'useSecureEnclave': 'false',
       });
     });
 
