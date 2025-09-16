@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_secure_storage_example/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,6 +77,46 @@ void main() {
       pageObject
         ..verifyRowDoesNotExist(0)
         ..verifyRowDoesNotExist(1);
+    });
+
+    testWidgets('Enclave requested on iOS Simulator falls back gracefully',
+        (WidgetTester tester) async {
+      if (!(Platform.isIOS &&
+          Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
+        return; // Skip when not running on iOS Simulator
+      }
+
+      const storage = FlutterSecureStorage();
+      const key = 'it_enclave_sim_fallback_key';
+      const value = 'sim_fallback_secret';
+
+      // Write with enclave requested
+      // ignore: undefined_named_parameter
+      await storage.write(
+        key: key,
+        value: value,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+
+      // Read should succeed due to fallback
+      // ignore: undefined_named_parameter
+      final readBack = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+      expect(readBack, value);
+
+      // Delete should also succeed
+      // ignore: undefined_named_parameter
+      await storage.delete(
+        key: key,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+      final afterDelete = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+      expect(afterDelete, isNull);
     });
   });
 }
