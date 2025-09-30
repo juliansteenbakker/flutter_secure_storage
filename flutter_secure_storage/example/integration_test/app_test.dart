@@ -134,22 +134,22 @@ void main() {
       await storage.write(
         key: key,
         value: value,
-        iOptions: const IOSOptions(),
+        iOptions: IOSOptions.defaultOptions,
       );
 
       final readBack = await storage.read(
         key: key,
-        iOptions: const IOSOptions(),
+        iOptions: IOSOptions.defaultOptions,
       );
       expect(readBack, value);
 
       await storage.delete(
         key: key,
-        iOptions: const IOSOptions(),
+        iOptions: IOSOptions.defaultOptions,
       );
       final afterDelete = await storage.read(
         key: key,
-        iOptions: const IOSOptions(),
+        iOptions: IOSOptions.defaultOptions,
       );
       expect(afterDelete, isNull);
     });
