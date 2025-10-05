@@ -80,12 +80,9 @@ void main() {
     });
 
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
+        skip: !(Platform.isIOS &&
+            Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
         (WidgetTester tester) async {
-      if (!(Platform.isIOS &&
-          Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
-        return; // Skip when not running on iOS Simulator
-      }
-
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
       const value = 'sim_fallback_secret';
