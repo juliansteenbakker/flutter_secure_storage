@@ -1,0 +1,10 @@
+name: SOUP - Approval Verification
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  soups:
+    uses: QuickBirdEng/workflows/.github/workflows/soup-approval-verification-workflow.yml@main
+    secrets: inherit
