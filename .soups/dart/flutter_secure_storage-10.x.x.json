@@ -1,0 +1,108 @@
+{
+  "package": "flutter_secure_storage",
+  "version": "10.x.x",
+  "purpose": "A Flutter plugin to securely store sensitive data in a key-value pair format using platform-specific secure storage solutions. It supports Android, iOS, macOS, Windows, and Linux.",
+  "provider": "QuickBird GmbH",
+  "license": "QuickBird",
+  "urls": {
+    "provider": "https://github.com/QuickBirdEng/flutter_secure_storage",
+    "documentation": "https://github.com/QuickBirdEng/flutter_secure_storage",
+    "known_issues": "https://github.com/QuickBirdEng/flutter_secure_storage/issues"
+  },
+  "requirements": {
+    "grq-1": {
+      "description": "Has a suitable license",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": {
+        "license": "BSD-3-Clause",
+        "license_key": "bsd-3-clause",
+        "license_spdx_id": "BSD-3-Clause",
+        "license_url": "https://github.com/QuickBirdEng/flutter_secure_storage/blob/develop/LICENSE",
+        "compliance_status": "ALLOWED: License 'bsd-3-clause' is in allowed list"
+      }
+    },
+    "grq-2": {
+      "description": "Comprehensive documentation is available",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": "https://github.com/QuickBirdEng/flutter_secure_storage"
+    },
+    "grq-3": {
+      "description": "Is maintained and support is available",
+      "fulfilled": false,
+      "fulfilled_visual": "❌",
+      "reason_if_requirement_not_fulfilled": "The package is QuickBird's fork https://github.com/juliansteenbakker/flutter_secure_storage and be updated and releases can be provisioned (on demand) when needed.",
+      "metadata": {
+        "analysis_period": "12 months",
+        "releases_found": 1,
+        "min_expected": 2,
+        "recent_versions": {
+          "v10.0.1": "March 10, 2025"
+        }
+      }
+    },
+    "grq-4": {
+      "description": "Does not contain major or critical security issues.",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": {
+        "package": "flutter_secure_storage",
+        "commit_checked": {
+          "version": "10.0.1",
+          "commit": "c61596586e27ac06c70b2ba2680d15a10fa4c87a"
+        },
+        "vulnerabilities_count": 0,
+        "vulnerabilities": {}
+      }
+    },
+    "grq-5": {
+      "description": "Provider is reliable, trustworthy and communicative",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": {
+        "stars": 0,
+        "forks": 0,
+        "subscribers": 0,
+        "one_of_following_conditions": {
+          "stars_or_forks_or_subscribers_any_greater_than_or_equal_to_1500": "❌",
+          "sum_of_stars_forks_subscribers_greater_than_or_equal_to_3000": "❌",
+          "self_owned": "✅"
+        }
+      }
+    },
+    "grq-6": {
+      "description": "Conforms to Semantic Versioning",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": {
+        "total_versions_checked": "1"
+      }
+    },
+    "version-check": {
+      "description": "Is within the latest stable semantic family (Major.X.X or 0.Minor.X)",
+      "fulfilled": true,
+      "fulfilled_visual": "✅",
+      "reason_if_requirement_not_fulfilled": "",
+      "metadata": {
+        "latest_stable": "10.0.1",
+        "latest_stable_tag_url": "https://github.com/QuickBirdEng/flutter_secure_storage/releases/tag/v10.0.1"
+      }
+    }
+  },
+  "metadata": {
+    "created": "2025-10-27T09:56:23Z",
+    "updated": "2025-10-27T09:56:23Z",
+    "input_version": "10.0.1",
+    "approval": {
+      "date": "",
+      "by": "",
+      "condition": ""
+    }
+  }
+}
