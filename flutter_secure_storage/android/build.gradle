@@ -44,5 +44,5 @@ android {
 }
 
 dependencies {
-    implementation("com.google.crypto.tink:tink-android:1.16.0")
+    implementation("com.google.crypto.tink:tink-android:1.17.0")
 }
