@@ -16,11 +16,11 @@
       "fulfilled_visual": "✅",
       "reason_if_requirement_not_fulfilled": "",
       "metadata": {
-        "license": "BSD-3-Clause",
-        "license_key": "bsd-3-clause",
+        "license": "QuickBird",
+        "license_key": "qb",
         "license_spdx_id": "BSD-3-Clause",
         "license_url": "https://github.com/QuickBirdEng/flutter_secure_storage/blob/develop/LICENSE",
-        "compliance_status": "ALLOWED: License 'bsd-3-clause' is in allowed list"
+        "compliance_status": "ALLOWED: License 'qb' is in allowed list"
       }
     },
     "grq-2": {
@@ -34,7 +34,7 @@
       "description": "Is maintained and support is available",
       "fulfilled": false,
       "fulfilled_visual": "❌",
-      "reason_if_requirement_not_fulfilled": "The package is QuickBird's fork https://github.com/juliansteenbakker/flutter_secure_storage and be updated and releases can be provisioned (on demand) when needed.",
+      "reason_if_requirement_not_fulfilled": "The package is QuickBird's internal package and releases can be provisioned (on demand) when needed.",
       "metadata": {
         "analysis_period": "12 months",
         "releases_found": 1,
@@ -96,8 +96,8 @@
     }
   },
   "metadata": {
-    "created": "2025-10-27T09:56:23Z",
-    "updated": "2025-10-27T09:56:23Z",
+    "created": "2025-11-06T09:29:36Z",
+    "updated": "2025-11-06T09:29:36Z",
     "input_version": "10.0.1",
     "approval": {
       "date": "",
