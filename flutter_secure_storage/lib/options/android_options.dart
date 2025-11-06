@@ -7,7 +7,7 @@ part of '../flutter_secure_storage.dart';
 enum KeyCipherAlgorithm {
   RSA_ECB_PKCS1Padding,
   RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-  AES_GCM_NoPadding,
+  AES_GCM_NoPadding_BIOMETRIC,
 }
 
 enum StorageCipherAlgorithm {
@@ -24,14 +24,13 @@ class AndroidOptions extends Options {
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
-        KeyCipherAlgorithm.AES_GCM_NoPadding,
+        KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
     StorageCipherAlgorithm storageCipherAlgorithm =
         StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
-    this.shouldUseBiometrics = true,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _keyCipherAlgorithm = keyCipherAlgorithm,
@@ -77,7 +76,6 @@ class AndroidOptions extends Options {
 
   final String? biometricPromptTitle;
   final String? biometricPromptSubtitle;
-  final bool shouldUseBiometrics;
 
   static const AndroidOptions defaultOptions = AndroidOptions();
 
@@ -93,7 +91,6 @@ class AndroidOptions extends Options {
             'Authenticate to access',
         'biometricPromptSubtitle': biometricPromptSubtitle ??
             'Use biometrics or device credentials',
-        'shouldUseBiometrics': '$shouldUseBiometrics',
 
       };
 

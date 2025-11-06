@@ -11,7 +11,7 @@ import javax.crypto.Cipher;
 enum KeyCipherAlgorithm {
     RSA_ECB_PKCS1Padding(RSACipher18Implementation::new, 1),
     RSA_ECB_OAEPwithSHA_256andMGF1Padding(RSACipherOAEPImplementation::new, Build.VERSION_CODES.M),
-    AES_GCM_NoPadding(AESCipher23Implementation::new, Build.VERSION_CODES.M);
+    AES_GCM_NoPadding_BIOMETRIC(AESCipher23Implementation::new, Build.VERSION_CODES.M);
     final KeyCipherFunction keyCipher;
     final int minVersionCode;
 

@@ -13,7 +13,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.it_nomads.fluttersecurestorage.ciphers.BiometricCallback;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipher;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipherFactory;
 import com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences;
@@ -171,53 +170,29 @@ public class FlutterSecureStorage {
     private void initStorageCipherAsync(SharedPreferences source, SecurePreferencesCallback<Void> callback) {
         storageCipherFactory = new StorageCipherFactory(source, options);
 
-//        if (!config.shouldUseBiometrics()) {
-//            try {
-////                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-//                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
-////                }
-//                callback.onSuccess(null);
-//            } catch (Exception e) {
-//                callback.onError(e);
-//            }
-//            return;
-//        }
-
-        BiometricCallback biometricCallback = result -> {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, result.getCryptoObject().getCipher());
-                }
-                callback.onSuccess(null);
-            } catch (Exception e) {
-                callback.onError(e);
-            }
-        };
-
         try {
-            authenticateIfNeeded(biometricCallback);
+            // Check if the current algorithm requires biometric authentication
+            Cipher cipher = storageCipherFactory.getCurrentKeyCipher(context).getCipher(context);
+
+            if (cipher == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                // No biometric authentication needed (RSA-based algorithms)
+                storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+                callback.onSuccess(null);
+                return;
+            }
+
+            // Biometric authentication required (AES_GCM_NoPadding_BIOMETRIC)
+            authenticateUser(cipher, callback);
         } catch (Exception e) {
             callback.onError(e);
         }
     }
 
-    private void authenticateIfNeeded(BiometricCallback biometricCallback) throws Exception {
+    private void authenticateUser(Cipher cipher, SecurePreferencesCallback<Void> securePreferencesCallback) throws Exception {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            biometricCallback.onAuthenticationSuccessful(null);  // Proceed without authentication on unsupported devices
-            return;
+            throw new Exception("Biometric authentication requires Android 9 (API 28) or higher");
         }
 
-        authenticateUser(biometricCallback);
-    }
-
-    private void authenticateUser(BiometricCallback biometricCallback) throws Exception {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            biometricCallback.onAuthenticationSuccessful(null);  // Proceed without authentication on unsupported devices
-            return;
-        }
-
-        Cipher cipher = storageCipherFactory.getCurrentKeyCipher(context).getCipher(context);
-        if (cipher == null) return;
         BiometricPrompt.CryptoObject crypto = new BiometricPrompt.CryptoObject(cipher);
 
         BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
@@ -239,20 +214,28 @@ public class FlutterSecureStorage {
             @Override
             public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                 super.onAuthenticationSucceeded(result);
-                Log.d(TAG, "Authentication Succeeded!");
-                biometricCallback.onAuthenticationSuccessful(result);
+                try {
+                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, result.getCryptoObject().getCipher());
+                    Log.d(TAG, "Biometric authentication succeeded");
+                    securePreferencesCallback.onSuccess(null);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to initialize storage cipher after authentication", e);
+                    securePreferencesCallback.onError(e);
+                }
             }
 
             @Override
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
-                Log.d(TAG, "Authentication Failed. Try again.");
+                Log.w(TAG, "Biometric authentication failed - user not recognized");
+                securePreferencesCallback.onError(new Exception("Biometric authentication failed - user not recognized"));
             }
 
             @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
-                Log.e(TAG, "Authentication Error: " + errString);
+                Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
+                securePreferencesCallback.onError(new Exception("Biometric authentication error [" + errorCode + "]: " + errString));
             }
         };
 

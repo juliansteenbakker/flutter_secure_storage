@@ -13,7 +13,6 @@ public class FlutterSecureStorageConfig {
     public static final String PREF_OPTION_PREFIX = "preferencesKeyPrefix";
     public static final String PREF_OPTION_DELETE_ON_FAILURE = "resetOnError";
     public static final String PREF_OPTION_ENCRYPTED_SHARED_PREFERENCES = "encryptedSharedPreferences";
-    public static final String PREF_OPTION_SHOULD_USE_BIOMETRICS = "shouldUseBiometrics";
 
     public static final String PREF_OPTION_BIOMETRIC_PROMPT_TITLE = "prefOptionBiometricPromptTitle";
     public static final String PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE = "prefOptionBiometricPromptSubtitle";
@@ -21,7 +20,6 @@ public class FlutterSecureStorageConfig {
     private final String sharedPreferencesName;
     private final String sharedPreferencesKeyPrefix;
     private final boolean deleteOnFailure;
-    private final boolean shouldUseBiometrics;
     private final boolean useEncryptedSharedPreferences;
 
     private final String biometricPromptTitle;
@@ -34,8 +32,6 @@ public class FlutterSecureStorageConfig {
         this.useEncryptedSharedPreferences = getBooleanOption(options, PREF_OPTION_ENCRYPTED_SHARED_PREFERENCES, false);
         this.biometricPromptTitle = getStringOption(options, PREF_OPTION_BIOMETRIC_PROMPT_TITLE, "Authenticate to access");
         this.biometricPromptSubtitle = getStringOption(options, PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE, "Use biometrics or device credentials");
-
-        this.shouldUseBiometrics = getBooleanOption(options, PREF_OPTION_SHOULD_USE_BIOMETRICS, false);
     }
 
     private String getStringOption(Map<String, Object> options, String key, String defaultValue) {
@@ -63,7 +59,6 @@ public class FlutterSecureStorageConfig {
     public String getSharedPreferencesKeyPrefix() { return sharedPreferencesKeyPrefix; }
     public boolean shouldDeleteOnFailure() { return deleteOnFailure; }
 
-    public boolean shouldUseBiometrics() { return shouldUseBiometrics; }
     public boolean isUseEncryptedSharedPreferences() { return useEncryptedSharedPreferences; }
 
     public String getBiometricPromptTitle() { return biometricPromptTitle; }

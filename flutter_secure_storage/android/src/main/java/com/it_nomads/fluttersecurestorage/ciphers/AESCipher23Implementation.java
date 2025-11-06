@@ -39,12 +39,12 @@ class AESCipher23Implementation implements KeyCipher {
 
     @Override
     public byte[] wrap(Key key) throws Exception {
-        return null;
+        throw new UnsupportedOperationException("AES symmetric keys in AndroidKeyStore cannot wrap other keys");
     }
 
     @Override
     public Key unwrap(byte[] wrappedKey, String algorithm) throws Exception {
-        return null;
+        throw new UnsupportedOperationException("AES symmetric keys in AndroidKeyStore cannot unwrap other keys");
     }
 
     protected String createKeyAlias(Context context) {

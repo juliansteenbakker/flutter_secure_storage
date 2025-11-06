@@ -10,12 +10,13 @@ import java.security.SecureRandom;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class StorageCipher23Implementation implements StorageCipher {
     private static final int keySize = 32;
-    private static final int defaultIvSize = 16;
+    private static final int defaultIvSize = 12;
+    private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
     private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage1";
     private final Cipher cipher;
@@ -25,8 +26,8 @@ public class StorageCipher23Implementation implements StorageCipher {
 
     public StorageCipher23Implementation(Context context, KeyCipher keyCipher, Cipher cipher) throws Exception{
         secureRandom = new SecureRandom();
-        this.cipher = getCipher();
         this.secretKey = loadOrGenerateApplicationKey(context, cipher);
+        this.cipher = getCipher();
     }
 
     private SecretKey loadOrGenerateApplicationKey(Context context, Cipher cipher) throws Exception {
@@ -72,7 +73,8 @@ public class StorageCipher23Implementation implements StorageCipher {
     public byte[] encrypt(byte[] input) throws Exception {
         byte[] iv = generateIV(defaultIvSize);
 
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(iv));
+        GCMParameterSpec spec = new GCMParameterSpec(AUTHENTICATION_TAG_SIZE, iv);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
 
         byte[] payload = cipher.doFinal(input);
 
@@ -92,7 +94,8 @@ public class StorageCipher23Implementation implements StorageCipher {
         byte[] payload = new byte[payloadSize];
         System.arraycopy(input, iv.length, payload, 0, payloadSize);
 
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, new IvParameterSpec(iv));
+        GCMParameterSpec spec = new GCMParameterSpec(AUTHENTICATION_TAG_SIZE, iv);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
 
         return cipher.doFinal(payload);
     }
