@@ -18,6 +18,77 @@ enum StorageCipherAlgorithm {
 
 /// Specific options for Android platform.
 class AndroidOptions extends Options {
+  /// Standard secure storage using AES-GCM with RSA key wrapping (Recommended).
+  /// - No biometric authentication required
+  /// - Strong authenticated encryption (AES/GCM/NoPadding)
+  /// - Hardware-backed RSA key protection
+  /// - API 23+ (Android 6.0+)
+  const AndroidOptions.standard({
+    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
+        'removed in the next release')
+    bool encryptedSharedPreferences = false,
+    bool resetOnError = false,
+    this.sharedPreferencesName,
+    this.preferencesKeyPrefix,
+  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
+        _resetOnError = resetOnError,
+        _keyCipherAlgorithm = KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding,
+        biometricPromptTitle = null,
+        biometricPromptSubtitle = null;
+
+  /// Enhanced secure storage using AES-GCM with stronger RSA OAEP key wrapping.
+  /// - No biometric authentication required
+  /// - Strong authenticated encryption (AES/GCM/NoPadding)
+  /// - Hardware-backed RSA OAEP key protection (more secure than PKCS1)
+  /// - API 23+ (Android 6.0+)
+  const AndroidOptions.standardSecure({
+    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
+        'removed in the next release')
+    bool encryptedSharedPreferences = false,
+    bool resetOnError = false,
+    this.sharedPreferencesName,
+    this.preferencesKeyPrefix,
+  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
+        _resetOnError = resetOnError,
+        _keyCipherAlgorithm =
+            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+        _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding,
+        biometricPromptTitle = null,
+        biometricPromptSubtitle = null;
+
+  /// Maximum security storage requiring biometric authentication.
+  /// - Requires biometric authentication once per app session
+  /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
+  /// - Hardware-backed AES key with user presence requirement
+  /// - API 28+ (Android 9.0+)
+  /// - Requires biometric hardware
+  const AndroidOptions.biometric({
+    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
+        'removed in the next release')
+    bool encryptedSharedPreferences = false,
+    bool resetOnError = false,
+    this.sharedPreferencesName,
+    this.preferencesKeyPrefix,
+    this.biometricPromptTitle,
+    this.biometricPromptSubtitle,
+  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
+        _resetOnError = resetOnError,
+        _keyCipherAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
+        _storageCipherAlgorithm =
+            StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC;
+
+  /// Advanced constructor for custom algorithm combinations.
+  ///
+  /// **Warning:** Not all combinations are valid. Use named constructors (standard,
+  /// standardSecure, biometric) unless you need specific control.
+  ///
+  /// Valid combinations:
+  /// - AES_CBC_PKCS7Padding storage + RSA_ECB_PKCS1Padding key
+  /// - AES_CBC_PKCS7Padding storage + RSA_ECB_OAEPwithSHA_256andMGF1Padding key
+  /// - AES_GCM_NoPadding storage + RSA_ECB_PKCS1Padding key
+  /// - AES_GCM_NoPadding storage + RSA_ECB_OAEPwithSHA_256andMGF1Padding key
+  /// - AES_GCM_NoPadding_BIOMETRIC storage + AES_GCM_NoPadding_BIOMETRIC key (only)
   const AndroidOptions({
     @Deprecated('EncryptedSharedPreferences will always be true, and will be '
         'removed in the next release')
@@ -26,12 +97,32 @@ class AndroidOptions extends Options {
     KeyCipherAlgorithm keyCipherAlgorithm =
         KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
     StorageCipherAlgorithm storageCipherAlgorithm =
-        StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
+        StorageCipherAlgorithm.AES_GCM_NoPadding,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
-  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
+  })  : assert(
+          // Validate biometric storage requires biometric key
+          storageCipherAlgorithm !=
+                  StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC ||
+              keyCipherAlgorithm ==
+                  KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
+          'AES_GCM_NoPadding_BIOMETRIC storage requires AES_GCM_NoPadding_BIOMETRIC key cipher. '
+          'Invalid combination: $storageCipherAlgorithm + $keyCipherAlgorithm. '
+          'Use AndroidOptions.biometric() for biometric storage.',
+        ),
+        assert(
+          // Validate non-biometric storage uses RSA keys
+          storageCipherAlgorithm ==
+                  StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC ||
+              keyCipherAlgorithm !=
+                  KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
+          'AES_GCM_NoPadding_BIOMETRIC key cipher can only be used with AES_GCM_NoPadding_BIOMETRIC storage. '
+          'Invalid combination: $storageCipherAlgorithm + $keyCipherAlgorithm. '
+          'Use AndroidOptions.standard() or AndroidOptions.standardSecure() for non-biometric storage.',
+        ),
+        _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _keyCipherAlgorithm = keyCipherAlgorithm,
         _storageCipherAlgorithm = storageCipherAlgorithm;
@@ -77,7 +168,7 @@ class AndroidOptions extends Options {
   final String? biometricPromptTitle;
   final String? biometricPromptSubtitle;
 
-  static const AndroidOptions defaultOptions = AndroidOptions();
+  static const AndroidOptions defaultOptions = AndroidOptions.standard();
 
   @override
   Map<String, String> toMap() => <String, String>{
@@ -101,6 +192,8 @@ class AndroidOptions extends Options {
     StorageCipherAlgorithm? storageCipherAlgorithm,
     String? preferencesKeyPrefix,
     String? sharedPreferencesName,
+    String? biometricPromptTitle,
+    String? biometricPromptSubtitle,
   }) =>
       AndroidOptions(
         encryptedSharedPreferences:
@@ -109,7 +202,9 @@ class AndroidOptions extends Options {
         keyCipherAlgorithm: keyCipherAlgorithm ?? _keyCipherAlgorithm,
         storageCipherAlgorithm:
             storageCipherAlgorithm ?? _storageCipherAlgorithm,
-        sharedPreferencesName: sharedPreferencesName,
-        preferencesKeyPrefix: preferencesKeyPrefix,
+        sharedPreferencesName: sharedPreferencesName ?? this.sharedPreferencesName,
+        preferencesKeyPrefix: preferencesKeyPrefix ?? this.preferencesKeyPrefix,
+        biometricPromptTitle: biometricPromptTitle ?? this.biometricPromptTitle,
+        biometricPromptSubtitle: biometricPromptSubtitle ?? this.biometricPromptSubtitle,
       );
 }

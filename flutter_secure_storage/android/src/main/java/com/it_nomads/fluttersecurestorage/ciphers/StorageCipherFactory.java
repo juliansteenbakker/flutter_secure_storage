@@ -60,15 +60,64 @@ public class StorageCipherFactory {
         savedKeyAlgorithm = KeyCipherAlgorithm.valueOf(source.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, DEFAULT_KEY_ALGORITHM.name()));
         savedStorageAlgorithm = StorageCipherAlgorithm.valueOf(source.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, DEFAULT_STORAGE_ALGORITHM.name()));
 
-        final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.valueOf(getFromOptionsWithDefault(options, "keyCipherAlgorithm", DEFAULT_KEY_ALGORITHM.name()));
-        currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
         final StorageCipherAlgorithm currentStorageAlgorithmTmp = StorageCipherAlgorithm.valueOf(getFromOptionsWithDefault(options, "storageCipherAlgorithm", DEFAULT_STORAGE_ALGORITHM.name()));
         currentStorageAlgorithm = (currentStorageAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentStorageAlgorithmTmp : DEFAULT_STORAGE_ALGORITHM;
+
+        // Conditional auto-pairing for biometric storage
+        if (currentStorageAlgorithm == StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
+            // Force correct key cipher for biometric storage
+            currentKeyAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC;
+        } else {
+            // Allow user choice for non-biometric storage
+            final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.valueOf(getFromOptionsWithDefault(options, "keyCipherAlgorithm", DEFAULT_KEY_ALGORITHM.name()));
+            currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
+        }
+
+        // Validate combination (safety net in case Flutter asserts are disabled)
+        validateCombination(currentKeyAlgorithm, currentStorageAlgorithm);
     }
 
     private String getFromOptionsWithDefault(Map<String, Object> options, String key, String defaultValue) {
         final Object value = options.get(key);
         return value != null ? value.toString() : defaultValue;
+    }
+
+    /**
+     * Validates that the key cipher and storage cipher combination is valid.
+     *
+     * @throws IllegalArgumentException if the combination is invalid
+     */
+    private void validateCombination(KeyCipherAlgorithm keyCipher, StorageCipherAlgorithm storageCipher) {
+        // Biometric storage MUST use biometric key cipher
+        if (storageCipher == StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC
+                && keyCipher != KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
+            throw new IllegalArgumentException(
+                    "Invalid cipher combination: AES_GCM_NoPadding_BIOMETRIC storage requires " +
+                            "AES_GCM_NoPadding_BIOMETRIC key cipher. Got: " + keyCipher.name() +
+                            ". Use AndroidOptions.biometric() in Flutter."
+            );
+        }
+
+        // Biometric key cipher MUST be used with biometric storage
+        if (keyCipher == KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC
+                && storageCipher != StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
+            throw new IllegalArgumentException(
+                    "Invalid cipher combination: AES_GCM_NoPadding_BIOMETRIC key cipher can only " +
+                            "be used with AES_GCM_NoPadding_BIOMETRIC storage. Got: " + storageCipher.name() +
+                            ". Use AndroidOptions.biometric() in Flutter."
+            );
+        }
+
+        // Non-biometric storage algorithms require RSA key ciphers (which use wrap/unwrap)
+        if ((storageCipher == StorageCipherAlgorithm.AES_CBC_PKCS7Padding
+                || storageCipher == StorageCipherAlgorithm.AES_GCM_NoPadding)
+                && keyCipher == KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
+            throw new IllegalArgumentException(
+                    "Invalid cipher combination: " + storageCipher.name() + " storage requires " +
+                            "RSA key cipher (PKCS1 or OAEP), not AES_GCM_NoPadding_BIOMETRIC. " +
+                            "Use AndroidOptions.standard() or AndroidOptions.standardSecure() in Flutter."
+            );
+        }
     }
 
     public boolean requiresReEncryption() {

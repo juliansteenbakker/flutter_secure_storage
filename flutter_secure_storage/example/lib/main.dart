@@ -31,14 +31,13 @@ class HomePageState extends State<HomePage> {
       TextEditingController(text: AppleOptions.defaultAccountName);
 
   final List<_SecItem> _items = [];
-  bool useBiometrics = true;
 
   void _initializeFlutterSecureStorage(String accountName) {
     _storage = FlutterSecureStorage(
       aOptions: AndroidOptions(
         biometricPromptTitle: 'Flutter Secure Storage Example',
         biometricPromptSubtitle: 'Please unlock to access data.',
-        shouldUseBiometrics: useBiometrics,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
       ),
       iOptions: IOSOptions(
         accountName: accountName,
@@ -211,20 +210,6 @@ class HomePageState extends State<HomePage> {
                 key: Key('is_protected_data_available'),
                 value: _Actions.isProtectedDataAvailable,
                 child: Text('IsProtectedDataAvailable'),
-              ),
-              PopupMenuItem(
-                key: const Key('use_biometrics'),
-                child: StatefulBuilder(
-                  builder: (_context, _setState) => CheckboxListTile(
-                    value: useBiometrics,
-                    onChanged: (value) {
-                      _setState(() => useBiometrics = !useBiometrics);
-                      _initializeFlutterSecureStorage(
-                          _accountNameController.text);
-                    },
-                    title: const Text('Use Biometrics'),
-                  ),
-                ),
               ),
             ],
           ),
