@@ -41,6 +41,13 @@ class RSACipher18Implementation implements KeyCipher {
     }
 
     @Override
+    public void deleteKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
+        ks.load(null);
+        ks.deleteEntry(keyAlias);
+    }
+
+    @Override
     public byte[] wrap(Key key) throws Exception {
         PublicKey publicKey = getPublicKey();
         Cipher cipher = getRSACipher();

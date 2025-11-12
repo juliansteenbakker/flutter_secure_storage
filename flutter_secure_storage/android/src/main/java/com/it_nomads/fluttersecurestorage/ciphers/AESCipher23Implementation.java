@@ -15,7 +15,7 @@ import java.security.NoSuchAlgorithmException;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
-import javax.crypto.NoSuchPaddingException;;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
 
 class AESCipher23Implementation implements KeyCipher {
@@ -49,6 +49,13 @@ class AESCipher23Implementation implements KeyCipher {
 
     protected String createKeyAlias(Context context) {
         return context.getPackageName() + ".FlutterSecureStoragePluginKey";
+    }
+
+    @Override
+    public void deleteKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
+        ks.load(null);
+        ks.deleteEntry(keyAlias);
     }
 
     @Override
