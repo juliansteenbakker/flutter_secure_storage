@@ -11,32 +11,6 @@ This is the platform-specific implementation of `flutter_secure_storage` for And
 
 Add the dependency in your `pubspec.yaml` and run `flutter pub get`.
 
-## Beta notes
-
-### 10.0.0 Beta 5
-
-This beta adds changes a few things.
-
-### Android
-
-New constructor AndroidOptions.standard, AndroidOptions.standardSecure, AndroidOptions.biometric.
-
-AndroidOptions().encryptedSharedPreferences is now deprecated due to Jetpack Crypto package being deprecated.
-They recommend using Tink library now, but Tink does not support biometrics, so the customer ciphers have been reintroduced.
-
-AndroidOptions().migrateOnAlgorithmChange has been added. Will migrate data to new ciphers if enabled.
-For now you can still use deprecated encryptedSharedPreferences by setting encryptedSharedPreferences to true and migrateOnAlgorithmChange to false.
-If encryptedSharedPreferences is true and migrateOnAlgorithmChange is true, data will be migrated to new cipher.
-
-Other changes:
-- resetOnError defaults to true
-- targetSDK 36, upgraded gradle, kotlin and tink dependency.
-- default key cipher RSA_ECB_OAEPwithSHA_256andMGF1Padding
-- default storage cipher AES_GCM_NoPadding
-
-TODO:
-- Fix migration from "normal" (encryptedSharedPreferences = false) secure shared preferences in v9.2.4 and 10.0.0-beta.4 to new default key and storage cipher
-
 ### Example Usage
 
 ```dart
