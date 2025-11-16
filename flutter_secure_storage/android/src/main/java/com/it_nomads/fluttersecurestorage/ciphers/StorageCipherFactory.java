@@ -27,60 +27,24 @@ public class StorageCipherFactory {
         final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
-            savedKeyAlgorithm = KeyCipherAlgorithm.valueOf(keyCipherAlgorithm);
-            savedStorageAlgorithm = StorageCipherAlgorithm.valueOf(storageCipherAlgorithm);
+            savedKeyAlgorithm = KeyCipherAlgorithm.fromString(keyCipherAlgorithm);
+            savedStorageAlgorithm = StorageCipherAlgorithm.fromString(storageCipherAlgorithm);
         } else {
-            savedKeyAlgorithm = KeyCipherAlgorithm.valueOf(savedKeyCipherAlgorithm);
-            savedStorageAlgorithm = StorageCipherAlgorithm.valueOf(savedStorageCipherAlgorithm);
+            savedKeyAlgorithm = KeyCipherAlgorithm.fromString(savedKeyCipherAlgorithm);
+            savedStorageAlgorithm = StorageCipherAlgorithm.fromString(savedStorageCipherAlgorithm);
         }
 
-        final StorageCipherAlgorithm currentStorageAlgorithmTmp = StorageCipherAlgorithm.valueOf(storageCipherAlgorithm);
+        final StorageCipherAlgorithm currentStorageAlgorithmTmp = StorageCipherAlgorithm.fromString(storageCipherAlgorithm);
         currentStorageAlgorithm = (currentStorageAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentStorageAlgorithmTmp : DEFAULT_STORAGE_ALGORITHM;
 
-        // Conditional auto-pairing for biometric storage
-        if (currentStorageAlgorithm == StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
-            // Force correct key cipher for biometric storage
-            currentKeyAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC;
-        } else {
-            // Allow user choice for non-biometric storage
-            final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.valueOf(keyCipherAlgorithm);
-            currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
-        }
+        // Set current key algorithm with version check
+        final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.fromString(keyCipherAlgorithm);
+        currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
             final SharedPreferences.Editor source = configSource.edit();
             storeCurrentAlgorithms(source);
             source.apply();
-        }
-
-        // Validate combination (safety net in case Flutter asserts are disabled)
-        validateCombination(currentKeyAlgorithm, currentStorageAlgorithm);
-    }
-
-    /**
-     * Validates that the key cipher and storage cipher combination is valid.
-     *
-     * @throws IllegalArgumentException if the combination is invalid
-     */
-    private void validateCombination(KeyCipherAlgorithm keyCipher, StorageCipherAlgorithm storageCipher) {
-        // Biometric storage MUST use biometric key cipher
-        if (storageCipher == StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC
-                && keyCipher != KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
-            throw new IllegalArgumentException(
-                    "Invalid cipher combination: AES_GCM_NoPadding_BIOMETRIC storage requires " +
-                            "AES_GCM_NoPadding_BIOMETRIC key cipher. Got: " + keyCipher.name() +
-                            ". Use AndroidOptions.biometric() in Flutter."
-            );
-        }
-
-        // Biometric key cipher MUST be used with biometric storage
-        if (keyCipher == KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC
-                && storageCipher != StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC) {
-            throw new IllegalArgumentException(
-                    "Invalid cipher combination: AES_GCM_NoPadding_BIOMETRIC key cipher can only " +
-                            "be used with AES_GCM_NoPadding_BIOMETRIC storage. Got: " + storageCipher.name() +
-                            ". Use AndroidOptions.biometric() in Flutter."
-            );
         }
     }
 
@@ -94,12 +58,43 @@ public class StorageCipherFactory {
 
     public StorageCipher getSavedStorageCipher(Context context, Cipher cipher) throws Exception {
         final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context, config);
-        return savedStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
+        return createStorageCipher(context, keyCipher, cipher, savedStorageAlgorithm);
     }
 
     public StorageCipher getCurrentStorageCipher(Context context, Cipher cipher) throws Exception {
         final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context, config);
-        return currentStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
+        return createStorageCipher(context, keyCipher, cipher, currentStorageAlgorithm);
+    }
+
+    /**
+     * Dynamically selects the appropriate StorageCipher implementation based on
+     * the KeyCipher type and StorageCipherAlgorithm.
+     */
+    private StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
+                                               Cipher cipher, StorageCipherAlgorithm algorithm) throws Exception {
+        // For AES_GCM_NoPadding, choose implementation based on KeyCipher type
+        if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {
+            if (isKeyStoreKeyCipher(keyCipher)) {
+                // Use KeyStore-based implementation (biometric/PIN auth capable)
+                return new StorageCipherImplementationAES23(context, keyCipher, cipher);
+            } else {
+                // Use RSA-wrapped implementation (standard secure storage)
+                return new StorageCipherImplementationGCM(context, keyCipher, cipher);
+            }
+        }
+
+        // For other algorithms, use the function from enum
+        if (algorithm.storageCipher == null) {
+            throw new Exception("No implementation available for algorithm: " + algorithm.name());
+        }
+        return algorithm.storageCipher.apply(context, keyCipher, cipher);
+    }
+
+    /**
+     * Checks if the KeyCipher uses KeyStore (AES) vs RSA wrapping.
+     */
+    private boolean isKeyStoreKeyCipher(KeyCipher keyCipher) {
+        return keyCipher instanceof KeyCipherImplementationAES23;
     }
 
     public KeyCipher getCurrentKeyCipher(Context context) throws Exception {
