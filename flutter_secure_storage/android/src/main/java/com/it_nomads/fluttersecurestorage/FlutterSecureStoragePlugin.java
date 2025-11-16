@@ -8,10 +8,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.HashMap;
 import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -23,7 +21,7 @@ import io.flutter.plugin.common.MethodChannel.Result;
 
 public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlugin {
 
-    private static final String TAG = "FlutterSecureStoragePl";
+    private static final String TAG = "FlutterSecureStoragePlugin";
     private MethodChannel channel;
     private FlutterSecureStorage secureStorage;
     private HandlerThread workerThread;
@@ -31,7 +29,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
     public void initInstance(BinaryMessenger messenger, Context context) {
         try {
-            secureStorage = new FlutterSecureStorage(context, new HashMap<>());
+            secureStorage = new FlutterSecureStorage(context);
 
             workerThread = new HandlerThread("com.it_nomads.fluttersecurestorage.worker");
             workerThread.start();
@@ -123,10 +121,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         @SuppressWarnings("unchecked")
         @Override
         public void run() {
-            boolean resetOnError = false;
-            secureStorage.options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
-            secureStorage.ensureOptions();
-            secureStorage.ensureInitializedAsync(new SecurePreferencesCallback<>() {
+            Map<String, Object> options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
+            FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+
+            secureStorage.initialize(config, new SecurePreferencesCallback<>() {
                 @Override
                 public void onSuccess(Void unused) {
                     try {
@@ -177,12 +175,22 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 result.success(null);
                                 break;
                             }
+                            case "isBiometricAvailable": {
+                                boolean available = secureStorage.isBiometricAvailable();
+                                result.success(available);
+                                break;
+                            }
+                            case "isDeviceSecure": {
+                                boolean secure = secureStorage.isDeviceSecure();
+                                result.success(secure);
+                                break;
+                            }
                             default:
                                 result.notImplemented();
                                 break;
                         }
                     } catch (Exception e) {
-                        if (resetOnError) {
+                        if (config.shouldDeleteOnFailure()) {
                             try {
                                 secureStorage.deleteAll();
                                 result.success("Data has been reset");

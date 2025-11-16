@@ -3,7 +3,6 @@ package com.it_nomads.fluttersecurestorage.ciphers;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
-import android.util.Log;
 
 import java.security.Key;
 import java.security.SecureRandom;
@@ -13,18 +12,18 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-public class StorageCipher23Implementation implements StorageCipher {
+public class StorageCipherImplementationAES23 implements StorageCipher {
     private static final int keySize = 32;
     private static final int defaultIvSize = 12;
     private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
-    private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage1";
+    private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
+    private static final String KEYSTORE_IV_NAME = "BVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
     private final Cipher cipher;
     private final SecureRandom secureRandom;
-    private Key secretKey;
+    private final Key secretKey;
 
-
-    public StorageCipher23Implementation(Context context, KeyCipher keyCipher, Cipher cipher) throws Exception{
+    public StorageCipherImplementationAES23(Context context, KeyCipher ignoredKeyCipher, Cipher cipher) throws Exception{
         secureRandom = new SecureRandom();
         this.secretKey = loadOrGenerateApplicationKey(context, cipher);
         this.cipher = getCipher();
@@ -32,42 +31,36 @@ public class StorageCipher23Implementation implements StorageCipher {
 
     private SecretKey loadOrGenerateApplicationKey(Context context, Cipher cipher) throws Exception {
         SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        String keyAppKey = getKeyAppKey();
-
-        String encryptedAppKeyBase64 = preferences.getString(keyAppKey, null);
+        String encryptedAppKeyBase64 = preferences.getString(KEYSTORE_IV_NAME, null);
 
         if (encryptedAppKeyBase64 != null) {
-            try {
-                byte[] encryptedAppKey = Base64.decode(encryptedAppKeyBase64, Base64.DEFAULT);
-                byte[] appKey = cipher.doFinal(encryptedAppKey);
-                return new SecretKeySpec(appKey, "AES");
-            } catch (Exception e) {
-                Log.e("StorageCipher23Impl", "decrypt key failed", e);
-                // Fallback to generating new key
-            }
+            // Decrypt existing key - may throw BadPaddingException, IllegalBlockSizeException if algorithm changed
+            byte[] encryptedAppKey = Base64.decode(encryptedAppKeyBase64, Base64.DEFAULT);
+            byte[] appKey = cipher.doFinal(encryptedAppKey);
+            return new SecretKeySpec(appKey, KEY_ALGORITHM);
         }
 
-        // Generate new key if not found or decryption failed
+        // No stored key - generate new one (first initialization)
         byte[] appKey = generateIV(keySize);
         SecretKey secretKey = new SecretKeySpec(appKey, KEY_ALGORITHM);
         byte[] newEncryptedAppKey = cipher.doFinal(appKey);
 
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putString(keyAppKey, Base64.encodeToString(newEncryptedAppKey, Base64.DEFAULT));
+        editor.putString(KEYSTORE_IV_NAME, Base64.encodeToString(newEncryptedAppKey, Base64.DEFAULT));
         editor.apply();
 
         return secretKey;
     }
 
-
-    protected String getKeyAppKey() {
-        return "VGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    @Override
+    public void deleteKey(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        preferences.edit().remove(KEYSTORE_IV_NAME).apply();
     }
 
     protected Cipher getCipher() throws Exception {
         return Cipher.getInstance("AES/GCM/NoPadding");
     }
-
 
     @Override
     public byte[] encrypt(byte[] input) throws Exception {

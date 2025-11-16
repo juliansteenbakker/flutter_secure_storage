@@ -3,7 +3,6 @@ package com.it_nomads.fluttersecurestorage.ciphers;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
-import android.util.Log;
 
 import java.security.Key;
 import java.security.SecureRandom;
@@ -13,47 +12,46 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-public class StorageCipher18Implementation implements StorageCipher {
+public class StorageCipherImplementationAES18 implements StorageCipher {
     private static final int keySize = 16;
     private static final String KEY_ALGORITHM = "AES";
     private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
+    private static final String SHARED_PREFERENCES_KEY = "VGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
     private final Cipher cipher;
     private final SecureRandom secureRandom;
-    private Key secretKey;
+    private final Key secretKey;
 
-    public StorageCipher18Implementation(Context context, KeyCipher rsaCipher, Cipher cipherr) throws Exception {
+    public StorageCipherImplementationAES18(Context context, KeyCipher rsaCipher, Cipher ignoredStorageCipher) throws Exception {
         secureRandom = new SecureRandom();
-        String aesPreferencesKey = getAESPreferencesKey();
 
         SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = preferences.edit();
 
-        String aesKey = preferences.getString(aesPreferencesKey, null);
+        String aesKey = preferences.getString(SHARED_PREFERENCES_KEY, null);
 
         cipher = getCipher();
 
         if (aesKey != null) {
-            byte[] encrypted;
-            try {
-                encrypted = Base64.decode(aesKey, Base64.DEFAULT);
-                secretKey = rsaCipher.unwrap(encrypted, KEY_ALGORITHM);
-                return;
-            } catch (Exception e) {
-                Log.e("StorageCipher18Impl", "unwrap key failed", e);
-            }
+            // Unwrap existing key - may throw BadPaddingException, InvalidKeyException if algorithm changed
+            byte[] encrypted = Base64.decode(aesKey, Base64.DEFAULT);
+            secretKey = rsaCipher.unwrap(encrypted, KEY_ALGORITHM);
+            return;
         }
 
+        // No stored key - generate new one (first initialization)
         byte[] key = new byte[keySize];
         secureRandom.nextBytes(key);
         secretKey = new SecretKeySpec(key, KEY_ALGORITHM);
 
         byte[] encryptedKey = rsaCipher.wrap(secretKey);
-        editor.putString(aesPreferencesKey, Base64.encodeToString(encryptedKey, Base64.DEFAULT));
+        editor.putString(SHARED_PREFERENCES_KEY, Base64.encodeToString(encryptedKey, Base64.DEFAULT));
         editor.apply();
     }
 
-    protected String getAESPreferencesKey() {
-        return "VGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    @Override
+    public void deleteKey(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        preferences.edit().remove(SHARED_PREFERENCES_KEY).apply();
     }
 
     protected Cipher getCipher() throws Exception {

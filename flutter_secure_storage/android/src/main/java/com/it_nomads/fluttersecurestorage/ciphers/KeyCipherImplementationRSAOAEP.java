@@ -17,9 +17,9 @@ import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.security.auth.x500.X500Principal;
 
-public class RSACipherOAEPImplementation extends RSACipher18Implementation {
+class KeyCipherImplementationRSAOAEP extends KeyCipherImplementationRSA18 {
 
-    public RSACipherOAEPImplementation(Context context) throws Exception {
+    public KeyCipherImplementationRSAOAEP(Context context) throws Exception {
         super(context);
     }
 

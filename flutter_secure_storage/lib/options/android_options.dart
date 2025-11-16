@@ -24,14 +24,20 @@ class AndroidOptions extends Options {
   /// - Hardware-backed RSA key protection
   /// - API 23+ (Android 6.0+)
   const AndroidOptions.standard({
-    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
-        'removed in the next release')
+    @Deprecated(
+      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+      'The Jetpack Security library is deprecated by Google. '
+      'Your data will be automatically migrated to AES_GCM_NoPadding on first access. '
+      'Remove this parameter - it will be ignored.'
+    )
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
+    bool migrateOnAlgorithmChange = true,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
+        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
         _keyCipherAlgorithm = KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
         _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding,
         biometricPromptTitle = null,
@@ -43,14 +49,20 @@ class AndroidOptions extends Options {
   /// - Hardware-backed RSA OAEP key protection (more secure than PKCS1)
   /// - API 23+ (Android 6.0+)
   const AndroidOptions.standardSecure({
-    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
-        'removed in the next release')
+    @Deprecated(
+      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+      'The Jetpack Security library is deprecated by Google. '
+      'Your data will be automatically migrated to AES_GCM_NoPadding on first access. '
+      'Remove this parameter - it will be ignored.'
+    )
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
+    bool migrateOnAlgorithmChange = true,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
+        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
         _keyCipherAlgorithm =
             KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
         _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding,
@@ -62,18 +74,23 @@ class AndroidOptions extends Options {
   /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
   /// - Hardware-backed AES key with user presence requirement
   /// - API 28+ (Android 9.0+)
-  /// - Requires biometric hardware
+  /// - Automatically falls back to standard RSA encryption if biometrics unavailable
   const AndroidOptions.biometric({
-    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
-        'removed in the next release')
+    @Deprecated(
+      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+      'The Jetpack Security library is deprecated by Google. '
+      'Remove this parameter - it will be ignored.'
+    )
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
+    bool migrateOnAlgorithmChange = true,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
+        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
         _keyCipherAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
         _storageCipherAlgorithm =
             StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC;
@@ -90,10 +107,15 @@ class AndroidOptions extends Options {
   /// - AES_GCM_NoPadding storage + RSA_ECB_OAEPwithSHA_256andMGF1Padding key
   /// - AES_GCM_NoPadding_BIOMETRIC storage + AES_GCM_NoPadding_BIOMETRIC key (only)
   const AndroidOptions({
-    @Deprecated('EncryptedSharedPreferences will always be true, and will be '
-        'removed in the next release')
+    @Deprecated(
+      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+      'The Jetpack Security library is deprecated by Google. '
+      'Your data will be automatically migrated to custom ciphers on first access. '
+      'Remove this parameter - it will be ignored.'
+    )
     bool encryptedSharedPreferences = false,
     bool resetOnError = false,
+    bool migrateOnAlgorithmChange = true,
     KeyCipherAlgorithm keyCipherAlgorithm =
         KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
     StorageCipherAlgorithm storageCipherAlgorithm =
@@ -124,6 +146,7 @@ class AndroidOptions extends Options {
         ),
         _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
+        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
         _keyCipherAlgorithm = keyCipherAlgorithm,
         _storageCipherAlgorithm = storageCipherAlgorithm;
 
@@ -136,6 +159,13 @@ class AndroidOptions extends Options {
   ///
   /// Defaults to false.
   final bool _resetOnError;
+
+  /// When the encryption algorithm changes, automatically migrate existing data
+  /// to the new algorithm. This preserves data across algorithm upgrades.
+  /// If false, data will be lost when algorithm changes unless resetOnError is true.
+  ///
+  /// Defaults to true.
+  final bool _migrateOnAlgorithmChange;
 
   /// If EncryptedSharedPrefences is set to false, you can select algorithm
   /// that will be used to encrypt secret key.
@@ -174,6 +204,7 @@ class AndroidOptions extends Options {
   Map<String, String> toMap() => <String, String>{
         'encryptedSharedPreferences': '$_encryptedSharedPreferences',
         'resetOnError': '$_resetOnError',
+        'migrateOnAlgorithmChange': '$_migrateOnAlgorithmChange',
         'keyCipherAlgorithm': _keyCipherAlgorithm.name,
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
         'sharedPreferencesName': sharedPreferencesName ?? '',
@@ -188,6 +219,7 @@ class AndroidOptions extends Options {
   AndroidOptions copyWith({
     bool? encryptedSharedPreferences,
     bool? resetOnError,
+    bool? migrateOnAlgorithmChange,
     KeyCipherAlgorithm? keyCipherAlgorithm,
     StorageCipherAlgorithm? storageCipherAlgorithm,
     String? preferencesKeyPrefix,
@@ -199,6 +231,8 @@ class AndroidOptions extends Options {
         encryptedSharedPreferences:
             encryptedSharedPreferences ?? _encryptedSharedPreferences,
         resetOnError: resetOnError ?? _resetOnError,
+        migrateOnAlgorithmChange:
+            migrateOnAlgorithmChange ?? _migrateOnAlgorithmChange,
         keyCipherAlgorithm: keyCipherAlgorithm ?? _keyCipherAlgorithm,
         storageCipherAlgorithm:
             storageCipherAlgorithm ?? _storageCipherAlgorithm,

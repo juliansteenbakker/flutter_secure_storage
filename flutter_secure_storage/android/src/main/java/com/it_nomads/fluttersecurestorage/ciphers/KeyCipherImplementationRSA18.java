@@ -6,8 +6,6 @@ import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
-import androidx.annotation.RequiresApi;
-
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.KeyPairGenerator;
@@ -22,15 +20,14 @@ import java.util.Locale;
 import javax.crypto.Cipher;
 import javax.security.auth.x500.X500Principal;
 
-class RSACipher18Implementation implements KeyCipher {
+class KeyCipherImplementationRSA18 implements KeyCipher {
 
     private static final String KEYSTORE_PROVIDER_ANDROID = "AndroidKeyStore";
     private static final String TYPE_RSA = "RSA";
     protected final String keyAlias;
     protected final Context context;
 
-
-    public RSACipher18Implementation(Context context) throws Exception {
+    public KeyCipherImplementationRSA18(Context context) throws Exception {
         this.context = context;
         keyAlias = createKeyAlias();
         createRSAKeysIfNeeded(context);
@@ -120,7 +117,8 @@ class RSACipher18Implementation implements KeyCipher {
         ks.load(null);
 
         Key privateKey = ks.getKey(keyAlias, null);
-        if (privateKey == null) {
+        Certificate cert = ks.getCertificate(keyAlias);
+        if (privateKey == null || cert == null) {
             createKeys(context);
         }
     }
@@ -172,7 +170,6 @@ class RSACipher18Implementation implements KeyCipher {
                 .build();
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     protected AlgorithmParameterSpec makeAlgorithmParameterSpec(Context context, Calendar start, Calendar end) {
         final KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_DECRYPT | KeyProperties.PURPOSE_ENCRYPT)
                 .setCertificateSubject(new X500Principal("CN=" + keyAlias))
