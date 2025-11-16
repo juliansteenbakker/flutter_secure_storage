@@ -31,6 +31,7 @@ class HomePageState extends State<HomePage> {
       TextEditingController(text: AppleOptions.defaultAccountName);
 
   final List<_SecItem> _items = [];
+  String _errorMessage = '';
 
   void _initializeFlutterSecureStorage(String accountName) {
     _storage = FlutterSecureStorage(
@@ -139,6 +140,33 @@ class HomePageState extends State<HomePage> {
   }
 
   void _handleInitializationError(PlatformException e) {
+    String userMessage;
+    String technicalDetails = e.message ?? 'Unknown error';
+
+    // Check for BIOMETRIC_UNAVAILABLE error
+    if (technicalDetails.contains('BIOMETRIC_UNAVAILABLE')) {
+      // Parse specific biometric error
+      if (technicalDetails.contains('No biometric hardware')) {
+        userMessage = 'Your device does not have biometric hardware (fingerprint or face scanner).';
+      } else if (technicalDetails.contains('No fingerprint or face enrolled')) {
+        userMessage = 'No biometric enrolled. Please add a fingerprint or face in your device Settings.';
+      } else if (technicalDetails.contains('no PIN, pattern, password')) {
+        userMessage = 'No device security set up. Please set a PIN, pattern, or password in Settings → Security.';
+      } else if (technicalDetails.contains('Android 9')) {
+        userMessage = 'Biometric authentication requires Android 9 or higher. Your device is not supported.';
+      } else if (technicalDetails.contains('temporarily unavailable')) {
+        userMessage = 'Biometric hardware is temporarily unavailable. Please try again.';
+      } else {
+        userMessage = 'Biometric authentication is not available on this device.';
+      }
+
+      setState(() {
+        _errorMessage = userMessage;
+      });
+      _showErrorDialog('Biometric Setup Required', userMessage);
+      return;
+    }
+
     switch (e.code) {
       case 'INIT_FAILED':
         _showErrorDialog('Initialization Failed',
@@ -225,6 +253,39 @@ class HomePageState extends State<HomePage> {
               child: TextFormField(
                 controller: _accountNameController,
                 decoration: const InputDecoration(labelText: 'kSecAttrService'),
+              ),
+            ),
+          if (_errorMessage.isNotEmpty && !kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                border: Border.all(color: Colors.red.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text(
+                        'Error',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage,
+                    style: TextStyle(color: Colors.red.shade900),
+                  ),
+                ],
               ),
             ),
           Expanded(
