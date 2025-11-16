@@ -38,7 +38,6 @@ class HomePageState extends State<HomePage> {
       aOptions: AndroidOptions(
         biometricPromptTitle: 'Flutter Secure Storage Example',
         biometricPromptSubtitle: 'Please unlock to access data.',
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding_BIOMETRIC,
       ),
       iOptions: IOSOptions(
         accountName: accountName,

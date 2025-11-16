@@ -1,8 +1,4 @@
 part of '../flutter_secure_storage.dart';
-// Documentation ignored because enums will be removed in a later release
-//ignore_for_file: public_member_api_docs
-//ignore_for_file: constant_identifier_names
-//ignore_for_file: deprecated_member_use_from_same_package
 
 enum KeyCipherAlgorithm {
   RSA_ECB_PKCS1Padding,
@@ -17,32 +13,6 @@ enum StorageCipherAlgorithm {
 
 /// Specific options for Android platform.
 class AndroidOptions extends Options {
-  /// Maximum security storage with optional biometric authentication.
-  /// - Optionally requires biometric authentication (set enforceBiometrics=true)
-  /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
-  /// - Hardware-backed AES key with optional user presence requirement
-  /// - API 28+ (Android 9.0+)
-  /// - When enforceBiometrics=false, gracefully degrades if biometrics unavailable
-  const AndroidOptions.biometric({
-    @Deprecated(
-      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
-      'The Jetpack Security library is deprecated by Google. '
-      'Remove this parameter - it will be ignored.'
-    )
-    bool encryptedSharedPreferences = false,
-    bool resetOnError = false,
-    bool migrateOnAlgorithmChange = true,
-    bool enforceBiometrics = false,
-    this.sharedPreferencesName,
-    this.preferencesKeyPrefix,
-    this.biometricPromptTitle,
-    this.biometricPromptSubtitle,
-  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
-        _resetOnError = resetOnError,
-        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
-        _enforceBiometrics = enforceBiometrics,
-        _keyCipherAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding,
-        _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding;
 
   /// Standard secure storage using AES-GCM with RSA OAEP key wrapping.
   ///
@@ -67,7 +37,7 @@ class AndroidOptions extends Options {
       'Remove this parameter - it will be ignored.'
     )
     bool encryptedSharedPreferences = false,
-    bool resetOnError = false,
+    bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
     bool enforceBiometrics = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
@@ -84,6 +54,32 @@ class AndroidOptions extends Options {
         _enforceBiometrics = enforceBiometrics,
         _keyCipherAlgorithm = keyCipherAlgorithm,
         _storageCipherAlgorithm = storageCipherAlgorithm;
+  /// Maximum security storage with optional biometric authentication.
+  /// - Optionally requires biometric authentication (set enforceBiometrics=true)
+  /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
+  /// - Hardware-backed AES key with optional user presence requirement
+  /// - API 28+ (Android 9.0+)
+  /// - When enforceBiometrics=false, gracefully degrades if biometrics unavailable
+  const AndroidOptions.biometric({
+    @Deprecated(
+      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+      'The Jetpack Security library is deprecated by Google. '
+      'Remove this parameter - it will be ignored.'
+    )
+    bool encryptedSharedPreferences = false,
+    bool resetOnError = true,
+    bool migrateOnAlgorithmChange = true,
+    bool enforceBiometrics = false,
+    this.sharedPreferencesName,
+    this.preferencesKeyPrefix,
+    this.biometricPromptTitle,
+    this.biometricPromptSubtitle,
+  })  : _encryptedSharedPreferences = encryptedSharedPreferences,
+        _resetOnError = resetOnError,
+        _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
+        _enforceBiometrics = enforceBiometrics,
+        _keyCipherAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding,
+        _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding;
 
   /// EncryptedSharedPrefences are only available on API 23 and greater
   final bool _encryptedSharedPreferences;
