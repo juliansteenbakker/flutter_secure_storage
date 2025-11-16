@@ -162,7 +162,9 @@ public class FlutterSecureStorage {
                 Context.MODE_PRIVATE
         );
 
-        if (config.isUseEncryptedSharedPreferences()) {
+        Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
+
+        if (!isAlreadyMigrated && config.isUseEncryptedSharedPreferences()) {
             // EncryptedSharedPreferences (Jetpack Security library, deprecated by Google)
             Log.w(TAG, "EncryptedSharedPreferences is DEPRECATED and will be removed in a later version");
             Log.w(TAG, "The Jetpack Security library has been deprecated by Google.");
@@ -186,6 +188,7 @@ public class FlutterSecureStorage {
                                 migrateFromEncryptedSharedPreferences(encryptedPreferences, nonEncryptedPreferences);
                                 preferences = nonEncryptedPreferences;
                                 Log.i(TAG, "Migration completed successfully. Now using custom cipher storage.");
+                                setEncryptedPrefsMigrated(configSource);
                                 callback.onSuccess(null);
                             } catch (Exception e) {
                                 Log.e(TAG, "Migration failed. Falling back to EncryptedSharedPreferences.", e);
@@ -212,6 +215,7 @@ public class FlutterSecureStorage {
                     if (config.shouldMigrateOnAlgorithmChange()) {
                         preferences = nonEncryptedPreferences;
                         initializeStorageCipher(configSource, callback);
+                        setEncryptedPrefsMigrated(configSource);
                     } else {
                         Log.i(TAG, "Using EncryptedSharedPreferences.");
                         preferences = encryptedPreferences;
@@ -225,6 +229,9 @@ public class FlutterSecureStorage {
                 initializeStorageCipher(configSource, callback);
             }
         } else {
+            if (isAlreadyMigrated && config.isUseEncryptedSharedPreferences()) {
+                Log.i(TAG, "Data already migrated, encryptedSharedPreferences ignored and can be safely removed.");
+            }
             preferences = nonEncryptedPreferences;
             initializeStorageCipher(configSource, callback);
         }
@@ -777,6 +784,16 @@ public class FlutterSecureStorage {
         }
     }
 
+    private void setEncryptedPrefsMigrated(SharedPreferences configSource) {
+        SharedPreferences.Editor editor = configSource.edit();
+        editor.putBoolean("ENCRYPTED_PREFERENCES_MIGRATED", true);
+        editor.commit();
+    }
+
+    private Boolean getEncryptedPrefsMigrated(SharedPreferences configSource) {
+        return configSource.getBoolean("ENCRYPTED_PREFERENCES_MIGRATED", false);
+    }
+
     /**
      * Handles key mismatch exceptions that occur when stored encryption keys
      * cannot be decrypted/unwrapped due to algorithm changes or key corruption.
@@ -805,6 +822,7 @@ public class FlutterSecureStorage {
                 @Override
                 public void onSuccess(Void unused) {
                     Log.i(TAG, "Data migration completed successfully!");
+                    setEncryptedPrefsMigrated(configSource);
                     callback.onSuccess(null);
                 }
 
@@ -816,6 +834,7 @@ public class FlutterSecureStorage {
                     if (config.shouldDeleteOnFailure()) {
                         Log.w(TAG, "resetOnError is enabled. Deleting all data as fallback...");
                         deleteAllDataAndKeys(configSource, callback);
+                        setEncryptedPrefsMigrated(configSource);
                     } else {
                         Log.e(TAG, "Set resetOnError=true to automatically delete data after migration failure.");
                         String userMessage = String.format(
