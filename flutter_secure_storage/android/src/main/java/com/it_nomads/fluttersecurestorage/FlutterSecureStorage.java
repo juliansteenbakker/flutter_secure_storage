@@ -164,7 +164,7 @@ public class FlutterSecureStorage {
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
-        if (!isAlreadyMigrated && config.isUseEncryptedSharedPreferences()) {
+        if (config.isUseEncryptedSharedPreferences() && !isAlreadyMigrated) {
             // EncryptedSharedPreferences (Jetpack Security library, deprecated by Google)
             Log.w(TAG, "EncryptedSharedPreferences is DEPRECATED and will be removed in a later version");
             Log.w(TAG, "The Jetpack Security library has been deprecated by Google.");
@@ -229,7 +229,7 @@ public class FlutterSecureStorage {
                 initializeStorageCipher(configSource, callback);
             }
         } else {
-            if (isAlreadyMigrated && config.isUseEncryptedSharedPreferences()) {
+            if (config.isUseEncryptedSharedPreferences() && isAlreadyMigrated) {
                 Log.i(TAG, "Data already migrated, encryptedSharedPreferences ignored and can be safely removed.");
             }
             preferences = nonEncryptedPreferences;
