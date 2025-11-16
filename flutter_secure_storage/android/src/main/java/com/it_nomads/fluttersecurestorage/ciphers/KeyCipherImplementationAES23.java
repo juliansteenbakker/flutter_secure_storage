@@ -12,6 +12,8 @@ import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import android.util.Log;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -34,9 +36,11 @@ class KeyCipherImplementationAES23 implements KeyCipher {
     protected final String keyAlias;
 
     protected final Context context;
+    protected final FlutterSecureStorageConfig config;
 
-    public KeyCipherImplementationAES23(Context context) throws Exception {
+    public KeyCipherImplementationAES23(Context context, FlutterSecureStorageConfig config) throws Exception {
         this.context = context;
+        this.config = config;
         keyAlias = createKeyAlias(context);
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
         ks.load(null);
@@ -133,9 +137,16 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
         // Check if device has security (PIN/biometric) configured
         boolean deviceHasSecurity = isDeviceSecure();
+        boolean enforceBiometrics = config.getEnforceBiometrics();
 
+        // ENFORCEMENT MODE: Fail if enforcement enabled but no device security
+        if (enforceBiometrics && !deviceHasSecurity) {
+            throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric enforcement enabled but device has no PIN, pattern, password, or biometric enrolled. Cannot generate secure key.");
+        }
+
+        // GRACEFUL DEGRADATION MODE: Log warning if no device security
         if (!deviceHasSecurity) {
-            Log.w(TAG, "Device has no PIN/biometric security. Generating key without user authentication requirement.");
+            Log.w(TAG, "Device has no PIN/biometric security. Generating key without user authentication requirement (enforceBiometrics=false).");
         }
 
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
@@ -145,7 +156,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setKeySize(KEY_SIZE);
 
-        // Only require user authentication if device has security configured
+        // Set authentication requirement based on device security
         if (deviceHasSecurity) {
             builder.setUserAuthenticationRequired(true);
 
@@ -159,6 +170,9 @@ class KeyCipherImplementationAES23 implements KeyCipher {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 builder.setInvalidatedByBiometricEnrollment(true);
             }
+        } else {
+            // Explicitly set to false for clarity (default behavior)
+            builder.setUserAuthenticationRequired(false);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

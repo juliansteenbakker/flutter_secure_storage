@@ -29,7 +29,9 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
         this.cipher = getCipher();
     }
 
-    private SecretKey loadOrGenerateApplicationKey(Context context, Cipher cipher) throws Exception {
+    private SecretKey loadOrGenerateApplicationKey(Context context, Cipher biometricCipher) throws Exception {
+        final Cipher cipher = (biometricCipher != null) ? biometricCipher : getCipher();
+        assert (cipher != null);
         SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
         String encryptedAppKeyBase64 = preferences.getString(KEYSTORE_IV_NAME, null);
 

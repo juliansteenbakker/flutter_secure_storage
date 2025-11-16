@@ -6,6 +6,8 @@ import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.KeyPairGenerator;
@@ -26,9 +28,11 @@ class KeyCipherImplementationRSA18 implements KeyCipher {
     private static final String TYPE_RSA = "RSA";
     protected final String keyAlias;
     protected final Context context;
+    protected final FlutterSecureStorageConfig config;
 
-    public KeyCipherImplementationRSA18(Context context) throws Exception {
+    public KeyCipherImplementationRSA18(Context context, FlutterSecureStorageConfig config) throws Exception {
         this.context = context;
+        this.config = config;
         keyAlias = createKeyAlias();
         createRSAKeysIfNeeded(context);
     }

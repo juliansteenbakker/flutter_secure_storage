@@ -232,7 +232,7 @@ public class FlutterSecureStorage {
 
     private void initializeStorageCipher(SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
         try {
-            storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm());
+            storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
             if (storageCipherFactory.requiresReEncryption()) {
                 Log.w(TAG, "Algorithm changed detected.");
@@ -242,10 +242,20 @@ public class FlutterSecureStorage {
 
             // Check if the current algorithm requires biometric authentication
             Cipher cipher = storageCipherFactory.getCurrentKeyCipher(context).getCipher(context);
+            boolean enforceRequired = config.getEnforceBiometrics();
+            boolean deviceHasSecurity = isDeviceSecure();
 
-            if (cipher == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                // No biometric authentication needed (RSA-based algorithms)
-                storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+            // Skip authentication if:
+            // 1. Cipher is null (RSA algorithms), OR
+            // 2. Android < P (no BiometricPrompt), OR
+            // 3. Enforcement disabled AND device has no security
+            if (cipher == null
+                    || Build.VERSION.SDK_INT < Build.VERSION_CODES.P
+                    || (!enforceRequired && !deviceHasSecurity)) {
+                // No biometric authentication needed - use non-authenticated cipher
+                // For AES_GCM_NoPadding_BIOMETRIC, cipher is already initialized from KeyStore
+                // with setUserAuthenticationRequired(false) when device has no security
+                storageCipher = storageCipherFactory.getCurrentStorageCipher(context, cipher);
                 callback.onSuccess(null);
                 return;
             }
@@ -912,9 +922,96 @@ public class FlutterSecureStorage {
         return keyguardManager != null && keyguardManager.isDeviceSecure();
     }
 
-    private void authenticateUser(Cipher cipher, SecurePreferencesCallback<BiometricPrompt.AuthenticationResult> securePreferencesCallback) throws Exception {
+    /**
+     * Ensures biometric authentication is available when enforcement is enabled.
+     *
+     * @param enforceRequired If true, throws exception when biometric unavailable.
+     *                       If false, only logs warning.
+     * @throws Exception When enforcement enabled but biometric unavailable
+     */
+    private void ensureBiometricAvailable(boolean enforceRequired) throws Exception {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            throw new Exception("Biometric authentication requires Android 9 (API 28) or higher");
+            if (enforceRequired) {
+                throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric authentication requires Android 9 (API 28) or higher");
+            }
+            return; // Graceful degradation
+        }
+
+        // Check device security first (PIN/pattern/password)
+        if (!isDeviceSecure()) {
+            if (enforceRequired) {
+                throw new Exception("BIOMETRIC_UNAVAILABLE: Device has no PIN, pattern, password, or biometric enrolled. Please secure your device in Settings.");
+            } else {
+                Log.w(TAG, "Device has no security. Biometric authentication will be skipped (enforceBiometrics=false).");
+            }
+            return;
+        }
+
+        // For Android 11+, check BiometricManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            BiometricManager biometricManager = context.getSystemService(BiometricManager.class);
+
+            if (biometricManager == null) {
+                if (enforceRequired) {
+                    throw new Exception("BIOMETRIC_UNAVAILABLE: BiometricManager not available on this device");
+                }
+                return;
+            }
+
+            int result = biometricManager.canAuthenticate(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG |
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            );
+
+            // Handle specific BiometricManager status codes
+            switch (result) {
+                case BiometricManager.BIOMETRIC_SUCCESS:
+                    return; // OK to proceed
+
+                case BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE:
+                    if (enforceRequired) {
+                        throw new Exception("BIOMETRIC_UNAVAILABLE: No biometric hardware detected on this device");
+                    }
+                    break;
+
+                case BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE:
+                    if (enforceRequired) {
+                        throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric hardware temporarily unavailable");
+                    }
+                    break;
+
+                case BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED:
+                    if (enforceRequired) {
+                        throw new Exception("BIOMETRIC_UNAVAILABLE: No fingerprint or face enrolled. Please enroll in Settings.");
+                    }
+                    break;
+
+                case BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED:
+                    if (enforceRequired) {
+                        throw new Exception("BIOMETRIC_UNAVAILABLE: Security update required for biometric authentication");
+                    }
+                    break;
+                default:
+                    if (enforceRequired) {
+                        throw new Exception("BIOMETRIC_UNAVAILABLE: Unknown biometric status (code: " + result + ")");
+                    }
+                    break;
+            }
+
+            Log.w(TAG, "Biometric check failed with code " + result + ", but continuing (enforceBiometrics=false)");
+        }
+    }
+
+    private void authenticateUser(Cipher cipher, SecurePreferencesCallback<BiometricPrompt.AuthenticationResult> securePreferencesCallback) throws Exception {
+        // Check if biometric is available based on enforcement setting
+        boolean enforceRequired = config.getEnforceBiometrics();
+        ensureBiometricAvailable(enforceRequired);
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            if (enforceRequired) {
+                throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric authentication requires Android 9 (API 28) or higher");
+            }
+            return; // Skip authentication if not enforced
         }
 
         BiometricPrompt.CryptoObject crypto = new BiometricPrompt.CryptoObject(cipher);

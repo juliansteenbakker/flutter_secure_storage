@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import javax.crypto.Cipher;
 
 public class StorageCipherFactory {
@@ -17,8 +19,10 @@ public class StorageCipherFactory {
     private final StorageCipherAlgorithm savedStorageAlgorithm;
     private final KeyCipherAlgorithm currentKeyAlgorithm;
     private final StorageCipherAlgorithm currentStorageAlgorithm;
+    private final FlutterSecureStorageConfig config;
 
-    public StorageCipherFactory(SharedPreferences configSource, String keyCipherAlgorithm, String storageCipherAlgorithm) {
+    public StorageCipherFactory(SharedPreferences configSource, String keyCipherAlgorithm, String storageCipherAlgorithm, FlutterSecureStorageConfig config) {
+        this.config = config;
         final String savedKeyCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
         final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
 
@@ -89,21 +93,21 @@ public class StorageCipherFactory {
     }
 
     public StorageCipher getSavedStorageCipher(Context context, Cipher cipher) throws Exception {
-        final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context);
+        final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context, config);
         return savedStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
     }
 
     public StorageCipher getCurrentStorageCipher(Context context, Cipher cipher) throws Exception {
-        final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context);
+        final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context, config);
         return currentStorageAlgorithm.storageCipher.apply(context, keyCipher, cipher);
     }
 
     public KeyCipher getCurrentKeyCipher(Context context) throws Exception {
-        return currentKeyAlgorithm.keyCipher.apply(context);
+        return currentKeyAlgorithm.keyCipher.apply(context, config);
     }
 
     public KeyCipher getSavedKeyCipher(Context context) throws Exception {
-        return savedKeyAlgorithm.keyCipher.apply(context);
+        return savedKeyAlgorithm.keyCipher.apply(context, config);
     }
 
     public void storeCurrentAlgorithms(SharedPreferences.Editor editor) {
