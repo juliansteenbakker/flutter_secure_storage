@@ -20,7 +20,8 @@ jobs:
     strategy:
       matrix:
         api-level: [ 24, 36 ]
-        target: [ default ]
+#        target: [ default ] not available on sdk-36
+        target: [ google_apis ]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
