@@ -43,7 +43,7 @@ dev_dependencies:
     sdk: flutter
   mocktail: ^1.0.0
   plugin_platform_interface: ^2.0.0
-  very_good_analysis: ^7.0.0
+  very_good_analysis: '>=6.0.0 <11.0.0'
 
 # We need to manually declare supported platforms, because pub.dev won't find them.
 platforms:
