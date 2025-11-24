@@ -88,8 +88,8 @@ jobs:
       - uses: futureware-tech/simulator-action@v4
         with:
           os: iOS
-          os_version: ">=18.1"
-          model: "iPhone 15"
+          os_version: ">=18.5"
+          model: "iPhone 16"
       - run: flutter pub get
         working-directory: flutter_secure_storage/example
       - name: Pod Install
