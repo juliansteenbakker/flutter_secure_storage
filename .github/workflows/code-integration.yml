@@ -103,8 +103,7 @@ jobs:
         working-directory: flutter_secure_storage/example
       - run: |
           DEVICE_ID=$(xcrun simctl list devices | grep "iPhone 16" | grep Booted | awk -F '[()]' '{print $2}')
-          flutter drive \                                                                                 
-          --driver=test_driver/integration_test.dart \
+          flutter drive \
           --target=integration_test/app_test.dart \
           -d $DEVICE_ID
         working-directory: flutter_secure_storage/example
