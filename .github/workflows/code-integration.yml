@@ -86,28 +86,63 @@ jobs:
     name: 🍏 iOS Tests
     runs-on: macos-latest
     timeout-minutes: 30
+
+    env:
+      SIM_OS: iOS
+      SIM_OS_VERSION: "18.5"
+      SIM_DEVICE: "iPhone 16"
+      DRIVE_TIMEOUT: 600
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
       - name: Install Melos
         run: flutter pub global activate melos
+
+      - name: Reset Simulator State
+        run: |
+          xcrun simctl shutdown all || true
+          xcrun simctl erase all || true
+          sudo killall -9 com.apple.CoreSimulator.CoreSimulatorService || true
+          sudo killall -9 Simulator || true
+          sleep 2
+
       - uses: futureware-tech/simulator-action@v4
         with:
-          os: iOS
-          os_version: "18.5"
-          model: "iPhone 16"
+          os: ${{ env.SIM_OS }}
+          os_version: ${{ env.SIM_OS_VERSION }}
+          model: ${{ env.SIM_DEVICE }}
+
+      - name: Wait for Boot
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices | grep "${SIM_DEVICE}" | grep Booted | awk -F '[()]' '{print $2}')
+          for i in {1..30}; do
+            booted=$(xcrun simctl list devices | grep "$DEVICE_ID" | grep -c Booted || true)
+            if [ "$booted" = "1" ]; then
+              echo "Simulator booted: $DEVICE_ID"
+              exit 0
+            fi
+            echo "Waiting for boot… ($i/30)"
+            sleep 2
+          done
+          echo "Simulator boot timeout"
+          exit 1
+
       - run: flutter pub get
         working-directory: flutter_secure_storage/example
-      - run: |
-          DEVICE_ID=$(xcrun simctl list devices | grep "iPhone 16" | grep Booted | awk -F '[()]' '{print $2}')
-          flutter drive \
-          --target=integration_test/app_test.dart \
-          -d $DEVICE_ID
-        working-directory: flutter_secure_storage/example
 
+      - name: Execute Integration Tests with Timeout
+        working-directory: flutter_secure_storage/example
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices | grep "${SIM_DEVICE}" | grep Booted | awk -F '[()]' '{print $2}')
+          timeout ${DRIVE_TIMEOUT} flutter drive \
+            --target=integration_test/app_test.dart \
+            -d "$DEVICE_ID"
 #      - name: Pod Install
 #        working-directory: flutter_secure_storage/example
 #        run: |
