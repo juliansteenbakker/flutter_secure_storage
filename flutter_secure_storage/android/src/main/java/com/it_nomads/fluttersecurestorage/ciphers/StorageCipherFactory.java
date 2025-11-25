@@ -27,8 +27,14 @@ public class StorageCipherFactory {
         final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
-            savedKeyAlgorithm = KeyCipherAlgorithm.fromString(keyCipherAlgorithm);
-            savedStorageAlgorithm = StorageCipherAlgorithm.fromString(storageCipherAlgorithm);
+            // Migration from v9.2.4 or v10.0.0-beta.4:
+            // No algorithm markers exist in SharedPreferences, which means the data was encrypted
+            // with the historical v9.2.4 defaults. We must use these defaults to decrypt the old
+            // data, even if the current config specifies different algorithms.
+            // After successful decryption, the data will be re-encrypted with current algorithms
+            // (if they differ) via the migration flow in handleKeyMismatch().
+            savedKeyAlgorithm = DEFAULT_KEY_ALGORITHM;        // RSA_ECB_PKCS1Padding
+            savedStorageAlgorithm = DEFAULT_STORAGE_ALGORITHM; // AES_CBC_PKCS7Padding
         } else {
             savedKeyAlgorithm = KeyCipherAlgorithm.fromString(savedKeyCipherAlgorithm);
             savedStorageAlgorithm = StorageCipherAlgorithm.fromString(savedStorageCipherAlgorithm);
