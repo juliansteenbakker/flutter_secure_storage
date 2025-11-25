@@ -164,20 +164,44 @@ public class FlutterSecureStorage {
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
-        if (config.isUseEncryptedSharedPreferences() && !isAlreadyMigrated) {
-            // EncryptedSharedPreferences (Jetpack Security library, deprecated by Google)
-            Log.w(TAG, "EncryptedSharedPreferences is DEPRECATED and will be removed in a later version");
-            Log.w(TAG, "The Jetpack Security library has been deprecated by Google.");
-            
-            if (config.shouldMigrateOnAlgorithmChange()) {
-              Log.w(TAG, "Your data will be automatically migrated to AES_GCM_NoPadding.");
-            }
-
+        // Always check for EncryptedSharedPreferences data, regardless of current config.
+        // This handles the case where users had encryptedSharedPreferences=true in v9.2.4
+        // but removed it when upgrading (thinking it's deprecated and shouldn't be used).
+        // Without this check, their data would be lost during upgrade.
+        if (!isAlreadyMigrated) {
             try {
                 SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context);
 
-                // Check if migration is needed
-                if (hasDataInEncryptedSharedPreferences(encryptedPreferences) && config.shouldMigrateOnAlgorithmChange()) {
+                // Check if data exists in EncryptedSharedPreferences (from v9.2.4 or earlier)
+                if (hasDataInEncryptedSharedPreferences(encryptedPreferences)) {
+                    // EncryptedSharedPreferences (Jetpack Security library, deprecated by Google)
+                    Log.w(TAG, "Found data in EncryptedSharedPreferences (deprecated)");
+                    Log.w(TAG, "EncryptedSharedPreferences is DEPRECATED and will be removed in a later version");
+                    Log.w(TAG, "The Jetpack Security library has been deprecated by Google.");
+
+                    if (!config.shouldMigrateOnAlgorithmChange()) {
+                        Log.w(TAG, "Data found in EncryptedSharedPreferences, but migrateOnAlgorithmChange is set to false.");
+                        Log.w(TAG, "Set migrateOnAlgorithmChange=true to migrate to custom cipher storage.");
+
+                        // User wants to keep using EncryptedSharedPreferences
+                        if (config.isUseEncryptedSharedPreferences()) {
+                            Log.i(TAG, "Using EncryptedSharedPreferences (migration disabled).");
+                            preferences = encryptedPreferences;
+                            callback.onSuccess(null);
+                            return;
+                        } else {
+                            Log.e(TAG, "Data exists in EncryptedSharedPreferences but encryptedSharedPreferences=false and migrateOnAlgorithmChange=false.");
+                            Log.e(TAG, "Either set encryptedSharedPreferences=true to use the old data, or set migrateOnAlgorithmChange=true to migrate it.");
+                            callback.onError(new Exception("EncryptedSharedPreferences data found but migration is disabled. Set migrateOnAlgorithmChange=true to migrate."));
+                            return;
+                        }
+                    }
+
+                    // Migrate from EncryptedSharedPreferences to custom cipher storage
+                    Log.i(TAG, "Migrating data from EncryptedSharedPreferences to custom cipher storage...");
+                    if (config.isUseEncryptedSharedPreferences()) {
+                        Log.w(TAG, "Your data will be automatically migrated. You can safely remove encryptedSharedPreferences from your config after migration.");
+                    }
                     Log.i(TAG, "Migrating data from EncryptedSharedPreferences to selected custom cipher storage...");
 
                     // Initialize custom cipher for migration target
@@ -204,31 +228,29 @@ public class FlutterSecureStorage {
                             callback.onSuccess(null);
                         }
                     });
+                    return;
                 } else {
-                    // No data to migrate, just use EncryptedSharedPreferences for now
-                    if (hasDataInEncryptedSharedPreferences(encryptedPreferences)) {
-                        Log.i(TAG, "Data found, but shouldMigrateOnAlgorithmChange is set to false.");
-                    } else {
-                        Log.i(TAG, "No existing data found.");
-                    }
+                    // No data in EncryptedSharedPreferences
+                    Log.d(TAG, "No data found in EncryptedSharedPreferences.");
 
-                    if (config.shouldMigrateOnAlgorithmChange()) {
-                        preferences = nonEncryptedPreferences;
-                        initializeStorageCipher(configSource, callback);
-                        setEncryptedPrefsMigrated(configSource);
-                    } else {
-                        Log.i(TAG, "Using EncryptedSharedPreferences.");
+                    // If user explicitly wants to use EncryptedSharedPreferences (deprecated)
+                    if (config.isUseEncryptedSharedPreferences() && !config.shouldMigrateOnAlgorithmChange()) {
+                        Log.w(TAG, "Using EncryptedSharedPreferences (deprecated). Consider migrating to custom ciphers.");
                         preferences = encryptedPreferences;
                         callback.onSuccess(null);
+                        return;
                     }
+
+                    // Fall through to use custom ciphers
                 }
             } catch (Exception e) {
                 Log.e(TAG, "EncryptedSharedPreferences initialization failed. Falling back to custom ciphers.", e);
-                // Fallback to custom ciphers
-                preferences = nonEncryptedPreferences;
-                initializeStorageCipher(configSource, callback);
+                // Fall through to use custom ciphers
             }
-        } else {
+        }
+
+        // Use custom cipher storage (default path for new installs or after migration)
+        if (preferences == null) {
             if (config.isUseEncryptedSharedPreferences() && isAlreadyMigrated) {
                 Log.i(TAG, "Data already migrated, encryptedSharedPreferences ignored and can be safely removed.");
             }
