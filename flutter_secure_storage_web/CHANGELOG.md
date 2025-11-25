@@ -1,3 +1,6 @@
+## NEXT
+Updated code style
+
 ## 2.0.0
 Stable release containing all changes from beta releases, which are:
 - This plugin requires a minimum dart sdk of 3.3.0 or higher and a minimum flutter version of 3.19.0.

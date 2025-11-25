@@ -79,7 +79,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     required String key,
     required Map<String, String> options,
   }) async {
-    final value = _getStorage(options)['${options[_publicKey]!}.$key'];
+    final value = _getStorage(options).getItem('${options[_publicKey]!}.$key');
 
     return _decryptValue(value, options);
   }
@@ -124,7 +124,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     final useWrapKey = options[_wrapKey]?.isNotEmpty ?? false;
 
     if (storage.has(key)) {
-      final jwk = base64Decode(storage[key]!);
+      final jwk = base64Decode(storage.getItem(key)!);
 
       if (useWrapKey) {
         final unwrappingKey = await _getWrapKey(options);
@@ -174,8 +174,11 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
             .toDart;
       }
 
-      storage[key] = base64Encode(
-        (jsonWebKey! as js_interop.JSArrayBuffer).toDart.asUint8List(),
+      storage.setItem(
+        key,
+        base64Encode(
+          (jsonWebKey! as js_interop.JSArrayBuffer).toDart.asUint8List(),
+        ),
       );
     }
 
@@ -232,7 +235,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     final encoded = '${base64Encode(iv)}.'
         '${base64Encode(encryptedContent.toDart.asUint8List())}';
 
-    _getStorage(options)['${options[_publicKey]!}.$key'] = encoded;
+    _getStorage(options).setItem('${options[_publicKey]!}.$key', encoded);
   }
 
   Future<String?> _decryptValue(
