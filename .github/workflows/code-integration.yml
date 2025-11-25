@@ -91,7 +91,6 @@ jobs:
       SIM_OS: iOS
       SIM_OS_VERSION: "18.5"
       SIM_DEVICE: "iPhone 16"
-      DRIVE_TIMEOUT: 600
 
     steps:
       - uses: actions/checkout@v4
@@ -136,21 +135,10 @@ jobs:
       - run: flutter pub get
         working-directory: flutter_secure_storage/example
 
-      - name: Execute Integration Tests with Timeout
+      - name: Execute Integration Tests
         working-directory: flutter_secure_storage/example
         run: |
           DEVICE_ID=$(xcrun simctl list devices | grep "${SIM_DEVICE}" | grep Booted | awk -F '[()]' '{print $2}')
-#          timeout ${DRIVE_TIMEOUT} flutter drive \
           flutter drive \
             --target=integration_test/app_test.dart \
             -d "$DEVICE_ID"
-#      - name: Pod Install
-#        working-directory: flutter_secure_storage/example
-#        run: |
-#          cd ios
-#          pod install
-#          cd ..
-#      - run: flutter build ios --simulator --target=integration_test/app_test.dart
-#        working-directory: flutter_secure_storage/example
-#      - run: flutter test integration_test
-#        working-directory: flutter_secure_storage/example
