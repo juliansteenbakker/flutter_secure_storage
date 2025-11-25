@@ -146,17 +146,23 @@ class HomePageState extends State<HomePage> {
     if (technicalDetails.contains('BIOMETRIC_UNAVAILABLE')) {
       // Parse specific biometric error
       if (technicalDetails.contains('No biometric hardware')) {
-        userMessage = 'Your device does not have biometric hardware (fingerprint or face scanner).';
+        userMessage =
+            'Your device does not have biometric hardware (fingerprint or face scanner).';
       } else if (technicalDetails.contains('No fingerprint or face enrolled')) {
-        userMessage = 'No biometric enrolled. Please add a fingerprint or face in your device Settings.';
+        userMessage =
+            'No biometric enrolled. Please add a fingerprint or face in your device Settings.';
       } else if (technicalDetails.contains('no PIN, pattern, password')) {
-        userMessage = 'No device security set up. Please set a PIN, pattern, or password in Settings → Security.';
+        userMessage =
+            'No device security set up. Please set a PIN, pattern, or password in Settings → Security.';
       } else if (technicalDetails.contains('Android 9')) {
-        userMessage = 'Biometric authentication requires Android 9 or higher. Your device is not supported.';
+        userMessage =
+            'Biometric authentication requires Android 9 or higher. Your device is not supported.';
       } else if (technicalDetails.contains('temporarily unavailable')) {
-        userMessage = 'Biometric hardware is temporarily unavailable. Please try again.';
+        userMessage =
+            'Biometric hardware is temporarily unavailable. Please try again.';
       } else {
-        userMessage = 'Biometric authentication is not available on this device.';
+        userMessage =
+            'Biometric authentication is not available on this device.';
       }
 
       setState(() {
@@ -254,7 +260,9 @@ class HomePageState extends State<HomePage> {
                 decoration: const InputDecoration(labelText: 'kSecAttrService'),
               ),
             ),
-          if (_errorMessage.isNotEmpty && !kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          if (_errorMessage.isNotEmpty &&
+              !kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.android)
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),

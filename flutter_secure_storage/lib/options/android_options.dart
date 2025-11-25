@@ -13,7 +13,6 @@ enum StorageCipherAlgorithm {
 
 /// Specific options for Android platform.
 class AndroidOptions extends Options {
-
   /// Standard secure storage using AES-GCM with RSA OAEP key wrapping.
   ///
   /// This is the default constructor with strong security:
@@ -31,11 +30,10 @@ class AndroidOptions extends Options {
   /// - AES_GCM_NoPadding storage + AES_GCM_NoPadding key (KeyStore-based, supports biometrics)
   const AndroidOptions({
     @Deprecated(
-      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
-      'The Jetpack Security library is deprecated by Google. '
-      'Your data will be automatically migrated to custom ciphers on first access. '
-      'Remove this parameter - it will be ignored.'
-    )
+        'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+        'The Jetpack Security library is deprecated by Google. '
+        'Your data will be automatically migrated to custom ciphers on first access. '
+        'Remove this parameter - it will be ignored.')
     bool encryptedSharedPreferences = false,
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
@@ -54,6 +52,7 @@ class AndroidOptions extends Options {
         _enforceBiometrics = enforceBiometrics,
         _keyCipherAlgorithm = keyCipherAlgorithm,
         _storageCipherAlgorithm = storageCipherAlgorithm;
+
   /// Maximum security storage with optional biometric authentication.
   /// - Optionally requires biometric authentication (set enforceBiometrics=true)
   /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
@@ -62,10 +61,9 @@ class AndroidOptions extends Options {
   /// - When enforceBiometrics=false, gracefully degrades if biometrics unavailable
   const AndroidOptions.biometric({
     @Deprecated(
-      'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
-      'The Jetpack Security library is deprecated by Google. '
-      'Remove this parameter - it will be ignored.'
-    )
+        'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+        'The Jetpack Security library is deprecated by Google. '
+        'Remove this parameter - it will be ignored.')
     bool encryptedSharedPreferences = false,
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
@@ -153,11 +151,10 @@ class AndroidOptions extends Options {
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
         'sharedPreferencesName': sharedPreferencesName ?? '',
         'preferencesKeyPrefix': preferencesKeyPrefix ?? '',
-        'biometricPromptTitle': biometricPromptTitle ??
-            'Authenticate to access',
-        'biometricPromptSubtitle': biometricPromptSubtitle ??
-            'Use biometrics or device credentials',
-
+        'biometricPromptTitle':
+            biometricPromptTitle ?? 'Authenticate to access',
+        'biometricPromptSubtitle':
+            biometricPromptSubtitle ?? 'Use biometrics or device credentials',
       };
 
   AndroidOptions copyWith({
@@ -182,9 +179,11 @@ class AndroidOptions extends Options {
         keyCipherAlgorithm: keyCipherAlgorithm ?? _keyCipherAlgorithm,
         storageCipherAlgorithm:
             storageCipherAlgorithm ?? _storageCipherAlgorithm,
-        sharedPreferencesName: sharedPreferencesName ?? this.sharedPreferencesName,
+        sharedPreferencesName:
+            sharedPreferencesName ?? this.sharedPreferencesName,
         preferencesKeyPrefix: preferencesKeyPrefix ?? this.preferencesKeyPrefix,
         biometricPromptTitle: biometricPromptTitle ?? this.biometricPromptTitle,
-        biometricPromptSubtitle: biometricPromptSubtitle ?? this.biometricPromptSubtitle,
+        biometricPromptSubtitle:
+            biometricPromptSubtitle ?? this.biometricPromptSubtitle,
       );
 }
