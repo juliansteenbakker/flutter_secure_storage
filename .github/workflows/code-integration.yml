@@ -140,7 +140,8 @@ jobs:
         working-directory: flutter_secure_storage/example
         run: |
           DEVICE_ID=$(xcrun simctl list devices | grep "${SIM_DEVICE}" | grep Booted | awk -F '[()]' '{print $2}')
-          timeout ${DRIVE_TIMEOUT} flutter drive \
+#          timeout ${DRIVE_TIMEOUT} flutter drive \
+          flutter drive \
             --target=integration_test/app_test.dart \
             -d "$DEVICE_ID"
 #      - name: Pod Install
