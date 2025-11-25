@@ -86,6 +86,7 @@ jobs:
     name: 🍏 iOS Tests
     runs-on: macos-latest
     timeout-minutes: 30
+    needs: integration_tests_android
 
     env:
       SIM_OS: iOS
