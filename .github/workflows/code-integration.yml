@@ -116,6 +116,8 @@ jobs:
           os: ${{ env.SIM_OS }}
           os_version: ${{ env.SIM_OS_VERSION }}
           model: ${{ env.SIM_DEVICE }}
+          erase_before_boot: true
+          wait_for_boot: true
 
       - name: Wait for Boot
         run: |
