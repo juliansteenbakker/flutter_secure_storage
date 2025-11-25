@@ -365,58 +365,184 @@ void main() {
 
       expect(options.toMap(), {
         'encryptedSharedPreferences': 'false',
-        'resetOnError': 'false',
-        'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
-        'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
+        'resetOnError': 'true',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'false',
+        'keyCipherAlgorithm': 'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
+        'storageCipherAlgorithm': 'AES_GCM_NoPadding',
         'sharedPreferencesName': '',
         'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Authenticate to access',
+        'biometricPromptSubtitle': 'Use biometrics or device credentials',
       });
     });
 
-    test('AndroidOptions with custom values', () {
+    test('AndroidOptions default constructor matches defaultOptions', () {
+      const defaultOptions = AndroidOptions.defaultOptions;
+      // Ignore for test
+      // ignore: use_named_constants
+      const constructorOptions = AndroidOptions();
+
+      expect(defaultOptions.toMap(), constructorOptions.toMap());
+    });
+
+    test('AndroidOptions with all custom values', () {
       const options = AndroidOptions(
-        resetOnError: true,
-        keyCipherAlgorithm:
-            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
         sharedPreferencesName: 'customPrefs',
         preferencesKeyPrefix: 'customPrefix',
+        biometricPromptTitle: 'Custom Title',
+        biometricPromptSubtitle: 'Custom Subtitle',
+      );
+
+      expect(options.toMap(), {
+        'encryptedSharedPreferences': 'false',
+        'resetOnError': 'false',
+        'migrateOnAlgorithmChange': 'false',
+        'enforceBiometrics': 'true',
+        'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
+        'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
+        'sharedPreferencesName': 'customPrefs',
+        'preferencesKeyPrefix': 'customPrefix',
+        'biometricPromptTitle': 'Custom Title',
+        'biometricPromptSubtitle': 'Custom Subtitle',
+      });
+    });
+
+    test('AndroidOptions.biometric constructor should have correct defaults',
+        () {
+      const options = AndroidOptions.biometric();
+
+      expect(options.toMap(), {
+        'encryptedSharedPreferences': 'false',
+        'resetOnError': 'true',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'false',
+        'keyCipherAlgorithm': 'AES_GCM_NoPadding',
+        'storageCipherAlgorithm': 'AES_GCM_NoPadding',
+        'sharedPreferencesName': '',
+        'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Authenticate to access',
+        'biometricPromptSubtitle': 'Use biometrics or device credentials',
+      });
+    });
+
+    test(
+        'AndroidOptions.biometric with enforceBiometrics=true requires authentication',
+        () {
+      const options = AndroidOptions.biometric(
+        enforceBiometrics: true,
+        biometricPromptTitle: 'Unlock Secure Storage',
+        biometricPromptSubtitle: 'Verify your identity',
       );
 
       expect(options.toMap(), {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'true',
-        'keyCipherAlgorithm': 'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'true',
+        'keyCipherAlgorithm': 'AES_GCM_NoPadding',
         'storageCipherAlgorithm': 'AES_GCM_NoPadding',
-        'sharedPreferencesName': 'customPrefs',
-        'preferencesKeyPrefix': 'customPrefix',
+        'sharedPreferencesName': '',
+        'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Unlock Secure Storage',
+        'biometricPromptSubtitle': 'Verify your identity',
       });
     });
 
-    test('copyWith should correctly override values', () {
+    test('AndroidOptions.biometric with custom shared preferences', () {
+      const options = AndroidOptions.biometric(
+        sharedPreferencesName: 'biometric_secure',
+        preferencesKeyPrefix: 'bio_',
+      );
+
+      expect(options.toMap()['sharedPreferencesName'], 'biometric_secure');
+      expect(options.toMap()['preferencesKeyPrefix'], 'bio_');
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['storageCipherAlgorithm'], 'AES_GCM_NoPadding');
+    });
+
+    test('AndroidOptions with legacy RSA cipher algorithms', () {
+      const options = AndroidOptions(
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+      );
+
+      expect(options.toMap()['keyCipherAlgorithm'], 'RSA_ECB_PKCS1Padding');
+      expect(
+        options.toMap()['storageCipherAlgorithm'],
+        'AES_CBC_PKCS7Padding',
+      );
+    });
+
+    test('AndroidOptions with AES key cipher (for biometric support)', () {
+      const options = AndroidOptions(
+        keyCipherAlgorithm: KeyCipherAlgorithm.AES_GCM_NoPadding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+        enforceBiometrics: true,
+      );
+
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['storageCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['enforceBiometrics'], 'true');
+    });
+
+    test('copyWith should correctly override all values', () {
       const original = AndroidOptions.defaultOptions;
 
       final copied = original.copyWith(
-        resetOnError: true,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
         sharedPreferencesName: 'newPrefs',
+        preferencesKeyPrefix: 'newPrefix',
+        biometricPromptTitle: 'New Title',
+        biometricPromptSubtitle: 'New Subtitle',
       );
 
       expect(copied.toMap(), {
         'encryptedSharedPreferences': 'false',
-        'resetOnError': 'true',
+        'resetOnError': 'false',
+        'migrateOnAlgorithmChange': 'false',
+        'enforceBiometrics': 'true',
         'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
         'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
         'sharedPreferencesName': 'newPrefs',
-        'preferencesKeyPrefix': '',
+        'preferencesKeyPrefix': 'newPrefix',
+        'biometricPromptTitle': 'New Title',
+        'biometricPromptSubtitle': 'New Subtitle',
       });
+    });
+
+    test('copyWith with partial updates retains other values', () {
+      const original = AndroidOptions(
+        resetOnError: false,
+        enforceBiometrics: true,
+        sharedPreferencesName: 'original',
+      );
+
+      final copied = original.copyWith(
+        sharedPreferencesName: 'updated',
+      );
+
+      expect(copied.toMap()['resetOnError'], 'false');
+      expect(copied.toMap()['enforceBiometrics'], 'true');
+      expect(copied.toMap()['sharedPreferencesName'], 'updated');
     });
 
     test('copyWith without changes should retain original values', () {
       const original = AndroidOptions(
-        resetOnError: true,
-        keyCipherAlgorithm:
-            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
       );
 
       final copied = original.copyWith();
@@ -433,12 +559,89 @@ void main() {
       expect(options.toMap()['preferencesKeyPrefix'], '');
     });
 
+    test('AndroidOptions with custom biometric prompts', () {
+      const options = AndroidOptions(
+        biometricPromptTitle: 'Secure Access Required',
+        biometricPromptSubtitle: 'Authenticate using fingerprint or face',
+      );
+
+      expect(
+        options.toMap()['biometricPromptTitle'],
+        'Secure Access Required',
+      );
+      expect(
+        options.toMap()['biometricPromptSubtitle'],
+        'Authenticate using fingerprint or face',
+      );
+    });
+
+    test('AndroidOptions with null biometric prompts uses defaults', () {
+      const options = AndroidOptions();
+
+      expect(
+        options.toMap()['biometricPromptTitle'],
+        'Authenticate to access',
+      );
+      expect(
+        options.toMap()['biometricPromptSubtitle'],
+        'Use biometrics or device credentials',
+      );
+    });
+
+    test('AndroidOptions resetOnError default is true', () {
+      const options = AndroidOptions();
+
+      expect(options.toMap()['resetOnError'], 'true');
+    });
+
+    test('AndroidOptions migrateOnAlgorithmChange default is true', () {
+      const options = AndroidOptions();
+
+      expect(options.toMap()['migrateOnAlgorithmChange'], 'true');
+    });
+
+    test('AndroidOptions with migrateOnAlgorithmChange disabled', () {
+      const options = AndroidOptions(
+        migrateOnAlgorithmChange: false,
+        resetOnError: true,
+      );
+
+      expect(options.toMap()['migrateOnAlgorithmChange'], 'false');
+      expect(options.toMap()['resetOnError'], 'true');
+    });
+
     test('Deprecated encryptedSharedPreferences still functions', () {
       // Ignore for test
       // ignore: deprecated_member_use_from_same_package
       const options = AndroidOptions(encryptedSharedPreferences: true);
 
       expect(options.toMap()['encryptedSharedPreferences'], 'true');
+    });
+
+    test('AndroidOptions.biometric with deprecated encryptedSharedPreferences',
+        () {
+      // Ignore for test
+      // ignore: deprecated_member_use_from_same_package
+      const options = AndroidOptions.biometric(
+        encryptedSharedPreferences: true,
+      );
+
+      expect(options.toMap()['encryptedSharedPreferences'], 'true');
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+    });
+
+    test('All KeyCipherAlgorithm enum values are correctly mapped', () {
+      for (final algorithm in KeyCipherAlgorithm.values) {
+        final options = AndroidOptions(keyCipherAlgorithm: algorithm);
+        expect(options.toMap()['keyCipherAlgorithm'], algorithm.name);
+      }
+    });
+
+    test('All StorageCipherAlgorithm enum values are correctly mapped', () {
+      for (final algorithm in StorageCipherAlgorithm.values) {
+        final options = AndroidOptions(storageCipherAlgorithm: algorithm);
+        expect(options.toMap()['storageCipherAlgorithm'], algorithm.name);
+      }
     });
   });
 
