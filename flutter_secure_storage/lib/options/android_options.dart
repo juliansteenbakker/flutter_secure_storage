@@ -1,13 +1,26 @@
+// Ignore name convention for constants for backwards compatibility
+// ignore_for_file: constant_identifier_names
+
 part of '../flutter_secure_storage.dart';
 
+/// Algorithm used to encrypt/wrap the secret key in Android KeyStore.
 enum KeyCipherAlgorithm {
+  /// Legacy RSA/ECB/PKCS1Padding for backwards compatibility.
   RSA_ECB_PKCS1Padding,
+
+  /// RSA/ECB/OAEPWithSHA-256AndMGF1Padding (default, API 23+).
   RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+
+  /// AES/GCM/NoPadding for KeyStore-based key wrapping (supports biometrics).
   AES_GCM_NoPadding,
 }
 
+/// Algorithm used to encrypt stored data.
 enum StorageCipherAlgorithm {
+  /// Legacy AES/CBC/PKCS7Padding for backwards compatibility.
   AES_CBC_PKCS7Padding,
+
+  /// AES/GCM/NoPadding (default, API 23+).
   AES_GCM_NoPadding,
 }
 
@@ -27,13 +40,13 @@ class AndroidOptions extends Options {
   /// Valid combinations:
   /// - AES_CBC_PKCS7Padding storage + any key cipher
   /// - AES_GCM_NoPadding storage + RSA key ciphers (standard RSA wrapping)
-  /// - AES_GCM_NoPadding storage + AES_GCM_NoPadding key (KeyStore-based, supports biometrics)
+  /// - AES_GCM_NoPadding storage + AES_GCM_NoPadding key
+  ///   (KeyStore-based, supports biometrics)
   const AndroidOptions({
-    @Deprecated(
-        'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
-        'The Jetpack Security library is deprecated by Google. '
-        'Your data will be automatically migrated to custom ciphers on first access. '
-        'Remove this parameter - it will be ignored.')
+    @Deprecated('EncryptedSharedPreferences is deprecated and will be '
+        'removed in v11. The Jetpack Security library is deprecated by Google. '
+        'Your data will be automatically migrated to custom ciphers on first '
+        'access. Remove this parameter - it will be ignored.')
     bool encryptedSharedPreferences = false,
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
@@ -54,14 +67,16 @@ class AndroidOptions extends Options {
         _storageCipherAlgorithm = storageCipherAlgorithm;
 
   /// Maximum security storage with optional biometric authentication.
-  /// - Optionally requires biometric authentication (set enforceBiometrics=true)
+  /// - Optionally requires biometric authentication
+  ///   (set enforceBiometrics=true)
   /// - Strong authenticated encryption (AES/GCM/NoPadding 256-bit)
   /// - Hardware-backed AES key with optional user presence requirement
   /// - API 28+ (Android 9.0+)
-  /// - When enforceBiometrics=false, gracefully degrades if biometrics unavailable
+  /// - When enforceBiometrics=false, gracefully degrades if biometrics
+  ///   unavailable
   const AndroidOptions.biometric({
     @Deprecated(
-        'EncryptedSharedPreferences is deprecated and will be removed in v10.0.0. '
+        'EncryptedSharedPreferences is deprecated and will be removed in v11. '
         'The Jetpack Security library is deprecated by Google. '
         'Remove this parameter - it will be ignored.')
     bool encryptedSharedPreferences = false,
@@ -91,7 +106,8 @@ class AndroidOptions extends Options {
 
   /// When the encryption algorithm changes, automatically migrate existing data
   /// to the new algorithm. This preserves data across algorithm upgrades.
-  /// If false, data will be lost when algorithm changes unless resetOnError is true.
+  /// If false, data will be lost when algorithm changes unless resetOnError
+  /// is true.
   ///
   /// Defaults to true.
   final bool _migrateOnAlgorithmChange;
@@ -136,9 +152,13 @@ class AndroidOptions extends Options {
   /// WARNING: If you change this you can't retrieve already saved preferences.
   final String? preferencesKeyPrefix;
 
+  /// The title shown in the biometric authentication prompt.
   final String? biometricPromptTitle;
+
+  /// The subtitle shown in the biometric authentication prompt.
   final String? biometricPromptSubtitle;
 
+  /// Default Android options with standard secure configuration.
   static const AndroidOptions defaultOptions = AndroidOptions();
 
   @override
@@ -157,6 +177,7 @@ class AndroidOptions extends Options {
             biometricPromptSubtitle ?? 'Use biometrics or device credentials',
       };
 
+  /// Creates a copy of this AndroidOptions with the given fields replaced.
   AndroidOptions copyWith({
     bool? encryptedSharedPreferences,
     bool? resetOnError,
@@ -170,6 +191,8 @@ class AndroidOptions extends Options {
     String? biometricPromptSubtitle,
   }) =>
       AndroidOptions(
+        // Will be removed in v11.0.0
+        // ignore: deprecated_member_use_from_same_package
         encryptedSharedPreferences:
             encryptedSharedPreferences ?? _encryptedSharedPreferences,
         resetOnError: resetOnError ?? _resetOnError,

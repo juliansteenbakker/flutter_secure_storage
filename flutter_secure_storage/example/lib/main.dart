@@ -35,7 +35,7 @@ class HomePageState extends State<HomePage> {
 
   void _initializeFlutterSecureStorage(String accountName) {
     _storage = FlutterSecureStorage(
-      aOptions: AndroidOptions(
+      aOptions: const AndroidOptions(
         biometricPromptTitle: 'Flutter Secure Storage Example',
         biometricPromptSubtitle: 'Please unlock to access data.',
       ),
@@ -140,23 +140,23 @@ class HomePageState extends State<HomePage> {
 
   void _handleInitializationError(PlatformException e) {
     String userMessage;
-    String technicalDetails = e.message ?? 'Unknown error';
+    final technicalDetails = e.message ?? 'Unknown error';
 
     // Check for BIOMETRIC_UNAVAILABLE error
     if (technicalDetails.contains('BIOMETRIC_UNAVAILABLE')) {
       // Parse specific biometric error
       if (technicalDetails.contains('No biometric hardware')) {
-        userMessage =
-            'Your device does not have biometric hardware (fingerprint or face scanner).';
+        userMessage = 'Your device does not have biometric hardware '
+            '(fingerprint or face scanner).';
       } else if (technicalDetails.contains('No fingerprint or face enrolled')) {
-        userMessage =
-            'No biometric enrolled. Please add a fingerprint or face in your device Settings.';
+        userMessage = 'No biometric enrolled. Please add a fingerprint or '
+            'face in your device Settings.';
       } else if (technicalDetails.contains('no PIN, pattern, password')) {
-        userMessage =
-            'No device security set up. Please set a PIN, pattern, or password in Settings → Security.';
+        userMessage = 'No device security set up. Please set a PIN, '
+            'pattern, or password in Settings → Security.';
       } else if (technicalDetails.contains('Android 9')) {
-        userMessage =
-            'Biometric authentication requires Android 9 or higher. Your device is not supported.';
+        userMessage = 'Biometric authentication requires Android 9 or '
+            'higher. Your device is not supported.';
       } else if (technicalDetails.contains('temporarily unavailable')) {
         userMessage =
             'Biometric hardware is temporarily unavailable. Please try again.';
@@ -174,14 +174,20 @@ class HomePageState extends State<HomePage> {
 
     switch (e.code) {
       case 'INIT_FAILED':
-        _showErrorDialog('Initialization Failed',
-            e.message ?? 'An unknown error occurred during initialization.');
+        _showErrorDialog(
+          'Initialization Failed',
+          e.message ?? 'An unknown error occurred during initialization.',
+        );
       case 'AUTHENTICATION_FAILED':
-        _showErrorDialog('Authentication Failed',
-            'Biometric authentication failed. Please try again.');
+        _showErrorDialog(
+          'Authentication Failed',
+          'Biometric authentication failed. Please try again.',
+        );
       case 'InvalidArgument':
         _showErrorDialog(
-            'Argument Error', 'A with an argument occured. ${e.message}');
+          'Argument Error',
+          'A with an argument occured. ${e.message}',
+        );
       default:
         _showErrorDialog('Error', 'An unexpected error occurred: ${e.message}');
     }

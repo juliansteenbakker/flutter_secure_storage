@@ -432,8 +432,8 @@ void main() {
     });
 
     test(
-        'AndroidOptions.biometric with enforceBiometrics=true requires authentication',
-        () {
+        'AndroidOptions.biometric with enforceBiometrics=true '
+        'requires authentication', () {
       const options = AndroidOptions.biometric(
         enforceBiometrics: true,
         biometricPromptTitle: 'Unlock Secure Storage',
@@ -482,7 +482,6 @@ void main() {
     test('AndroidOptions with AES key cipher (for biometric support)', () {
       const options = AndroidOptions(
         keyCipherAlgorithm: KeyCipherAlgorithm.AES_GCM_NoPadding,
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
         enforceBiometrics: true,
       );
 
@@ -576,7 +575,7 @@ void main() {
     });
 
     test('AndroidOptions with null biometric prompts uses defaults', () {
-      const options = AndroidOptions();
+      const options = AndroidOptions.defaultOptions;
 
       expect(
         options.toMap()['biometricPromptTitle'],
@@ -589,13 +588,13 @@ void main() {
     });
 
     test('AndroidOptions resetOnError default is true', () {
-      const options = AndroidOptions();
+      const options = AndroidOptions.defaultOptions;
 
       expect(options.toMap()['resetOnError'], 'true');
     });
 
     test('AndroidOptions migrateOnAlgorithmChange default is true', () {
-      const options = AndroidOptions();
+      const options = AndroidOptions.defaultOptions;
 
       expect(options.toMap()['migrateOnAlgorithmChange'], 'true');
     });
@@ -603,7 +602,6 @@ void main() {
     test('AndroidOptions with migrateOnAlgorithmChange disabled', () {
       const options = AndroidOptions(
         migrateOnAlgorithmChange: false,
-        resetOnError: true,
       );
 
       expect(options.toMap()['migrateOnAlgorithmChange'], 'false');
@@ -620,9 +618,9 @@ void main() {
 
     test('AndroidOptions.biometric with deprecated encryptedSharedPreferences',
         () {
-      // Ignore for test
-      // ignore: deprecated_member_use_from_same_package
       const options = AndroidOptions.biometric(
+        // Ignore for test
+        // ignore: deprecated_member_use_from_same_package
         encryptedSharedPreferences: true,
       );
 
