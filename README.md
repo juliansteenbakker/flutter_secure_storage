@@ -93,6 +93,8 @@ By setting `accessibility`, you can control when secure values are accessible, e
 
 ### Android
 
+#### Disabling Auto Backup
+
 _Note_ By default Android backups data on Google Drive. It can cause exception java.security.InvalidKeyException:Failed to unwrap key.
 You need to
 
@@ -101,10 +103,67 @@ You need to
 
 Add the following to your `android/app/src/main/AndroidManifest.xml`:
 
+```xml
 <application
 android:allowBackup="false"
 ...>
 </application>
+```
+
+#### Biometric Authentication
+
+Flutter Secure Storage supports biometric authentication (fingerprint, face recognition, etc.) on Android API 23+.
+
+##### Required Permissions
+
+To use biometric authentication, add the following permission to your `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+```
+
+For devices running Android 9.0 (API 28) and above, `USE_BIOMETRIC` is the recommended permission.
+
+For backward compatibility with devices running Android 6.0 - 8.1 (API 23-27), you may also need:
+
+```xml
+<uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+```
+
+##### Using Biometric Authentication
+
+You can enable biometric authentication using the `AndroidOptions.biometric()` constructor:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    biometricPromptTitle: 'Unlock to access your data',
+    biometricPromptSubtitle: 'Use fingerprint or face unlock',
+  ),
+);
+```
+
+##### Enforcing Biometric Authentication
+
+By default, biometric authentication is optional and will gracefully degrade if the device doesn't have biometrics enrolled. To enforce biometric authentication and throw an error if unavailable:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: true,  // Throw error if biometrics unavailable
+    biometricPromptTitle: 'Biometric authentication required',
+  ),
+);
+```
+
+**Note:** When `enforceBiometrics: true`, the app will throw an exception if the device has no PIN, pattern, password, or biometric enrolled.
+
+##### Requirements
+
+- **API Level**: Android 6.0 (API 23) minimum for basic encryption
+- **API Level**: Android 9.0 (API 28) minimum for biometric authentication
+- **Device Security**: Device must have a PIN, pattern, password, or biometric enrolled (when using `enforceBiometrics: true`)
+- **Permissions**: `USE_BIOMETRIC` permission in AndroidManifest.xml
 
 ### macOS & iOS
 
