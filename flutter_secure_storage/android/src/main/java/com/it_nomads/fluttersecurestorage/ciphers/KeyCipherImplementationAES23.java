@@ -164,12 +164,10 @@ class KeyCipherImplementationAES23 implements KeyCipher {
                 builder.setUserAuthenticationParameters(0,
                         AUTH_DEVICE_CREDENTIAL | AUTH_BIOMETRIC_STRONG);
             } else {
-                builder.setUserAuthenticationValidityDurationSeconds(-1);
+                configureLegacyAuth(builder);
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setInvalidatedByBiometricEnrollment(true);
-            }
+            builder.setInvalidatedByBiometricEnrollment(true);
         } else {
             // Explicitly set to false for clarity (default behavior)
             builder.setUserAuthenticationRequired(false);
@@ -211,7 +209,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
                         builder.setUserAuthenticationParameters(0,
                                 AUTH_DEVICE_CREDENTIAL | AUTH_BIOMETRIC_STRONG);
                     } else {
-                        builder.setUserAuthenticationValidityDurationSeconds(-1);
+                        configureLegacyAuth(builder);
                     }
 
                     builder.setInvalidatedByBiometricEnrollment(true);
@@ -225,5 +223,14 @@ class KeyCipherImplementationAES23 implements KeyCipher {
             }
         }
     }
+
+    /**
+     * Separate function due to build procedure still marking this as deprecated.
+     */
+    @SuppressWarnings({"deprecation", "RedundantSuppression"})
+    private void configureLegacyAuth(KeyGenParameterSpec.Builder builder) {
+        builder.setUserAuthenticationValidityDurationSeconds(-1);
+    }
+
 
 }
