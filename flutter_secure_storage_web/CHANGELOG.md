@@ -1,5 +1,6 @@
 ## NEXT
-Updated code style
+- Updated code style
+- Add check for secure context, since operations are only allowed with secure context.
 
 ## 2.0.0
 Stable release containing all changes from beta releases, which are:
