@@ -6,7 +6,7 @@ import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 
-import androidx.annotation.RequiresApi;
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
 
 import java.math.BigInteger;
 import java.security.Key;
@@ -22,22 +22,30 @@ import java.util.Locale;
 import javax.crypto.Cipher;
 import javax.security.auth.x500.X500Principal;
 
-class RSACipher18Implementation implements KeyCipher {
+class KeyCipherImplementationRSA18 implements KeyCipher {
 
     private static final String KEYSTORE_PROVIDER_ANDROID = "AndroidKeyStore";
     private static final String TYPE_RSA = "RSA";
     protected final String keyAlias;
     protected final Context context;
+    protected final FlutterSecureStorageConfig config;
 
-
-    public RSACipher18Implementation(Context context) throws Exception {
+    public KeyCipherImplementationRSA18(Context context, FlutterSecureStorageConfig config) throws Exception {
         this.context = context;
+        this.config = config;
         keyAlias = createKeyAlias();
         createRSAKeysIfNeeded(context);
     }
 
     protected String createKeyAlias() {
         return context.getPackageName() + ".FlutterSecureStoragePluginKey";
+    }
+
+    @Override
+    public void deleteKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
+        ks.load(null);
+        ks.deleteEntry(keyAlias);
     }
 
     @Override
@@ -56,6 +64,11 @@ class RSACipher18Implementation implements KeyCipher {
         cipher.init(Cipher.UNWRAP_MODE, privateKey, getAlgorithmParameterSpec());
 
         return cipher.unwrap(wrappedKey, algorithm, Cipher.SECRET_KEY);
+    }
+
+    @Override
+    public Cipher getCipher(Context context) {
+        return null;
     }
 
     private PrivateKey getPrivateKey() throws Exception {
@@ -108,7 +121,8 @@ class RSACipher18Implementation implements KeyCipher {
         ks.load(null);
 
         Key privateKey = ks.getKey(keyAlias, null);
-        if (privateKey == null) {
+        Certificate cert = ks.getCertificate(keyAlias);
+        if (privateKey == null || cert == null) {
             createKeys(context);
         }
     }
@@ -160,7 +174,6 @@ class RSACipher18Implementation implements KeyCipher {
                 .build();
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     protected AlgorithmParameterSpec makeAlgorithmParameterSpec(Context context, Calendar start, Calendar end) {
         final KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_DECRYPT | KeyProperties.PURPOSE_ENCRYPT)
                 .setCertificateSubject(new X500Principal("CN=" + keyAlias))
