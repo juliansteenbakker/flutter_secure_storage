@@ -146,10 +146,12 @@ class AndroidOptions extends Options {
   final String? sharedPreferencesName;
 
   /// The prefix for a shared preference key. The prefix is used to make sure
-  /// the key is unique to your application. An underscore (_) is added to the end of the prefix automatically. 
-  /// If not provided, a default prefix will be used.
-  /// 
-  /// Example: preferencesKeyPrefix: "my_app" will result in a key like "my_app_key1".
+  /// the key is unique to your application. An underscore (_) is added to the
+  /// end of the prefix automatically. If not provided, a default prefix will
+  /// be used.
+  ///
+  /// Example: preferencesKeyPrefix: "my_app" will result in a key like
+  /// "my_app_key1".
   ///
   /// WARNING: If you change this you can't retrieve already saved preferences.
   final String? preferencesKeyPrefix;
