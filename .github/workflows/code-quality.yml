@@ -10,9 +10,13 @@ env:
   PUB_ENVIRONMENT: bot.github
 
 jobs:
-  analysis:
-    name: 🔍 Analysis
+  init:
+    name: 🏗️ Initialization (Shared Melos Bootstrap)
     runs-on: ubuntu-latest
+
+    outputs:
+      pub-cache-key: ${{ steps.cache-pub.outputs.cache-primary-key }}
+      melos-path: ${{ steps.melos-path.outputs.path }}
 
     steps:
       - name: 📥 Checkout Code
@@ -28,6 +32,7 @@ jobs:
         run: flutter doctor -v
 
       - name: 📦 Cache Pub Dependencies
+        id: cache-pub
         uses: actions/cache@v4
         with:
           path: |
@@ -45,13 +50,14 @@ jobs:
       - name: 🔧 Bootstrap Workspace with Melos
         run: melos bootstrap
 
-      - name: ✅ Lint Code
-        run: melos analyze
+      - name: 📍 Export Melos Path
+        id: melos-path
+        run: echo "path=$HOME/.pub-cache/bin" >> "$GITHUB_OUTPUT"
 
-  formatting:
-    name: 🎨 Formatting
-    needs: analysis  # This makes formatting start after analysis is complete
+  analysis:
+    name: 🔍 Analysis
     runs-on: ubuntu-latest
+    needs: init
 
     steps:
       - name: 📥 Checkout Code
@@ -63,12 +69,34 @@ jobs:
           channel: stable
           cache: true
 
-      - name: 🚀 Install Melos
-        run: |
-          flutter pub global activate melos
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+      - name: 🔗 Rehydrate Melos Path
+        run: echo "${{ needs.init.outputs.melos-path }}" >> $GITHUB_PATH
 
-      - name: 🔧 Bootstrap Workspace with Melos
+      - name: 🔧 Restore Workspace State
+        run: melos bootstrap
+
+      - name: ✅ Lint Code
+        run: melos analyze
+
+  formatting:
+    name: 🎨 Formatting
+    runs-on: ubuntu-latest
+    needs: init
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚡ Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 🔗 Rehydrate Melos Path
+        run: echo "${{ needs.init.outputs.melos-path }}" >> $GITHUB_PATH
+
+      - name: 🔧 Restore Workspace State
         run: melos bootstrap
 
       - name: 🎯 Check Code Formatting
