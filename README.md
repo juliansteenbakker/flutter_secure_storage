@@ -2,7 +2,7 @@
 
 [![Pub Version](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![Pub Version Prerelease](https://img.shields.io/pub/v/flutter_secure_storage.svg?include_prereleases)](https://pub.dev/packages/flutter_secure_storage)
-[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml)
+[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-integration.yml)
 [![Code Quality: Very Good Analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Codecov](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage/graph/badge.svg?token=UUVTJ6MS4A)](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
@@ -24,11 +24,11 @@ In version 11, the migration tool will no longer be available. To ensure users r
 Due to this update, the minimum required Android SDK will be 23.
 
 ## Important notice for Web
-flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/mogol/flutter_secure_storage/issues/320#issuecomment-976308930)
+flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/juliansteenbakker/flutter_secure_storage/issues/320#issuecomment-976308930)
 
 ## Installation
 
-If not present already, please call WidgetsFlutterBinding.ensureInitialized() in your main before you do anything with the MethodChannel. [Please see this issue  for more info.](https://github.com/mogol/flutter_secure_storage/issues/336)
+If not present already, please call WidgetsFlutterBinding.ensureInitialized() in your main before you do anything with the MethodChannel. [Please see this issue  for more info.](https://github.com/juliansteenbakker/flutter_secure_storage/issues/336)
 
 Add the dependency in your `pubspec.yaml` file:
 
@@ -98,8 +98,8 @@ By setting `accessibility`, you can control when secure values are accessible, e
 _Note_ By default Android backups data on Google Drive. It can cause exception java.security.InvalidKeyException:Failed to unwrap key.
 You need to
 
-- [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/mogol/flutter_secure_storage/issues/13#issuecomment-421083742)
-- [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/mogol/flutter_secure_storage/issues/43#issuecomment-471642126)
+- [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/13#issuecomment-421083742)
+- [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/43#issuecomment-471642126)
 
 Add the following to your `android/app/src/main/AndroidManifest.xml`:
 
