@@ -852,6 +852,25 @@ void main() {
     });
   });
 
+  group('linuxOptions Configuration Tests', () {
+    test('Default linuxOptions should have correct default values', () {
+      // Ignore for test
+      // ignore: use_named_constants
+      const options = LinuxOptions();
+
+      expect(options.toMap(), <String, String>{});
+    });
+
+    test('linuxOptions defaultOptions matches default constructor', () {
+      const defaultOptions = LinuxOptions.defaultOptions;
+      // Ignore for test
+      // ignore: use_named_constants
+      const constructorOptions = LinuxOptions();
+
+      expect(defaultOptions.toMap(), constructorOptions.toMap());
+    });
+  });
+
   group('Listener Management Tests', () {
     late ValueChanged<String?> listener1;
     late ValueChanged<String?> listener2;
