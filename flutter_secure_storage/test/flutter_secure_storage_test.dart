@@ -945,6 +945,88 @@ void main() {
       expect(calls.length, 2);
       expect(calls, everyElement(isNull));
     });
+
+    test('Listeners are called with value when write is invoked', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'testKey', listener: trackingListener);
+
+      // Setup mock for write
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call write
+      await storage.write(key: 'testKey', value: 'testValue');
+
+      // Verify listener was called with the value
+      expect(calls.length, 1);
+      expect(calls.first, 'testValue');
+    });
+
+    test('Listeners are called when delete is invoked', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'testKey', listener: trackingListener);
+
+      // Setup mock for delete
+      when(
+        () => mockPlatform.delete(
+          key: any(named: 'key'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call delete
+      await storage.delete(key: 'testKey');
+
+      // Verify listener was called (delete calls without explicit value)
+      expect(calls.length, 1);
+    });
+
+    test('No listeners called when key has no registered listeners',
+        () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener for a different key
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'otherKey', listener: trackingListener);
+
+      // Setup mock for write
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call write on a key with no listeners
+      await storage.write(key: 'testKey', value: 'testValue');
+
+      // Verify no listeners were called (covers early return)
+      expect(calls.isEmpty, isTrue);
+    });
   });
 
   group('iOS/macOS Cupertino Protected Data Tests', () {
