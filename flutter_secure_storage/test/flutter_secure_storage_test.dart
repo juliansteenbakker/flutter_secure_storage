@@ -919,4 +919,79 @@ void main() {
       expect(storage.getListeners.isEmpty, isTrue);
     });
   });
+
+  group('iOS/macOS Cupertino Protected Data Tests', () {
+    test(
+        'onCupertinoProtectedDataAvailabilityChanged returns null '
+        'for non-MethodChannel platform', () {
+      // Use mock platform (not MethodChannel)
+      final result = storage.onCupertinoProtectedDataAvailabilityChanged;
+
+      // Should return null for non-MethodChannel platforms
+      expect(result, isNull);
+    });
+
+    test(
+        'isCupertinoProtectedDataAvailable returns null '
+        'for non-MethodChannel platform', () async {
+      // Use mock platform (not MethodChannel)
+      final result = await storage.isCupertinoProtectedDataAvailable();
+
+      // Should return null for non-MethodChannel platforms
+      expect(result, isNull);
+    });
+
+    test(
+        'onCupertinoProtectedDataAvailabilityChanged accesses platform '
+        'for type check', () {
+      // This test verifies the method can be called and performs
+      // the platform type check without crashing
+      expect(
+        () => storage.onCupertinoProtectedDataAvailabilityChanged,
+        returnsNormally,
+      );
+    });
+
+    test('isCupertinoProtectedDataAvailable accesses platform for type check',
+        () async {
+      // This test verifies the method can be called and performs
+      // the platform type check without crashing
+      await expectLater(
+        storage.isCupertinoProtectedDataAvailable(),
+        completion(isNull),
+      );
+    });
+  });
+
+  group('Test Helper Methods', () {
+    test('setMockInitialValues sets up test platform with initial data', () {
+      final testData = {'testKey': 'testValue', 'key2': 'value2'};
+
+      FlutterSecureStorage.setMockInitialValues(testData);
+
+      // Verify platform was set to TestFlutterSecureStoragePlatform
+      expect(
+        FlutterSecureStoragePlatform.instance,
+        isA<TestFlutterSecureStoragePlatform>(),
+      );
+
+      // The test platform should have the initial values
+      final platform = FlutterSecureStoragePlatform.instance
+          as TestFlutterSecureStoragePlatform;
+      expect(platform.data, equals(testData));
+    });
+
+    test('setMockInitialValues with empty map', () {
+      FlutterSecureStorage.setMockInitialValues({});
+
+      expect(
+        FlutterSecureStoragePlatform.instance,
+        isA<TestFlutterSecureStoragePlatform>(),
+      );
+
+      final platform = FlutterSecureStoragePlatform.instance
+          as TestFlutterSecureStoragePlatform;
+      expect(platform.data.isEmpty, isTrue);
+    });
+  });
 }
