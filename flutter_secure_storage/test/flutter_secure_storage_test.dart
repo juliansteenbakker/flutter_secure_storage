@@ -922,6 +922,25 @@ void main() {
 
   group('iOS/macOS Cupertino Protected Data Tests', () {
     test(
+        'onCupertinoProtectedDataAvailabilityChanged returns stream '
+        'for MethodChannel platform', () {
+      // Set platform to MethodChannel BEFORE creating storage
+      FlutterSecureStoragePlatform.instance = methodStorage;
+      const methodChannelStorage = FlutterSecureStorage();
+
+      // Access the getter to cover the MethodChannel branch
+      final result =
+          methodChannelStorage.onCupertinoProtectedDataAvailabilityChanged;
+
+      // Should return a Stream for MethodChannel platforms
+      expect(result, isNotNull);
+      expect(result, isA<Stream<bool>>());
+
+      // Restore original platform
+      FlutterSecureStoragePlatform.instance = mockPlatform;
+    });
+
+    test(
         'onCupertinoProtectedDataAvailabilityChanged returns null '
         'for non-MethodChannel platform', () {
       // Use mock platform (not MethodChannel)
