@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -1033,6 +1034,117 @@ void main() {
       final platform = FlutterSecureStoragePlatform.instance
           as TestFlutterSecureStoragePlatform;
       expect(platform.data.isEmpty, isTrue);
+    });
+  });
+
+  group('Platform-Specific Option Selection Tests', () {
+    setUp(() {
+      // Setup mock responses for write method
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+    });
+
+    tearDown(() {
+      // Reset platform override after each test
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    test('_selectOptions returns iOS options when platform is iOS', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        iOptions: const IOSOptions(
+          accessibility: KeychainAccessibility.first_unlock,
+        ),
+      );
+
+      // Verify the write was called (covers iOS branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns macOS options when platform is macOS',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        mOptions: const MacOsOptions(
+          accessibility: KeychainAccessibility.first_unlock,
+        ),
+      );
+
+      // Verify the write was called (covers macOS branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns Windows options when platform is Windows',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        wOptions: WindowsOptions.defaultOptions,
+      );
+
+      // Verify the write was called (covers Windows branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns Linux options when platform is Linux',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        lOptions: LinuxOptions.defaultOptions,
+      );
+
+      // Verify the write was called (covers Linux branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions throws for unsupported platform', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
+
+      // Should throw UnsupportedError for unsupported platforms
+      expect(
+        () => storage.write(key: 'test', value: 'value'),
+        throwsUnsupportedError,
+      );
     });
   });
 }
