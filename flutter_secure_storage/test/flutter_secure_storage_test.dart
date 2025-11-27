@@ -919,6 +919,32 @@ void main() {
         ..unregisterAllListeners();
       expect(storage.getListeners.isEmpty, isTrue);
     });
+
+    test('Listeners are called with null when deleteAll is invoked',
+        () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage
+        ..registerListener(key: 'key1', listener: trackingListener)
+        ..registerListener(key: 'key2', listener: trackingListener);
+
+      // Setup mock for deleteAll
+      when(() => mockPlatform.deleteAll(options: any(named: 'options')))
+          .thenAnswer((_) async {});
+
+      // Call deleteAll
+      await storage.deleteAll();
+
+      // Verify listeners were called with null for each key
+      expect(calls.length, 2);
+      expect(calls, everyElement(isNull));
+    });
   });
 
   group('iOS/macOS Cupertino Protected Data Tests', () {
