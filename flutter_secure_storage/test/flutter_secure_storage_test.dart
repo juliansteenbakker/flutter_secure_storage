@@ -919,8 +919,7 @@ void main() {
       expect(storage.getListeners.isEmpty, isTrue);
     });
 
-    test('Listeners are called with null when deleteAll is invoked',
-        () async {
+    test('Listeners are called with null when deleteAll is invoked', () async {
       // Track listener calls
       final calls = <String?>[];
 
@@ -999,8 +998,7 @@ void main() {
       expect(calls.length, 1);
     });
 
-    test('No listeners called when key has no registered listeners',
-        () async {
+    test('No listeners called when key has no registered listeners', () async {
       // Track listener calls
       final calls = <String?>[];
 
@@ -1161,29 +1159,33 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     });
 
-    test('_selectOptions returns web options when platform is web', () async {
-      // On web platform, kIsWeb is true and this branch executes
-      // On other platforms, this test verifies the method doesn't crash
-      if (kIsWeb) {
-        await storage.write(
-          key: 'test',
-          value: 'value',
-          webOptions: WebOptions.defaultOptions,
-        );
-
-        // Verify the write was called (covers web branch)
-        verify(
-          () => mockPlatform.write(
+    test(
+      '_selectOptions returns web options when platform is web',
+      () async {
+        // On web platform, kIsWeb is true and this branch executes
+        // On other platforms, this test verifies the method doesn't crash
+        if (kIsWeb) {
+          await storage.write(
             key: 'test',
             value: 'value',
-            options: any(named: 'options'),
-          ),
-        ).called(1);
-      } else {
-        // On non-web platforms, just verify test structure is valid
-        expect(kIsWeb, isFalse);
-      }
-    }, testOn: 'browser',);
+            webOptions: WebOptions.defaultOptions,
+          );
+
+          // Verify the write was called (covers web branch)
+          verify(
+            () => mockPlatform.write(
+              key: 'test',
+              value: 'value',
+              options: any(named: 'options'),
+            ),
+          ).called(1);
+        } else {
+          // On non-web platforms, just verify test structure is valid
+          expect(kIsWeb, isFalse);
+        }
+      },
+      testOn: 'browser',
+    );
 
     test('_selectOptions returns iOS options when platform is iOS', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
