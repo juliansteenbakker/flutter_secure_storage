@@ -315,7 +315,7 @@ class DpapiJsonFileMapStorage extends MapStorage {
 
         if (plainTextBlob.ref.pbData.address == NULL) {
           throw WindowsException(
-            WIN32_ERROR.ERROR_OUTOFMEMORY,
+            ERROR_OUTOFMEMORY,
             message: 'Failure on CryptUnprotectData()',
           );
         }
@@ -419,7 +419,7 @@ class DpapiJsonFileMapStorage extends MapStorage {
 
       if (encryptedTextBlob.ref.pbData.address == NULL) {
         throw WindowsException(
-          WIN32_ERROR.ERROR_OUTOFMEMORY,
+          ERROR_OUTOFMEMORY,
           message: 'Failure on CryptProtectData()',
         );
       }

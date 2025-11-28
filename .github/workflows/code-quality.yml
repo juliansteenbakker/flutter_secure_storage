@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ⚡ Set Up Flutter
         uses: subosito/flutter-action@v2
@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ⚡ Set Up Flutter
         uses: subosito/flutter-action@v2

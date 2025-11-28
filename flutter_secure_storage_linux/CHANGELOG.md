@@ -1,3 +1,6 @@
+## NEXT
+- Fixed whitespace deprecation warning
+
 ## 2.0.1
 Adds application ID to cmake file
 

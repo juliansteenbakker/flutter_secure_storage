@@ -1,3 +1,41 @@
+## 10.0.0-beta.5
+Due to security issues regarding the handling of biometrics in v10.0.0-beta.4, together with the deprecation
+of Jetpack Security library, it took me some time to find a secure alternative. My apologies for the delay.
+
+The Android part has been largely rewritten, reintroducing the customer cipher construction from before,
+but with secure ciphers, biometrics support, updated default ciphers and migration tools.
+
+**Breaking Changes:**
+- `AndroidOptions().encryptedSharedPreferences` is now deprecated due to Jetpack Crypto package being deprecated
+  For now you can still use deprecated encryptedSharedPreferences by setting `encryptedSharedPreferences: true` 
+  and `migrateOnAlgorithmChange: false`. If `encryptedSharedPreferences` is `true` and `migrateOnAlgorithmChange`
+  is `true`, data will be automatically migrated to the new cipher, and encryptedSharedPreferences
+  cannot be used anymore.
+- Google recommends using Tink library, but Tink does not support biometrics, so custom ciphers have been reintroduced
+- Default key cipher changed to `RSA_ECB_OAEPwithSHA_256andMGF1Padding`
+- Default storage cipher changed to `AES_GCM_NoPadding`
+
+**New Features:**
+- New named constructors: `AndroidOptions()`, `AndroidOptions.biometric()`
+- `AndroidOptions().migrateOnAlgorithmChange` automatically migrates data to new ciphers when enabled
+- Improved biometric authentication with graceful degradation when device has no security setup
+- Migration tools for transitioning from deprecated encryptedSharedPreferences
+- Enhanced error handling with proper exception messages for biometric unavailability
+
+**Key Fixes:**
+- Fixed biometric authentication on devices without security (PIN/pattern/password) - now gracefully degrades when `enforceBiometrics=false`
+- Fixed storage cipher and key cipher pairing validation
+- Fixed migration checks for encrypted shared preferences
+- Fixed biometric permission handling
+- Fixed default `resetOnError` behavior (now defaults to `true`)
+
+**Other Changes:**
+- Target SDK 36
+- Updated Gradle, Kotlin, and Tink dependencies
+- Updated minimum SDK according to Flutter requirements
+- Refactored custom cipher implementations for better maintainability
+- Added delete key functions for proper reset handling
+
 ## 10.0.0-beta.4
 * [Apple] Merged ios and macos implementation into a new package flutter_secure_storage_darwin
 * [Apple] Refactored code and added missing options
