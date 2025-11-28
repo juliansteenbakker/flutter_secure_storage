@@ -12,7 +12,7 @@ A Flutter plugin to store data in secure storage.
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'German Saprykin' => 'saprykin.h@gmail.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/**/*'
+  s.source_files = 'flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/**/*.swift'
   s.ios.dependency 'Flutter'
   s.osx.dependency 'FlutterMacOS'
   s.ios.deployment_target = '12.0'

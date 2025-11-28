@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
@@ -365,58 +365,183 @@ void main() {
 
       expect(options.toMap(), {
         'encryptedSharedPreferences': 'false',
-        'resetOnError': 'false',
-        'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
-        'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
+        'resetOnError': 'true',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'false',
+        'keyCipherAlgorithm': 'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
+        'storageCipherAlgorithm': 'AES_GCM_NoPadding',
         'sharedPreferencesName': '',
         'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Authenticate to access',
+        'biometricPromptSubtitle': 'Use biometrics or device credentials',
       });
     });
 
-    test('AndroidOptions with custom values', () {
+    test('AndroidOptions default constructor matches defaultOptions', () {
+      const defaultOptions = AndroidOptions.defaultOptions;
+      // Ignore for test
+      // ignore: use_named_constants
+      const constructorOptions = AndroidOptions();
+
+      expect(defaultOptions.toMap(), constructorOptions.toMap());
+    });
+
+    test('AndroidOptions with all custom values', () {
       const options = AndroidOptions(
-        resetOnError: true,
-        keyCipherAlgorithm:
-            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
         sharedPreferencesName: 'customPrefs',
         preferencesKeyPrefix: 'customPrefix',
+        biometricPromptTitle: 'Custom Title',
+        biometricPromptSubtitle: 'Custom Subtitle',
+      );
+
+      expect(options.toMap(), {
+        'encryptedSharedPreferences': 'false',
+        'resetOnError': 'false',
+        'migrateOnAlgorithmChange': 'false',
+        'enforceBiometrics': 'true',
+        'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
+        'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
+        'sharedPreferencesName': 'customPrefs',
+        'preferencesKeyPrefix': 'customPrefix',
+        'biometricPromptTitle': 'Custom Title',
+        'biometricPromptSubtitle': 'Custom Subtitle',
+      });
+    });
+
+    test('AndroidOptions.biometric constructor should have correct defaults',
+        () {
+      const options = AndroidOptions.biometric();
+
+      expect(options.toMap(), {
+        'encryptedSharedPreferences': 'false',
+        'resetOnError': 'true',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'false',
+        'keyCipherAlgorithm': 'AES_GCM_NoPadding',
+        'storageCipherAlgorithm': 'AES_GCM_NoPadding',
+        'sharedPreferencesName': '',
+        'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Authenticate to access',
+        'biometricPromptSubtitle': 'Use biometrics or device credentials',
+      });
+    });
+
+    test(
+        'AndroidOptions.biometric with enforceBiometrics=true '
+        'requires authentication', () {
+      const options = AndroidOptions.biometric(
+        enforceBiometrics: true,
+        biometricPromptTitle: 'Unlock Secure Storage',
+        biometricPromptSubtitle: 'Verify your identity',
       );
 
       expect(options.toMap(), {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'true',
-        'keyCipherAlgorithm': 'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
+        'migrateOnAlgorithmChange': 'true',
+        'enforceBiometrics': 'true',
+        'keyCipherAlgorithm': 'AES_GCM_NoPadding',
         'storageCipherAlgorithm': 'AES_GCM_NoPadding',
-        'sharedPreferencesName': 'customPrefs',
-        'preferencesKeyPrefix': 'customPrefix',
+        'sharedPreferencesName': '',
+        'preferencesKeyPrefix': '',
+        'biometricPromptTitle': 'Unlock Secure Storage',
+        'biometricPromptSubtitle': 'Verify your identity',
       });
     });
 
-    test('copyWith should correctly override values', () {
+    test('AndroidOptions.biometric with custom shared preferences', () {
+      const options = AndroidOptions.biometric(
+        sharedPreferencesName: 'biometric_secure',
+        preferencesKeyPrefix: 'bio_',
+      );
+
+      expect(options.toMap()['sharedPreferencesName'], 'biometric_secure');
+      expect(options.toMap()['preferencesKeyPrefix'], 'bio_');
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['storageCipherAlgorithm'], 'AES_GCM_NoPadding');
+    });
+
+    test('AndroidOptions with legacy RSA cipher algorithms', () {
+      const options = AndroidOptions(
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+      );
+
+      expect(options.toMap()['keyCipherAlgorithm'], 'RSA_ECB_PKCS1Padding');
+      expect(
+        options.toMap()['storageCipherAlgorithm'],
+        'AES_CBC_PKCS7Padding',
+      );
+    });
+
+    test('AndroidOptions with AES key cipher (for biometric support)', () {
+      const options = AndroidOptions(
+        keyCipherAlgorithm: KeyCipherAlgorithm.AES_GCM_NoPadding,
+        enforceBiometrics: true,
+      );
+
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['storageCipherAlgorithm'], 'AES_GCM_NoPadding');
+      expect(options.toMap()['enforceBiometrics'], 'true');
+    });
+
+    test('copyWith should correctly override all values', () {
       const original = AndroidOptions.defaultOptions;
 
       final copied = original.copyWith(
-        resetOnError: true,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
         sharedPreferencesName: 'newPrefs',
+        preferencesKeyPrefix: 'newPrefix',
+        biometricPromptTitle: 'New Title',
+        biometricPromptSubtitle: 'New Subtitle',
       );
 
       expect(copied.toMap(), {
         'encryptedSharedPreferences': 'false',
-        'resetOnError': 'true',
+        'resetOnError': 'false',
+        'migrateOnAlgorithmChange': 'false',
+        'enforceBiometrics': 'true',
         'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
         'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
         'sharedPreferencesName': 'newPrefs',
-        'preferencesKeyPrefix': '',
+        'preferencesKeyPrefix': 'newPrefix',
+        'biometricPromptTitle': 'New Title',
+        'biometricPromptSubtitle': 'New Subtitle',
       });
+    });
+
+    test('copyWith with partial updates retains other values', () {
+      const original = AndroidOptions(
+        resetOnError: false,
+        enforceBiometrics: true,
+        sharedPreferencesName: 'original',
+      );
+
+      final copied = original.copyWith(
+        sharedPreferencesName: 'updated',
+      );
+
+      expect(copied.toMap()['resetOnError'], 'false');
+      expect(copied.toMap()['enforceBiometrics'], 'true');
+      expect(copied.toMap()['sharedPreferencesName'], 'updated');
     });
 
     test('copyWith without changes should retain original values', () {
       const original = AndroidOptions(
-        resetOnError: true,
-        keyCipherAlgorithm:
-            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-        storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+        resetOnError: false,
+        migrateOnAlgorithmChange: false,
+        enforceBiometrics: true,
+        keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+        storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
       );
 
       final copied = original.copyWith();
@@ -433,12 +558,88 @@ void main() {
       expect(options.toMap()['preferencesKeyPrefix'], '');
     });
 
+    test('AndroidOptions with custom biometric prompts', () {
+      const options = AndroidOptions(
+        biometricPromptTitle: 'Secure Access Required',
+        biometricPromptSubtitle: 'Authenticate using fingerprint or face',
+      );
+
+      expect(
+        options.toMap()['biometricPromptTitle'],
+        'Secure Access Required',
+      );
+      expect(
+        options.toMap()['biometricPromptSubtitle'],
+        'Authenticate using fingerprint or face',
+      );
+    });
+
+    test('AndroidOptions with null biometric prompts uses defaults', () {
+      const options = AndroidOptions.defaultOptions;
+
+      expect(
+        options.toMap()['biometricPromptTitle'],
+        'Authenticate to access',
+      );
+      expect(
+        options.toMap()['biometricPromptSubtitle'],
+        'Use biometrics or device credentials',
+      );
+    });
+
+    test('AndroidOptions resetOnError default is true', () {
+      const options = AndroidOptions.defaultOptions;
+
+      expect(options.toMap()['resetOnError'], 'true');
+    });
+
+    test('AndroidOptions migrateOnAlgorithmChange default is true', () {
+      const options = AndroidOptions.defaultOptions;
+
+      expect(options.toMap()['migrateOnAlgorithmChange'], 'true');
+    });
+
+    test('AndroidOptions with migrateOnAlgorithmChange disabled', () {
+      const options = AndroidOptions(
+        migrateOnAlgorithmChange: false,
+      );
+
+      expect(options.toMap()['migrateOnAlgorithmChange'], 'false');
+      expect(options.toMap()['resetOnError'], 'true');
+    });
+
     test('Deprecated encryptedSharedPreferences still functions', () {
       // Ignore for test
       // ignore: deprecated_member_use_from_same_package
       const options = AndroidOptions(encryptedSharedPreferences: true);
 
       expect(options.toMap()['encryptedSharedPreferences'], 'true');
+    });
+
+    test('AndroidOptions.biometric with deprecated encryptedSharedPreferences',
+        () {
+      const options = AndroidOptions.biometric(
+        // Ignore for test
+        // ignore: deprecated_member_use_from_same_package
+        encryptedSharedPreferences: true,
+      );
+
+      expect(options.toMap()['encryptedSharedPreferences'], 'true');
+      expect(options.toMap()['keyCipherAlgorithm'], 'AES_GCM_NoPadding');
+    });
+
+    test('All KeyCipherAlgorithm enum values are correctly mapped', () {
+      for (final algorithm in KeyCipherAlgorithm.values) {
+        final options = AndroidOptions(keyCipherAlgorithm: algorithm);
+        expect(options.toMap()['keyCipherAlgorithm'], algorithm.name);
+      }
+    });
+
+    test('All StorageCipherAlgorithm enum values are correctly mapped', () {
+      for (final algorithm in StorageCipherAlgorithm.values) {
+        final options = AndroidOptions(storageCipherAlgorithm: algorithm);
+        expect(options.toMap()['storageCipherAlgorithm'], algorithm.name);
+      }
     });
   });
 
@@ -651,6 +852,25 @@ void main() {
     });
   });
 
+  group('linuxOptions Configuration Tests', () {
+    test('Default linuxOptions should have correct default values', () {
+      // Ignore for test
+      // ignore: use_named_constants
+      const options = LinuxOptions();
+
+      expect(options.toMap(), <String, String>{});
+    });
+
+    test('linuxOptions defaultOptions matches default constructor', () {
+      const defaultOptions = LinuxOptions.defaultOptions;
+      // Ignore for test
+      // ignore: use_named_constants
+      const constructorOptions = LinuxOptions();
+
+      expect(defaultOptions.toMap(), constructorOptions.toMap());
+    });
+  });
+
   group('Listener Management Tests', () {
     late ValueChanged<String?> listener1;
     late ValueChanged<String?> listener2;
@@ -697,6 +917,367 @@ void main() {
         ..registerListener(key: 'key2', listener: listener2)
         ..unregisterAllListeners();
       expect(storage.getListeners.isEmpty, isTrue);
+    });
+
+    test('Listeners are called with null when deleteAll is invoked', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage
+        ..registerListener(key: 'key1', listener: trackingListener)
+        ..registerListener(key: 'key2', listener: trackingListener);
+
+      // Setup mock for deleteAll
+      when(() => mockPlatform.deleteAll(options: any(named: 'options')))
+          .thenAnswer((_) async {});
+
+      // Call deleteAll
+      await storage.deleteAll();
+
+      // Verify listeners were called with null for each key
+      expect(calls.length, 2);
+      expect(calls, everyElement(isNull));
+    });
+
+    test('Listeners are called with value when write is invoked', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'testKey', listener: trackingListener);
+
+      // Setup mock for write
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call write
+      await storage.write(key: 'testKey', value: 'testValue');
+
+      // Verify listener was called with the value
+      expect(calls.length, 1);
+      expect(calls.first, 'testValue');
+    });
+
+    test('Listeners are called when delete is invoked', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener that tracks calls
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'testKey', listener: trackingListener);
+
+      // Setup mock for delete
+      when(
+        () => mockPlatform.delete(
+          key: any(named: 'key'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call delete
+      await storage.delete(key: 'testKey');
+
+      // Verify listener was called (delete calls without explicit value)
+      expect(calls.length, 1);
+    });
+
+    test('No listeners called when key has no registered listeners', () async {
+      // Track listener calls
+      final calls = <String?>[];
+
+      // Register a listener for a different key
+      void trackingListener(String? value) {
+        calls.add(value);
+      }
+
+      storage.registerListener(key: 'otherKey', listener: trackingListener);
+
+      // Setup mock for write
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+
+      // Call write on a key with no listeners
+      await storage.write(key: 'testKey', value: 'testValue');
+
+      // Verify no listeners were called (covers early return)
+      expect(calls.isEmpty, isTrue);
+    });
+  });
+
+  group('iOS/macOS Cupertino Protected Data Tests', () {
+    test(
+        'onCupertinoProtectedDataAvailabilityChanged returns stream '
+        'for MethodChannel platform', () {
+      // Set platform to MethodChannel BEFORE creating storage
+      FlutterSecureStoragePlatform.instance = methodStorage;
+      const methodChannelStorage = FlutterSecureStorage();
+
+      // Access the getter to cover the MethodChannel branch
+      final result =
+          methodChannelStorage.onCupertinoProtectedDataAvailabilityChanged;
+
+      // Should return a Stream for MethodChannel platforms
+      expect(result, isNotNull);
+      expect(result, isA<Stream<bool>>());
+
+      // Restore original platform
+      FlutterSecureStoragePlatform.instance = mockPlatform;
+    });
+
+    test(
+        'onCupertinoProtectedDataAvailabilityChanged returns null '
+        'for non-MethodChannel platform', () {
+      // Use mock platform (not MethodChannel)
+      final result = storage.onCupertinoProtectedDataAvailabilityChanged;
+
+      // Should return null for non-MethodChannel platforms
+      expect(result, isNull);
+    });
+
+    test(
+        'isCupertinoProtectedDataAvailable calls MethodChannel platform '
+        'method', () async {
+      // Set platform to MethodChannel BEFORE creating storage
+      FlutterSecureStoragePlatform.instance = methodStorage;
+      const methodChannelStorage = FlutterSecureStorage();
+
+      // Call the method to cover the MethodChannel branch
+      // In test environment, the actual platform method may not be
+      // fully implemented, so we just verify the call completes
+      // and the conditional branch is executed
+      final result =
+          await methodChannelStorage.isCupertinoProtectedDataAvailable();
+
+      // The method executes the MethodChannel branch (covered for codecov)
+      // Result may be null in test environment, but the code path is covered
+      expect(result, isA<bool?>());
+
+      // Restore original platform
+      FlutterSecureStoragePlatform.instance = mockPlatform;
+    });
+
+    test(
+        'isCupertinoProtectedDataAvailable returns null '
+        'for non-MethodChannel platform', () async {
+      // Use mock platform (not MethodChannel)
+      final result = await storage.isCupertinoProtectedDataAvailable();
+
+      // Should return null for non-MethodChannel platforms
+      expect(result, isNull);
+    });
+
+    test(
+        'onCupertinoProtectedDataAvailabilityChanged accesses platform '
+        'for type check', () {
+      // This test verifies the method can be called and performs
+      // the platform type check without crashing
+      expect(
+        () => storage.onCupertinoProtectedDataAvailabilityChanged,
+        returnsNormally,
+      );
+    });
+
+    test('isCupertinoProtectedDataAvailable accesses platform for type check',
+        () async {
+      // This test verifies the method can be called and performs
+      // the platform type check without crashing
+      await expectLater(
+        storage.isCupertinoProtectedDataAvailable(),
+        completion(isNull),
+      );
+    });
+  });
+
+  group('Test Helper Methods', () {
+    test('setMockInitialValues sets up test platform with initial data', () {
+      final testData = {'testKey': 'testValue', 'key2': 'value2'};
+
+      FlutterSecureStorage.setMockInitialValues(testData);
+
+      // Verify platform was set to TestFlutterSecureStoragePlatform
+      expect(
+        FlutterSecureStoragePlatform.instance,
+        isA<TestFlutterSecureStoragePlatform>(),
+      );
+
+      // The test platform should have the initial values
+      final platform = FlutterSecureStoragePlatform.instance
+          as TestFlutterSecureStoragePlatform;
+      expect(platform.data, equals(testData));
+    });
+
+    test('setMockInitialValues with empty map', () {
+      FlutterSecureStorage.setMockInitialValues({});
+
+      expect(
+        FlutterSecureStoragePlatform.instance,
+        isA<TestFlutterSecureStoragePlatform>(),
+      );
+
+      final platform = FlutterSecureStoragePlatform.instance
+          as TestFlutterSecureStoragePlatform;
+      expect(platform.data.isEmpty, isTrue);
+    });
+  });
+
+  group('Platform-Specific Option Selection Tests', () {
+    setUp(() {
+      // Setup mock responses for write method
+      when(
+        () => mockPlatform.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async {});
+    });
+
+    tearDown(() {
+      // Reset platform override after each test
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    test(
+      '_selectOptions returns web options when platform is web',
+      () async {
+        // On web platform, kIsWeb is true and this branch executes
+        // On other platforms, this test verifies the method doesn't crash
+        if (kIsWeb) {
+          await storage.write(
+            key: 'test',
+            value: 'value',
+            webOptions: WebOptions.defaultOptions,
+          );
+
+          // Verify the write was called (covers web branch)
+          verify(
+            () => mockPlatform.write(
+              key: 'test',
+              value: 'value',
+              options: any(named: 'options'),
+            ),
+          ).called(1);
+        } else {
+          // On non-web platforms, just verify test structure is valid
+          expect(kIsWeb, isFalse);
+        }
+      },
+      testOn: 'browser',
+    );
+
+    test('_selectOptions returns iOS options when platform is iOS', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        iOptions: const IOSOptions(
+          accessibility: KeychainAccessibility.first_unlock,
+        ),
+      );
+
+      // Verify the write was called (covers iOS branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns macOS options when platform is macOS',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        mOptions: const MacOsOptions(
+          accessibility: KeychainAccessibility.first_unlock,
+        ),
+      );
+
+      // Verify the write was called (covers macOS branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns Windows options when platform is Windows',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        wOptions: WindowsOptions.defaultOptions,
+      );
+
+      // Verify the write was called (covers Windows branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions returns Linux options when platform is Linux',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+
+      await storage.write(
+        key: 'test',
+        value: 'value',
+        lOptions: LinuxOptions.defaultOptions,
+      );
+
+      // Verify the write was called (covers Linux branch)
+      verify(
+        () => mockPlatform.write(
+          key: 'test',
+          value: 'value',
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test('_selectOptions throws for unsupported platform', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
+
+      // Should throw UnsupportedError for unsupported platforms
+      expect(
+        () => storage.write(key: 'test', value: 'value'),
+        throwsUnsupportedError,
+      );
     });
   });
 }

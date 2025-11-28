@@ -2,7 +2,7 @@
 
 [![Pub Version](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![Pub Version Prerelease](https://img.shields.io/pub/v/flutter_secure_storage.svg?include_prereleases)](https://pub.dev/packages/flutter_secure_storage)
-[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml)
+[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-integration.yml)
 [![Code Quality: Very Good Analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Codecov](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage/graph/badge.svg?token=UUVTJ6MS4A)](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
@@ -24,11 +24,11 @@ In version 11, the migration tool will no longer be available. To ensure users r
 Due to this update, the minimum required Android SDK will be 23.
 
 ## Important notice for Web
-flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/mogol/flutter_secure_storage/issues/320#issuecomment-976308930)
+flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/juliansteenbakker/flutter_secure_storage/issues/320#issuecomment-976308930)
 
 ## Installation
 
-If not present already, please call WidgetsFlutterBinding.ensureInitialized() in your main before you do anything with the MethodChannel. [Please see this issue  for more info.](https://github.com/mogol/flutter_secure_storage/issues/336)
+If not present already, please call WidgetsFlutterBinding.ensureInitialized() in your main before you do anything with the MethodChannel. [Please see this issue  for more info.](https://github.com/juliansteenbakker/flutter_secure_storage/issues/336)
 
 Add the dependency in your `pubspec.yaml` file:
 
@@ -93,18 +93,77 @@ By setting `accessibility`, you can control when secure values are accessible, e
 
 ### Android
 
+#### Disabling Auto Backup
+
 _Note_ By default Android backups data on Google Drive. It can cause exception java.security.InvalidKeyException:Failed to unwrap key.
 You need to
 
-- [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/mogol/flutter_secure_storage/issues/13#issuecomment-421083742)
-- [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/mogol/flutter_secure_storage/issues/43#issuecomment-471642126)
+- [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/13#issuecomment-421083742)
+- [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/43#issuecomment-471642126)
 
 Add the following to your `android/app/src/main/AndroidManifest.xml`:
 
+```xml
 <application
 android:allowBackup="false"
 ...>
 </application>
+```
+
+#### Biometric Authentication
+
+Flutter Secure Storage supports biometric authentication (fingerprint, face recognition, etc.) on Android API 23+.
+
+##### Required Permissions
+
+To use biometric authentication, add the following permission to your `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+```
+
+For devices running Android 9.0 (API 28) and above, `USE_BIOMETRIC` is the recommended permission.
+
+For backward compatibility with devices running Android 6.0 - 8.1 (API 23-27), you may also need:
+
+```xml
+<uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+```
+
+##### Using Biometric Authentication
+
+You can enable biometric authentication using the `AndroidOptions.biometric()` constructor:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    biometricPromptTitle: 'Unlock to access your data',
+    biometricPromptSubtitle: 'Use fingerprint or face unlock',
+  ),
+);
+```
+
+##### Enforcing Biometric Authentication
+
+By default, biometric authentication is optional and will gracefully degrade if the device doesn't have biometrics enrolled. To enforce biometric authentication and throw an error if unavailable:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: true,  // Throw error if biometrics unavailable
+    biometricPromptTitle: 'Biometric authentication required',
+  ),
+);
+```
+
+**Note:** When `enforceBiometrics: true`, the app will throw an exception if the device has no PIN, pattern, password, or biometric enrolled.
+
+##### Requirements
+
+- **API Level**: Android 6.0 (API 23) minimum for basic encryption
+- **API Level**: Android 9.0 (API 28) minimum for biometric authentication
+- **Device Security**: Device must have a PIN, pattern, password, or biometric enrolled (when using `enforceBiometrics: true`)
+- **Permissions**: `USE_BIOMETRIC` permission in AndroidManifest.xml
 
 ### macOS & iOS
 
@@ -156,7 +215,7 @@ You need the C++ ATL libraries installed along with the rest of Visual Studio Bu
 
 ### Linux
 
-You need `libsecret-1-dev` and `libjsoncpp-dev` on your machine to build the project, and `libsecret-1-0` and `libjsoncpp1` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
+You need `libsecret-1-dev` on your machine to build the project, and `libsecret-1-0` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
 
 ```yaml
 parts:
@@ -166,13 +225,11 @@ parts:
     flutter-target: lib/main.dart
     build-packages:
       - libsecret-1-dev
-      - libjsoncpp-dev
     stage-packages:
       - libsecret-1-0
-      - libjsoncpp-dev
 ```
 
-Apart from `libsecret` you also need a keyring service, for that you need either `gnome-keyring` (for Gnome users) or `ksecretsservice` (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
+Apart from `libsecret` you also need a keyring service, for that you need either [`gnome-keyring`](https://wiki.gnome.org/Projects/GnomeKeyring) (for Gnome users) or [`kwalletmanager`](https://wiki.archlinux.org/title/KDE_Wallet) (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
 
 ## Integration Tests
 

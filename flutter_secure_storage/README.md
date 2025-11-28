@@ -11,6 +11,42 @@ This is the platform-specific implementation of `flutter_secure_storage` for And
 
 Add the dependency in your `pubspec.yaml` and run `flutter pub get`.
 
+### Example Usage
+
+```dart
+// Default secure storage - Uses RSA OAEP + AES-GCM (recommended)
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(),
+);
+
+// Or simply use the default
+final storage = FlutterSecureStorage();
+
+// Biometric storage with graceful degradation
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: false, // Default - works without biometrics
+    biometricPromptTitle: 'Authenticate',
+  ),
+);
+
+// Strict biometric enforcement
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: true, // Requires biometric/PIN
+    biometricPromptTitle: 'Authentication Required',
+  ),
+);
+
+// Custom combination (for advanced users only)
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(
+    keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding, // Legacy RSA
+    storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+  ),
+);
+```
+
 ## Configuration
 
 ### Android
@@ -20,6 +56,37 @@ Add the dependency in your `pubspec.yaml` and run `flutter pub get`.
 
 2. Exclude shared preferences used by the plugin:
     - Follow the linked documentation for further details.
+
+#### Encryption Options
+
+| Constructor                                          | Key Cipher                            | Storage Cipher    | Biometric Support | Min API           | Description                                                                                                                                          |
+|------------------------------------------------------|---------------------------------------|-------------------|-------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AndroidOptions()`                                   | RSA/ECB/OAEPWithSHA-256AndMGF1Padding | AES/GCM/NoPadding | No                | 23 (Android 6.0+) | **Default.** Standard secure storage with RSA OAEP key wrapping. Strong authenticated encryption without biometrics. Recommended for most use cases. |
+| `AndroidOptions.biometric(enforceBiometrics: false)` | AES/GCM/NoPadding                     | AES/GCM/NoPadding | Optional          | 23 (Android 6.0+) | KeyStore-based with optional biometric authentication. Gracefully degrades if biometrics unavailable.                                                |
+| `AndroidOptions.biometric(enforceBiometrics: true)`  | AES/GCM/NoPadding                     | AES/GCM/NoPadding | Required          | 28 (Android 9.0+) | KeyStore-based requiring biometric/PIN authentication. Throws error if device security not available.                                                |
+
+#### Custom Cipher Combinations
+
+All combinations below are supported when using the advanced `AndroidOptions()` constructor:
+
+| Key Cipher Algorithm                    | Storage Cipher Algorithm | Implementation  | Biometric Support                  | Min API |
+|-----------------------------------------|--------------------------|-----------------|------------------------------------|---------|
+| `RSA_ECB_PKCS1Padding`                  | `AES_CBC_PKCS7Padding`   | RSA-wrapped AES | No                                 | 1       |
+| `RSA_ECB_PKCS1Padding`                  | `AES_GCM_NoPadding`      | RSA-wrapped AES | No                                 | 23      |
+| `RSA_ECB_OAEPwithSHA_256andMGF1Padding` | `AES_CBC_PKCS7Padding`   | RSA-wrapped AES | No                                 | 23      |
+| `RSA_ECB_OAEPwithSHA_256andMGF1Padding` | `AES_GCM_NoPadding`      | RSA-wrapped AES | No                                 | 23      |
+| `AES_GCM_NoPadding`                     | `AES_CBC_PKCS7Padding`   | KeyStore AES    | Optional (via `enforceBiometrics`) | 23      |
+| `AES_GCM_NoPadding`                     | `AES_GCM_NoPadding`      | KeyStore AES    | Optional (via `enforceBiometrics`) | 23      |
+
+**Notes:**
+- **RSA key ciphers** wrap the AES encryption key with RSA. No biometric support.
+- **AES key cipher** stores the key directly in Android KeyStore. Supports optional biometric authentication.
+- **`enforceBiometrics` parameter** (default: `false`):
+    - `false`: Gracefully degrades if biometrics unavailable (stores without authentication)
+    - `true`: Strictly requires device security (PIN/pattern/biometric), throws exception if unavailable
+- When using `AES_GCM_NoPadding` key cipher, the implementation automatically selects:
+    - `StorageCipherImplementationAES23` for KeyStore-based encryption (supports biometrics)
+    - Falls back to no authentication if `enforceBiometrics=false` and device has no security
 
 ### iOS
 
