@@ -4,43 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 
-import java.util.Map;
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
 
-enum KeyCipherAlgorithm {
-    RSA_ECB_PKCS1Padding(RSACipher18Implementation::new, 1),
-    @SuppressWarnings({"UnusedDeclaration"})
-    RSA_ECB_OAEPwithSHA_256andMGF1Padding(RSACipherOAEPImplementation::new, Build.VERSION_CODES.M);
-    final KeyCipherFunction keyCipher;
-    final int minVersionCode;
-
-    KeyCipherAlgorithm(KeyCipherFunction keyCipher, int minVersionCode) {
-        this.keyCipher = keyCipher;
-        this.minVersionCode = minVersionCode;
-    }
-}
-
-enum StorageCipherAlgorithm {
-    AES_CBC_PKCS7Padding(StorageCipher18Implementation::new, 1),
-    @SuppressWarnings({"UnusedDeclaration"})
-    AES_GCM_NoPadding(StorageCipherGCMImplementation::new, Build.VERSION_CODES.M);
-    final StorageCipherFunction storageCipher;
-    final int minVersionCode;
-
-    StorageCipherAlgorithm(StorageCipherFunction storageCipher, int minVersionCode) {
-        this.storageCipher = storageCipher;
-        this.minVersionCode = minVersionCode;
-    }
-}
-
-@FunctionalInterface
-interface StorageCipherFunction {
-    StorageCipher apply(Context context, KeyCipher keyCipher) throws Exception;
-}
-
-@FunctionalInterface
-interface KeyCipherFunction {
-    KeyCipher apply(Context context) throws Exception;
-}
+import javax.crypto.Cipher;
 
 public class StorageCipherFactory {
     private static final String ELEMENT_PREFERENCES_ALGORITHM_PREFIX = "FlutterSecureSAlgorithm";
@@ -53,43 +19,100 @@ public class StorageCipherFactory {
     private final StorageCipherAlgorithm savedStorageAlgorithm;
     private final KeyCipherAlgorithm currentKeyAlgorithm;
     private final StorageCipherAlgorithm currentStorageAlgorithm;
+    private final FlutterSecureStorageConfig config;
 
-    public StorageCipherFactory(SharedPreferences source, Map<String, Object> options) {
-        savedKeyAlgorithm = KeyCipherAlgorithm.valueOf(source.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, DEFAULT_KEY_ALGORITHM.name()));
-        savedStorageAlgorithm = StorageCipherAlgorithm.valueOf(source.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, DEFAULT_STORAGE_ALGORITHM.name()));
+    public StorageCipherFactory(SharedPreferences configSource, String keyCipherAlgorithm, String storageCipherAlgorithm, FlutterSecureStorageConfig config) {
+        this.config = config;
+        final String savedKeyCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
+        final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
 
-        final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.valueOf(getFromOptionsWithDefault(options, "keyCipherAlgorithm", DEFAULT_KEY_ALGORITHM.name()));
-        currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
-        final StorageCipherAlgorithm currentStorageAlgorithmTmp = StorageCipherAlgorithm.valueOf(getFromOptionsWithDefault(options, "storageCipherAlgorithm", DEFAULT_STORAGE_ALGORITHM.name()));
+        if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
+            // Migration from v9.2.4 or v10.0.0-beta.4:
+            // No algorithm markers exist in SharedPreferences, which means the data was encrypted
+            // with the historical v9.2.4 defaults. We must use these defaults to decrypt the old
+            // data, even if the current config specifies different algorithms.
+            // After successful decryption, the data will be re-encrypted with current algorithms
+            // (if they differ) via the migration flow in handleKeyMismatch().
+            savedKeyAlgorithm = DEFAULT_KEY_ALGORITHM;        // RSA_ECB_PKCS1Padding
+            savedStorageAlgorithm = DEFAULT_STORAGE_ALGORITHM; // AES_CBC_PKCS7Padding
+        } else {
+            savedKeyAlgorithm = KeyCipherAlgorithm.fromString(savedKeyCipherAlgorithm);
+            savedStorageAlgorithm = StorageCipherAlgorithm.fromString(savedStorageCipherAlgorithm);
+        }
+
+        final StorageCipherAlgorithm currentStorageAlgorithmTmp = StorageCipherAlgorithm.fromString(storageCipherAlgorithm);
         currentStorageAlgorithm = (currentStorageAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentStorageAlgorithmTmp : DEFAULT_STORAGE_ALGORITHM;
-    }
 
-    private String getFromOptionsWithDefault(Map<String, Object> options, String key, String defaultValue) {
-        final Object value = options.get(key);
-        return value != null ? value.toString() : defaultValue;
+        // Set current key algorithm with version check
+        final KeyCipherAlgorithm currentKeyAlgorithmTmp = KeyCipherAlgorithm.fromString(keyCipherAlgorithm);
+        currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
+
+        if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
+            final SharedPreferences.Editor source = configSource.edit();
+            storeCurrentAlgorithms(source);
+            source.apply();
+        }
     }
 
     public boolean requiresReEncryption() {
         return savedKeyAlgorithm != currentKeyAlgorithm || savedStorageAlgorithm != currentStorageAlgorithm;
     }
 
-    public StorageCipher getSavedStorageCipher(Context context) throws Exception {
-        final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context);
-        return savedStorageAlgorithm.storageCipher.apply(context, keyCipher);
+    public boolean changedKeyAlgorithm() {
+        return savedKeyAlgorithm != currentKeyAlgorithm;
     }
 
-    public StorageCipher getCurrentStorageCipher(Context context) throws Exception {
-        final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context);
-        return currentStorageAlgorithm.storageCipher.apply(context, keyCipher);
+    public StorageCipher getSavedStorageCipher(Context context, Cipher cipher) throws Exception {
+        final KeyCipher keyCipher = savedKeyAlgorithm.keyCipher.apply(context, config);
+        return createStorageCipher(context, keyCipher, cipher, savedStorageAlgorithm);
+    }
+
+    public StorageCipher getCurrentStorageCipher(Context context, Cipher cipher) throws Exception {
+        final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context, config);
+        return createStorageCipher(context, keyCipher, cipher, currentStorageAlgorithm);
+    }
+
+    /**
+     * Dynamically selects the appropriate StorageCipher implementation based on
+     * the KeyCipher type and StorageCipherAlgorithm.
+     */
+    private StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
+                                               Cipher cipher, StorageCipherAlgorithm algorithm) throws Exception {
+        // For AES_GCM_NoPadding, choose implementation based on KeyCipher type
+        if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {
+            if (isKeyStoreKeyCipher(keyCipher)) {
+                // Use KeyStore-based implementation (biometric/PIN auth capable)
+                return new StorageCipherImplementationAES23(context, keyCipher, cipher);
+            } else {
+                // Use RSA-wrapped implementation (standard secure storage)
+                return new StorageCipherImplementationGCM(context, keyCipher, cipher);
+            }
+        }
+
+        // For other algorithms, use the function from enum
+        if (algorithm.storageCipher == null) {
+            throw new Exception("No implementation available for algorithm: " + algorithm.name());
+        }
+        return algorithm.storageCipher.apply(context, keyCipher, cipher);
+    }
+
+    /**
+     * Checks if the KeyCipher uses KeyStore (AES) vs RSA wrapping.
+     */
+    private boolean isKeyStoreKeyCipher(KeyCipher keyCipher) {
+        return keyCipher instanceof KeyCipherImplementationAES23;
+    }
+
+    public KeyCipher getCurrentKeyCipher(Context context) throws Exception {
+        return currentKeyAlgorithm.keyCipher.apply(context, config);
+    }
+
+    public KeyCipher getSavedKeyCipher(Context context) throws Exception {
+        return savedKeyAlgorithm.keyCipher.apply(context, config);
     }
 
     public void storeCurrentAlgorithms(SharedPreferences.Editor editor) {
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_KEY, currentKeyAlgorithm.name());
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, currentStorageAlgorithm.name());
-    }
-
-    public void removeCurrentAlgorithms(SharedPreferences.Editor editor) {
-        editor.remove(ELEMENT_PREFERENCES_ALGORITHM_KEY);
-        editor.remove(ELEMENT_PREFERENCES_ALGORITHM_STORAGE);
     }
 }

@@ -7,6 +7,8 @@ import android.security.keystore.KeyProperties;
 
 import androidx.annotation.RequiresApi;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.math.BigInteger;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
@@ -17,10 +19,10 @@ import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.security.auth.x500.X500Principal;
 
-public class RSACipherOAEPImplementation extends RSACipher18Implementation {
+class KeyCipherImplementationRSAOAEP extends KeyCipherImplementationRSA18 {
 
-    public RSACipherOAEPImplementation(Context context) throws Exception {
-        super(context);
+    public KeyCipherImplementationRSAOAEP(Context context, FlutterSecureStorageConfig config) throws Exception {
+        super(context, config);
     }
 
     @Override
