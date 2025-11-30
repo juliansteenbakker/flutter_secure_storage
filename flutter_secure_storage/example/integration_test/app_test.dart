@@ -27,8 +27,7 @@ void main() {
       pageObject.verifyRowDoesNotExist(0);
     });
 
-    testWidgets('Check Protected Data Availability',
-        (WidgetTester tester) async {
+    testWidgets('Check Protected Data Availability', (WidgetTester tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.checkProtectedDataAvailability();
     });
@@ -80,8 +79,7 @@ void main() {
     });
 
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
-        skip: !(Platform.isIOS &&
-            Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        skip: !(Platform.isIOS && Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
@@ -116,14 +114,9 @@ void main() {
       expect(afterDelete, isNull);
     });
 
-    testWidgets(
-        'iOS device: baseline (useSecureEnclave=false) write/read/delete',
+    testWidgets('iOS device: baseline (useSecureEnclave=false) write/read/delete',
+        skip: !(Platform.isIOS && !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
         (WidgetTester tester) async {
-      if (!(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
-        return; // Skip when not running on a physical iOS device
-      }
-
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_baseline_key';
       const value = 'device_baseline_secret';
@@ -153,12 +146,8 @@ void main() {
 
     testWidgets(
         'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
+        skip: !(Platform.isIOS && !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
         (WidgetTester tester) async {
-      if (!(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME'))) {
-        return; // Skip when not running on a physical iOS device
-      }
-
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_enabled_key';
       const value = 'device_enclave_secret';
@@ -219,8 +208,7 @@ class HomePageObject {
   final Finder _addRandomButton = find.byKey(const Key('add_random'));
   final Finder _deleteAllButton = find.byKey(const Key('delete_all'));
   final Finder _popupMenuButton = find.byKey(const Key('popup_menu'));
-  final Finder _protectedDataButton =
-      find.byKey(const Key('is_protected_data_available'));
+  final Finder _protectedDataButton = find.byKey(const Key('is_protected_data_available'));
 
   Future<void> deleteAll() async {
     await _tap(_popupMenuButton);
