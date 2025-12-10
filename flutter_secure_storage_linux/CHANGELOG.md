@@ -1,5 +1,6 @@
-## NEXT
-- Fixed whitespace deprecation warning
+## 3.0.0
+- Fixed whitespace deprecation warning.
+- Reverted json.dump with indentations due to problems. If still needed, pin version to 2.x
 
 ## 2.0.1
 Adds application ID to cmake file
