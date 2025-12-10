@@ -1,4 +1,4 @@
-## NEXT
+## 4.1.0
 Upgrades deprecated member usage of win32.
 
 ## 4.0.0
