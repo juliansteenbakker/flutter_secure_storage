@@ -166,7 +166,9 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
             shouldReturnPersistentReference: (options["persistentReference"] as? String).flatMap { Bool($0) },
             authenticationUIBehavior: options["authenticationUIBehavior"] as? String,
             accessControlFlags: options["accessControlFlags"] as? String,
-            useSecureEnclave: (options["useSecureEnclave"] as? String).flatMap { Bool($0) }
+            useSecureEnclave: (options["useSecureEnclave"] as? String).flatMap { Bool($0) },
+            migrateToSecureEnclave: (options["migrateToSecureEnclave"] as? String).flatMap { Bool($0) },
+            resetOnError: (options["resetOnError"] as? String).flatMap { Bool($0) }
         )
 
         return (parameters, value)

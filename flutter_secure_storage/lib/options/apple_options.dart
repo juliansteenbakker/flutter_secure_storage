@@ -83,6 +83,8 @@ abstract class AppleOptions extends Options {
     this.authenticationUIBehavior,
     this.accessControlFlags = const [],
     this.useSecureEnclave = false,
+    this.resetOnError = false,
+    this.migrateToSecureEnclave = true,
   });
 
   /// The default account name associated with the keychain items.
@@ -200,6 +202,27 @@ abstract class AppleOptions extends Options {
   ///   since keys are device-bound.
   final bool useSecureEnclave;
 
+  /// When an error is detected, automatically reset all data. This will prevent
+  /// fatal errors regarding corrupted data however keep in mind that it will
+  /// PERMANENTLY erase the data when an error occurs.
+  ///
+  /// Applies to:
+  /// - Read/write/readAll operations that fail due to corrupted data
+  /// - Migration failures when changing encryption modes
+  ///
+  /// Defaults to false.
+  final bool resetOnError;
+
+  /// When the encryption mode changes (e.g., enabling/disabling Secure Enclave),
+  /// automatically migrate existing data to the new encryption mode. This
+  /// preserves data across encryption changes.
+  ///
+  /// If false, data will be lost when encryption mode changes unless
+  /// resetOnError is true.
+  ///
+  /// Defaults to true.
+  final bool migrateToSecureEnclave;
+
   @override
   Map<String, String> toMap() => <String, String>{
         if (accountName != null) 'accountName': accountName!,
@@ -224,5 +247,7 @@ abstract class AppleOptions extends Options {
           'accessControlFlags':
               accessControlFlags.map((e) => e.name).toList().toString(),
         'useSecureEnclave': '$useSecureEnclave',
+        'resetOnError': '$resetOnError',
+        'migrateToSecureEnclave': '$migrateToSecureEnclave',
       };
 }
