@@ -604,19 +604,20 @@ class FlutterSecureStorage {
 
     /// Deletes an item from the keychain.
     internal func delete(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        // Delete the primary value
-        let query = baseQuery(from: params)
-        let status = SecItemDelete(query as CFDictionary)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            return FlutterSecureStorageResponse(status: status, value: nil)
+        // Delete primary item across sync variants/accessibility permutations.
+        let primaryResult = performDelete(params: params, clearKey: false)
+        if primaryResult.status != errSecSuccess {
+            return primaryResult
         }
 
-        // If Secure Enclave flow is used, also remove the wrapped AES key companion item
+        // If Secure Enclave flow is used, also remove the wrapped AES key companion item.
         if params.useSecureEnclave == true, let account = params.key {
             var keyParams = params
             keyParams.key = wrappedKeyName(for: account)
-            let wrappedQuery = baseQuery(from: keyParams)
-            _ = SecItemDelete(wrappedQuery as CFDictionary)
+            let wrappedResult = performDelete(params: keyParams, clearKey: false)
+            if wrappedResult.status != errSecSuccess {
+                return wrappedResult
+            }
         }
 
         return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
