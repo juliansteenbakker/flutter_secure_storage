@@ -8,6 +8,7 @@
 import Foundation
 import Security
 import CryptoKit
+import LocalAuthentication
 
 /// Represents the parameters for keychain queries.
 struct KeychainQueryParameters {
@@ -61,7 +62,10 @@ struct KeychainQueryParameters {
     
     /// `kSecUseAuthenticationUI` (iOS/macOS): Controls how authentication UI is presented during secure operations.
     var authenticationUIBehavior: String?
-    
+
+    /// Reusable authentication context to allow biometric reuse within one operation.
+    var authenticationContext: LAContext?
+
     /// `accessControlFlags` (iOS/macOS): Specifies access control settings (e.g., biometrics, passcode).
     var accessControlFlags: String?
 
@@ -193,6 +197,10 @@ class FlutterSecureStorage {
 
         if let authenticationUIBehavior = params.authenticationUIBehavior {
             query[kSecUseAuthenticationUI] = authenticationUIBehavior
+        }
+
+        if let authenticationContext = params.authenticationContext {
+            query[kSecUseAuthenticationContext] = authenticationContext
         }
 
         // If Secure Enclave style gating requested but no flags provided,

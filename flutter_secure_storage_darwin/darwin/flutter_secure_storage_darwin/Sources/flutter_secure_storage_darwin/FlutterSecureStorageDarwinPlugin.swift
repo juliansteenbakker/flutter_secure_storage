@@ -5,9 +5,11 @@
 #if os(iOS)
 import Flutter
 import UIKit
+import LocalAuthentication
 #else
 import AppKit
 import FlutterMacOS
+import LocalAuthentication
 #endif
 
 public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
@@ -150,7 +152,7 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
 
         let value = arguments["value"] as? String
 
-        let parameters = KeychainQueryParameters(
+        var parameters = KeychainQueryParameters(
             key: arguments["key"] as? String,
             accessGroup: options["groupId"] as? String,
             service: options["accountName"] as? String,
@@ -168,6 +170,13 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
             accessControlFlags: options["accessControlFlags"] as? String,
             useSecureEnclave: (options["useSecureEnclave"] as? String).flatMap { Bool($0) }
         )
+
+        // Reuse a single authentication context to avoid multiple prompts per call.
+        if #available(iOS 9.0, macOS 10.12, *) {
+            let context = LAContext()
+            context.touchIDAuthenticationAllowableReuseDuration = 30
+            parameters.authenticationContext = context
+        }
 
         return (parameters, value)
     }
