@@ -624,15 +624,52 @@ class FlutterSecureStorage {
 
     /// Deletes all items matching the query parameters.
     internal func deleteAll(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        let query = baseQuery(from: params)
-        let status = SecItemDelete(query as CFDictionary)
-        // Return nil if nothing is found
-        if (status == errSecItemNotFound) {
+        return performDelete(params: params, clearKey: true)
+    }
+
+    /// Private helper method to perform keychain deletion.
+    /// Attempts to delete items with both synchronizable states and without accessibility constraints
+    /// to ensure complete removal regardless of how items were originally stored.
+    ///
+    /// - Parameters:
+    ///   - params: The keychain query parameters
+    ///   - clearKey: If true, removes the key constraint to delete all items; if false, deletes specific key
+    /// - Returns: Response indicating success or failure of the deletion operation
+    private func performDelete(params: KeychainQueryParameters, clearKey: Bool) -> FlutterSecureStorageResponse {
+        func deleteFromKeychain(withSynchronizable synchronizable: Bool?) -> OSStatus {
+            var modifiedParams = params
+
+            if clearKey {
+                modifiedParams.key = nil
+            }
+
+            modifiedParams.isSynchronizable = synchronizable
+            modifiedParams.accessibilityLevel = nil
+            modifiedParams.accessControlFlags = nil
+
+            let query = baseQuery(from: modifiedParams)
+            return SecItemDelete(query as CFDictionary)
+        }
+
+        let statusSync = deleteFromKeychain(withSynchronizable: true)
+        let statusNonSync = deleteFromKeychain(withSynchronizable: false)
+
+        // Return success if both operations report item not found
+        if statusSync == errSecItemNotFound && statusNonSync == errSecItemNotFound {
             return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
         }
+
+        // Return success if either operation succeeded
+        if statusSync == errSecSuccess || statusNonSync == errSecSuccess {
+            return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
+        }
+
+        // Return the first error encountered
+        let status = statusSync != errSecItemNotFound ? statusSync : statusNonSync
+
         return FlutterSecureStorageResponse(status: status, value: nil)
     }
-    
+
     internal func getPersistentReference(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
         var query = baseQuery(from: params)
         query[kSecReturnPersistentRef] = true

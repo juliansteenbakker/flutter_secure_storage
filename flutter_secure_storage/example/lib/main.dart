@@ -42,20 +42,20 @@ class HomePageState extends State<HomePage> {
       iOptions: IOSOptions(
         accountName: accountName,
         synchronizable: true,
-        accessControlFlags: [
-          AccessControlFlag.biometryCurrentSet,
-          AccessControlFlag.devicePasscode,
-          AccessControlFlag.and,
-        ],
+        // accessControlFlags: [ // Enable for one or more access control features
+        //   AccessControlFlag.biometryCurrentSet,
+        //   AccessControlFlag.devicePasscode,
+        //   AccessControlFlag.and,
+        // ],
       ),
       mOptions: MacOsOptions(
         accountName: accountName,
         synchronizable: true,
-        accessControlFlags: [
-          AccessControlFlag.biometryCurrentSet,
-          AccessControlFlag.devicePasscode,
-          AccessControlFlag.and,
-        ],
+        // accessControlFlags: [ // Enable for one or more access control features
+        //   AccessControlFlag.biometryCurrentSet,
+        //   AccessControlFlag.devicePasscode,
+        //   AccessControlFlag.and,
+        // ],
       ),
     );
   }

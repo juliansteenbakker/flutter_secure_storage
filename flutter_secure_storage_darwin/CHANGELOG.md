@@ -1,3 +1,6 @@
+## 0.2.0
+- Remove keys regardless of synchronizable state or accessibility constraints.
+
 ## 0.1.1
  - Fix warnings with Privacy Manifest
 

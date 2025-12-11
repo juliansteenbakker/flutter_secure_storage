@@ -1,4 +1,4 @@
-## NEXT
+## 2.1.0
 - Updated code style
 - Add check for secure context, since operations are only allowed with secure context.
 
