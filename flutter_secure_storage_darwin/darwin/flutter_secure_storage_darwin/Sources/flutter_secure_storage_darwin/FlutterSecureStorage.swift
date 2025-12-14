@@ -410,6 +410,12 @@ class FlutterSecureStorage {
                     let readResult = read(params: itemParams)
                     if readResult.status == errSecSuccess, let value = readResult.value as? String {
                         results[key] = value
+                    } else {
+                        // Fallback: if Secure Enclave read failed (no wrapped key), try plain text
+                        if let data = item[kSecValueData] as? Data,
+                           let value = String(data: data, encoding: .utf8) {
+                            results[key] = value
+                        }
                     }
                 } else {
                     // Standard read: decode as UTF-8
