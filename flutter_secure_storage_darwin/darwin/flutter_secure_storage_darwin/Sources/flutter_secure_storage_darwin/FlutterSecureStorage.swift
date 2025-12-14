@@ -379,6 +379,7 @@ class FlutterSecureStorage {
         var query = baseQuery(from: params)
         query[kSecMatchLimit] = kSecMatchLimitAll
         query[kSecReturnAttributes] = true
+        query[kSecReturnData] = true
 
         var ref: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &ref)
@@ -395,10 +396,27 @@ class FlutterSecureStorage {
         var results: [String: String] = [:]
         if let items = ref as? [[CFString: Any]] {
             for item in items {
-                if let key = item[kSecAttrAccount] as? String,
-                   let data = item[kSecValueData] as? Data,
-                   let value = String(data: data, encoding: .utf8) {
-                    results[key] = value
+                guard let key = item[kSecAttrAccount] as? String else { continue }
+
+                // Skip wrapped key items (they're companion items for Secure Enclave)
+                if key.hasPrefix("fss.wrapped.") {
+                    continue
+                }
+
+                // If Secure Enclave is enabled, try to decrypt the item
+                if params.useSecureEnclave == true {
+                    var itemParams = params
+                    itemParams.key = key
+                    let readResult = read(params: itemParams)
+                    if readResult.status == errSecSuccess, let value = readResult.value as? String {
+                        results[key] = value
+                    }
+                } else {
+                    // Standard read: decode as UTF-8
+                    if let data = item[kSecValueData] as? Data,
+                       let value = String(data: data, encoding: .utf8) {
+                        results[key] = value
+                    }
                 }
             }
         }
