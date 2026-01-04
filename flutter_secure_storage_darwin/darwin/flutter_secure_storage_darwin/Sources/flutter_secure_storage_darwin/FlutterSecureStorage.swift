@@ -246,8 +246,10 @@ class FlutterSecureStorage {
     }
 
     /// Ensures a Secure Enclave EC private key exists for the provided service, creating it if needed.
+    /// The private key uses hardcoded access control with .privateKeyUsage to allow crypto operations
+    /// without requiring user authentication (authentication is handled at the data item level).
     @available(iOS 11.3, macOS 10.15, *)
-    private func ensureEnclavePrivateKey(service: String?, accessControl: SecAccessControl?) throws -> SecKey {
+    private func ensureEnclavePrivateKey(service: String?) throws -> SecKey {
         let tag = enclaveKeyTag(for: service) as CFData
 
         let query: [CFString: Any] = [
@@ -271,7 +273,16 @@ class FlutterSecureStorage {
                 kSecAttrApplicationTag: tag
             ]
         ]
-        if let ac = accessControl {
+        // Use hardcoded access control with .privateKeyUsage for the SE private key.
+        // This allows crypto operations without user authentication prompts.
+        // User authentication is handled at the data item level via accessControlFlags.
+        let keyAccessControl = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .privateKeyUsage,
+            nil
+        )
+        if let ac = keyAccessControl {
             var privateAttrs = attributes[kSecPrivateKeyAttrs] as! [CFString: Any]
             privateAttrs[kSecAttrAccessControl] = ac
             attributes[kSecPrivateKeyAttrs] = privateAttrs
@@ -310,6 +321,18 @@ class FlutterSecureStorage {
             throw OSSecError(status: errSecAuthFailed, message: error?.takeRetainedValue().localizedDescription)
         }
         return decrypted
+    }
+
+    /// Deletes the Secure Enclave private key for the provided service.
+    @available(iOS 11.3, macOS 10.15, *)
+    private func deleteEnclavePrivateKey(service: String?) {
+        let tag = enclaveKeyTag(for: service) as CFData
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassKey,
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrApplicationTag: tag
+        ]
+        _ = SecItemDelete(query as CFDictionary)
     }
 
     /// Composes the companion key name used to store the wrapped AES key for a data item key.
@@ -478,9 +501,8 @@ class FlutterSecureStorage {
 
         // Unwrap AES key via Secure Enclave
         if #available(iOS 11.3, macOS 10.15, *) {
-            let ac = createAccessControl(params: params)
             do {
-                let privateKey = try ensureEnclavePrivateKey(service: params.service, accessControl: ac)
+                let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 let aesKeyData = try unwrapSymmetricKey(wrappedKeyData, using: privateKey)
                 let key = SymmetricKey(data: aesKeyData)
                 // Encrypted blob format: nonce(12) + ciphertext+tag
@@ -554,11 +576,10 @@ class FlutterSecureStorage {
             return FlutterSecureStorageResponse(status: errSecParam, value: nil)
         }
 
-        // Ensure enclave private key exists (with provided access control)
+        // Ensure enclave private key exists
         if #available(iOS 11.3, macOS 10.15, *) {
-            let ac = createAccessControl(params: params)
             do {
-                let privateKey = try ensureEnclavePrivateKey(service: params.service, accessControl: ac)
+                let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
                     return FlutterSecureStorageResponse(status: errSecParam, value: nil)
                 }
@@ -648,8 +669,18 @@ class FlutterSecureStorage {
     }
 
     /// Deletes all items matching the query parameters.
+    /// If Secure Enclave is enabled, also deletes the Secure Enclave private key.
     internal func deleteAll(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        return performDelete(params: params, clearKey: true)
+        let result = performDelete(params: params, clearKey: true)
+
+        // If Secure Enclave is enabled, also delete the SE private key
+        if params.useSecureEnclave == true {
+            if #available(iOS 11.3, macOS 10.15, *) {
+                deleteEnclavePrivateKey(service: params.service)
+            }
+        }
+
+        return result
     }
 
     /// Private helper method to perform keychain deletion.
