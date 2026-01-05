@@ -197,18 +197,20 @@ void main() {
       expect(afterDelete, isNull);
     });
 
-    // Note: On real devices, Secure Enclave will prompt for device passcode/biometrics.
-    // Enter your device passcode when prompted - it should only prompt once per test run
-    // due to LAContext reuse (30 second window).
+    // Note: On real devices, Secure Enclave will prompt for device
+    // passcode/biometrics. Enter your device passcode when prompted - it should
+    // only prompt once per test run due to LAContext reuse (30 second window).
     testWidgets('iOS device: readAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
-      // Use default userPresence (no applicationPassword) - should work with device passcode
+      // Use default userPresence (no applicationPassword) - should work with
+      // device passcode
       const enclaveOptions = IOSOptions(
         useSecureEnclave: true,
-        // accessControlFlags defaults to userPresence which works with device passcode
+        // accessControlFlags defaults to userPresence which works with device
+        // passcode
       );
 
       // Write multiple Secure Enclave items
@@ -233,7 +235,7 @@ void main() {
 
       // Verify all items are returned
       expect(allItems, isNotNull);
-      final items = allItems ?? <String, String>{};
+      final items = allItems;
       expect(items.length, greaterThanOrEqualTo(3));
       expect(items['enclave_key1'], 'enclave_value1');
       expect(items['enclave_key2'], 'enclave_value2');
@@ -276,7 +278,7 @@ void main() {
 
       // Verify both items are returned
       expect(allItems, isNotNull);
-      final items = allItems ?? <String, String>{};
+      final items = allItems;
       expect(items.containsKey('mixed_enclave_key'), isTrue);
       expect(items['mixed_enclave_key'], 'enclave_value');
       expect(items.containsKey('mixed_standard_key'), isTrue);
@@ -285,7 +287,9 @@ void main() {
       // Cleanup
       await storage.delete(key: 'mixed_enclave_key', iOptions: enclaveOptions);
       await storage.delete(
-          key: 'mixed_standard_key', iOptions: standardOptions);
+        key: 'mixed_standard_key',
+        iOptions: standardOptions,
+      );
     });
 
     testWidgets('iOS device: deleteAll with Secure Enclave items',
@@ -313,7 +317,7 @@ void main() {
       // Verify items exist
       final beforeDelete = await storage.readAll(iOptions: enclaveOptions);
       expect(beforeDelete, isNotNull);
-      final beforeItems = beforeDelete ?? <String, String>{};
+      final beforeItems = beforeDelete;
       expect(beforeItems.containsKey('delete_all_key1'), isTrue);
       expect(beforeItems.containsKey('delete_all_key2'), isTrue);
 
@@ -322,7 +326,7 @@ void main() {
 
       // Verify all items are deleted (including wrapped keys)
       final afterDelete = await storage.readAll(iOptions: enclaveOptions);
-      expect(afterDelete == null || afterDelete.isEmpty, isTrue);
+      expect(afterDelete.isEmpty, isTrue);
       expect(
         await storage.read(key: 'delete_all_key1', iOptions: enclaveOptions),
         isNull,
