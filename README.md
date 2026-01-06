@@ -235,6 +235,35 @@ final storage = FlutterSecureStorage(
 ```
 
 ### macOS & iOS
+#### Secure Enclave (iOS/macOS)
+
+You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, values are encrypted with a per-item AES key that is wrapped by an Enclave-backed private key. Access control prompts (Face ID/Touch ID/passcode) are enforced according to your `accessControlFlags`.
+
+Example:
+
+```dart
+final storage = FlutterSecureStorage();
+
+await storage.write(
+  key: 'token',
+  value: 'secret',
+  iOptions: IOSOptions(
+    useSecureEnclave: true,
+    accessControlFlags: const [
+      AccessControlFlag.userPresence, // require Face ID/Touch ID or passcode
+    ],
+  ),
+  mOptions: MacOsOptions(
+    useSecureEnclave: true,
+    accessControlFlags: const [AccessControlFlag.userPresence],
+  ),
+);
+```
+
+Notes:
+- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured access control flags.
+- `synchronizable` is ignored for Enclave-backed flows (items are device-bound).
+- On macOS, `kSecUseDataProtectionKeychain` remains enabled when available.
 
 You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` for macOS or for iOS `ios/Runner/DebugProfile.entitlements` *and* `ios/Runner/Release.entitlements`.
 
