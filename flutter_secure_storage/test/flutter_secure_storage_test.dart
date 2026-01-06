@@ -196,6 +196,11 @@ void main() {
       ).called(1);
     });
 
+    test('IOSOptions.toMap includes useSecureEnclave flag when enabled', () {
+      const options = IOSOptions(useSecureEnclave: true);
+      expect(options.toMap()['useSecureEnclave'], 'true');
+    });
+
     test('read should return correct value', () async {
       when(
         () => mockPlatform.read(
@@ -758,6 +763,7 @@ void main() {
         'accountName': 'flutter_secure_storage_service',
         'accessibility': 'unlocked',
         'synchronizable': 'false',
+        'useSecureEnclave': 'false',
       });
     });
 
@@ -797,6 +803,7 @@ void main() {
         'authenticationUIBehavior': 'require_auth',
         'accessControlFlags':
             [AccessControlFlag.biometryCurrentSet.name].toString(),
+        'useSecureEnclave': 'false',
       });
     });
 
@@ -820,6 +827,7 @@ void main() {
         'accountName': 'flutter_secure_storage_service',
         'accessibility': 'unlocked',
         'synchronizable': 'false',
+        'useSecureEnclave': 'false',
         'usesDataProtectionKeychain': 'true',
       });
     });
@@ -838,6 +846,7 @@ void main() {
         'groupId': 'group.mac.example',
         'accessibility': 'first_unlock',
         'synchronizable': 'true',
+        'useSecureEnclave': 'false',
         'usesDataProtectionKeychain': 'false',
       });
     });

@@ -22,6 +22,7 @@ class MacOsOptions extends AppleOptions {
     super.authenticationUIBehavior,
     super.accessControlFlags,
     this.usesDataProtectionKeychain = true,
+    super.useSecureEnclave = false,
   });
 
   /// `kSecUseDataProtectionKeychain` (macOS only): **Shared**.
