@@ -22,6 +22,7 @@ class IOSOptions extends AppleOptions {
     super.shouldReturnPersistentReference,
     super.authenticationUIBehavior,
     super.accessControlFlags,
+    super.useSecureEnclave,
   });
 
   /// A predefined `IosOptions` instance with default settings.
