@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -23,13 +24,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
     private static final String TAG = "FlutterSecureStoragePlugin";
     private MethodChannel channel;
-    private FlutterSecureStorage secureStorage;
+    private Context applicationContext;
+    private final Map<String, FlutterSecureStorage> storagesBySharedPreferencesName = new HashMap<>();
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
 
     public void initInstance(BinaryMessenger messenger, Context context) {
         try {
-            secureStorage = new FlutterSecureStorage(context);
+            applicationContext = context.getApplicationContext();
 
             workerThread = new HandlerThread("com.it_nomads.fluttersecurestorage.worker");
             workerThread.start();
@@ -56,7 +58,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
             channel.setMethodCallHandler(null);
             channel = null;
         }
-        secureStorage = null;
+        synchronized (storagesBySharedPreferencesName) {
+            storagesBySharedPreferencesName.clear();
+        }
+        applicationContext = null;
     }
 
     @Override
@@ -67,15 +72,30 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     }
 
     @SuppressWarnings("unchecked")
-    private String getKeyFromCall(MethodCall call) {
+    private static String getKeyFromCall(MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return secureStorage.addPrefixToKey((String) arguments.get("key"));
+        return (String) arguments.get("key");
     }
 
     @SuppressWarnings("unchecked")
-    private String getValueFromCall(MethodCall call) {
+    private static String getValueFromCall(MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
         return (String) arguments.get("value");
+    }
+
+    private FlutterSecureStorage getOrCreateStorage(FlutterSecureStorageConfig config) {
+        // Key by sharedPreferencesName only, matching AndroidOptions.sharedPreferencesName.
+        // Other config options (cipher algorithms, prefixes) are applied per call during initialize().
+        final String name = config.getSharedPreferencesName();
+        synchronized (storagesBySharedPreferencesName) {
+            FlutterSecureStorage existing = storagesBySharedPreferencesName.get(name);
+            if (existing != null) {
+                return existing;
+            }
+            FlutterSecureStorage created = new FlutterSecureStorage(applicationContext);
+            storagesBySharedPreferencesName.put(name, created);
+            return created;
+        }
     }
 
     /**
@@ -123,6 +143,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         public void run() {
             Map<String, Object> options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
             FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+            FlutterSecureStorage secureStorage = getOrCreateStorage(config);
 
             secureStorage.initialize(config, new SecurePreferencesCallback<>() {
                 @Override
@@ -130,7 +151,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     try {
                         switch (call.method) {
                             case "write": {
-                                String key = getKeyFromCall(call);
+                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
                                 String value = getValueFromCall(call);
 
                                 if (value != null) {
@@ -142,7 +163,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "read": {
-                                String key = getKeyFromCall(call);
+                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
 
                                 if (secureStorage.containsKey(key)) {
                                     String value = secureStorage.read(key);
@@ -157,14 +178,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "containsKey": {
-                                String key = getKeyFromCall(call);
+                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
 
                                 boolean containsKey = secureStorage.containsKey(key);
                                 result.success(containsKey);
                                 break;
                             }
                             case "delete": {
-                                String key = getKeyFromCall(call);
+                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
 
                                 secureStorage.delete(key);
                                 result.success(null);
