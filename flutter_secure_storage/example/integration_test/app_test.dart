@@ -47,12 +47,9 @@ void main() {
 
         // Assert
         final readA = await storageA.read(key: key);
-        expect(
-          readA,
-          equals(valueA),
-          reason: 'Deleting all keys from namespace_b must not affect '
-              'namespace_a.',
-        );
+        expect(readA, equals(valueA),
+            reason:
+                'Deleting keys from namespace_b must not affect namespace_a');
       },
       skip: !Platform.isAndroid,
     );

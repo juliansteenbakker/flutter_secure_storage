@@ -35,6 +35,10 @@ public class FlutterSecureStorage {
 
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
+    // NOTE: This config store is global (not namespaced by sharedPreferencesName).
+    // It holds migration/cipher markers that apply process-wide, even when the app uses
+    // multiple FlutterSecureStorage namespaces via AndroidOptions.sharedPreferencesName.
+    // This is a documented limitation; namespace isolation is handled by the plugin routing.
     private static final String SHARED_PREFERENCES_CONFIG_NAME = "FlutterSecureStorageConfiguration";
 
     private FlutterSecureStorageConfig config;

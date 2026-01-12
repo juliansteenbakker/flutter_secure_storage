@@ -168,6 +168,21 @@ For advanced users, all combinations below are supported using the `AndroidOptio
     - `false`: Gracefully degrades if biometrics unavailable
     - `true`: Strictly requires device security (PIN/pattern/biometric), throws exception if unavailable
 
+##### Multiple storage namespaces (Android)
+
+If you need multiple isolated secure storages (for example, per signed-in user), set `sharedPreferencesName` via `AndroidOptions`:
+
+```dart
+final storageA = FlutterSecureStorage(
+  aOptions: AndroidOptions(sharedPreferencesName: 'namespace_a'),
+);
+final storageB = FlutterSecureStorage(
+  aOptions: AndroidOptions(sharedPreferencesName: 'namespace_b'),
+);
+```
+
+On Android, `FlutterSecureStorage` keeps some migration/cipher metadata in a global configuration preferences file (not namespaced). The actual stored values are isolated by `sharedPreferencesName`.
+
 #### Biometric Authentication
 
 Flutter Secure Storage supports biometric authentication (fingerprint, face recognition, etc.) on Android API 23+.
