@@ -10,6 +10,53 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('Secure Storage Tests', () {
+    testWidgets(
+      'Android: deleteAll() must not clear other '
+      'sharedPreferencesName namespace (regression #1023)',
+      (WidgetTester tester) async {
+        // This is a plugin-level regression test for:
+        // https://github.com/juliansteenbakker/flutter_secure_storage/issues/1023
+        //
+        // The Android implementation must isolate namespaces created via
+        // AndroidOptions.sharedPreferencesName. A deleteAll() issued against
+        // one
+        // namespace must not delete keys stored in another namespace.
+        final pageObject = await _setupHomePage(tester);
+
+        // Use the app's popup menu path to ensure the plugin is initialized and
+        // stable before we run the direct namespace assertions below.
+        await pageObject.deleteAll();
+
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(sharedPreferencesName: 'namespace_a'),
+        );
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(sharedPreferencesName: 'namespace_b'),
+        );
+
+        const key = 'it_android_namespace_key';
+        const valueA = 'value_a';
+        const valueB = 'value_b';
+
+        // Arrange
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Act
+        await storageB.deleteAll();
+
+        // Assert
+        final readA = await storageA.read(key: key);
+        expect(
+          readA,
+          equals(valueA),
+          reason: 'Deleting all keys from namespace_b must not affect '
+              'namespace_a.',
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
+
     testWidgets('Add a Random Row', (WidgetTester tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
