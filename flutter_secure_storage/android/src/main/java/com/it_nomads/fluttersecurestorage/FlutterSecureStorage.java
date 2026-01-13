@@ -32,15 +32,9 @@ import java.util.concurrent.Executors;
 import javax.crypto.Cipher;
 
 public class FlutterSecureStorage {
-
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
-    // NOTE: This config store is global (not namespaced by sharedPreferencesName).
-    // It holds migration/cipher markers that apply process-wide, even when the app uses
-    // multiple FlutterSecureStorage namespaces via AndroidOptions.sharedPreferencesName.
-    // This is a documented limitation; namespace isolation is handled by the plugin routing.
-    private static final String SHARED_PREFERENCES_CONFIG_NAME = "FlutterSecureStorageConfiguration";
-
+    
     private FlutterSecureStorageConfig config;
     @NonNull
     private final Context context;
@@ -161,10 +155,8 @@ public class FlutterSecureStorage {
                 Context.MODE_PRIVATE
         );
 
-        SharedPreferences configSource = context.getSharedPreferences(
-                SHARED_PREFERENCES_CONFIG_NAME,
-                Context.MODE_PRIVATE
-        );
+        // Use namespaced config with legacy fallback for backwards compatibility
+        NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getSharedPreferencesName());
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
@@ -263,7 +255,7 @@ public class FlutterSecureStorage {
         }
     }
 
-    private void initializeStorageCipher(SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
+    private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         try {
             storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
@@ -339,7 +331,7 @@ public class FlutterSecureStorage {
      * @param dataSource SharedPreferences containing encrypted data
      * @param callback Callback to notify of success/failure
      */
-    private void migrateData(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateData(NamespacedConfigSource configSource, SharedPreferences dataSource,
                             SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting data migration from saved to current cipher algorithms...");
 
@@ -444,7 +436,7 @@ public class FlutterSecureStorage {
      * @param dataSource SharedPreferences containing encrypted data
      * @param callback Callback to notify of success/failure
      */
-    private void migrateNonBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateNonBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                     SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting non-biometric migration (no authentication required)...");
 
@@ -503,7 +495,7 @@ public class FlutterSecureStorage {
     /**
      * Updates algorithm markers in config to match current cipher algorithms.
      */
-    private void updateAlgorithmMarkers(SharedPreferences configSource) {
+    private void updateAlgorithmMarkers(NamespacedConfigSource configSource) {
         SharedPreferences.Editor editor = configSource.edit();
         storageCipherFactory.storeCurrentAlgorithms(editor);
         editor.commit();
@@ -523,7 +515,7 @@ public class FlutterSecureStorage {
      * @param toBiometric True if migrating TO a biometric algorithm
      * @param callback Callback to notify of success/failure
      */
-    private void migrateBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                  boolean fromBiometric, boolean toBiometric,
                                  SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting biometric migration (authentication required)...");
@@ -550,7 +542,7 @@ public class FlutterSecureStorage {
      * Migrates FROM biometric → TO non-biometric.
      * Requires authentication with OLD biometric cipher to decrypt.
      */
-    private void migrateFromBiometricToNonBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateFromBiometricToNonBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                     SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Get OLD biometric cipher (requires authentication)
@@ -628,7 +620,7 @@ public class FlutterSecureStorage {
      * Migrates FROM non-biometric → TO biometric.
      * Requires authentication with NEW biometric cipher to encrypt.
      */
-    private void migrateFromNonBiometricToBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateFromNonBiometricToBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                     SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Decrypt with OLD non-biometric cipher (no auth)
@@ -707,7 +699,7 @@ public class FlutterSecureStorage {
      * Migrates FROM biometric → TO biometric (changing biometric algorithms).
      * Requires authentication with both OLD and NEW biometric ciphers.
      */
-    private void migrateBiometricToBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateBiometricToBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                             SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Get OLD biometric cipher
@@ -810,13 +802,13 @@ public class FlutterSecureStorage {
         }
     }
 
-    private void setEncryptedPrefsMigrated(SharedPreferences configSource) {
+    private void setEncryptedPrefsMigrated(NamespacedConfigSource configSource) {
         SharedPreferences.Editor editor = configSource.edit();
         editor.putBoolean("ENCRYPTED_PREFERENCES_MIGRATED", true);
         editor.commit();
     }
 
-    private Boolean getEncryptedPrefsMigrated(SharedPreferences configSource) {
+    private Boolean getEncryptedPrefsMigrated(NamespacedConfigSource configSource) {
         return configSource.getBoolean("ENCRYPTED_PREFERENCES_MIGRATED", false);
     }
 
@@ -829,7 +821,7 @@ public class FlutterSecureStorage {
      * @param exception The original exception (BadPaddingException, InvalidKeyException, etc.)
      * @param errorType Human-readable description of the error type
      */
-    private void handleKeyMismatch(SharedPreferences configSource, SecurePreferencesCallback<Void> callback,
+    private void handleKeyMismatch(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
                                    Exception exception, String errorType) {
         Log.e(TAG, "Key mismatch detected during cipher initialization: " + errorType, exception);
         Log.e(TAG, "This typically occurs after an algorithm change.");
@@ -894,7 +886,7 @@ public class FlutterSecureStorage {
      * Deletes all encrypted data, keys, and algorithm markers, then reinitializes.
      * Extracted from handleKeyMismatch for reuse.
      */
-    private void deleteAllDataAndKeys(SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
+    private void deleteAllDataAndKeys(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         try {
             // Delete keys from AndroidKeyStore
             try {

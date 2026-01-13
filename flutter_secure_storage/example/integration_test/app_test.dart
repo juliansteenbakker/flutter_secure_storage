@@ -47,9 +47,89 @@ void main() {
 
         // Assert
         final readA = await storageA.read(key: key);
-        expect(readA, equals(valueA),
-            reason:
-                'Deleting keys from namespace_b must not affect namespace_a');
+        expect(
+          readA,
+          equals(valueA),
+          reason:
+              'Deleting keys from namespace_b must not affect namespace_a',
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
+
+    testWidgets(
+      'Android: namespaces with different cipher algorithms must not interfere '
+      '(config markers isolation)',
+      (WidgetTester tester) async {
+        // This test verifies that algorithm markers and migration flags are
+        // properly namespaced per sharedPreferencesName, preventing
+        // cross-namespace algorithm interference when different namespaces use
+        // different cipher algorithms.
+        final pageObject = await _setupHomePage(tester);
+        await pageObject.deleteAll();
+
+        // Use different algorithms per namespace to test isolation
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            sharedPreferencesName: 'namespace_alg_a',
+            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+            storageCipherAlgorithm:
+                StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          ),
+        );
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            sharedPreferencesName: 'namespace_alg_b',
+            keyCipherAlgorithm:
+                KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+            storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+          ),
+        );
+
+        const key = 'it_android_algorithm_isolation_key';
+        const valueA = 'value_algorithm_a';
+        const valueB = 'value_algorithm_b';
+
+        // Arrange: Write values to both namespaces with different algorithms
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Verify both can read their own values
+        expect(await storageA.read(key: key), equals(valueA));
+        expect(await storageB.read(key: key), equals(valueB));
+
+        // Act: Force re-initialization by reading again (triggers config
+        // marker checks). This simulates what happens when switching between
+        // namespaces.
+        final readA2 = await storageA.read(key: key);
+        final readB2 = await storageB.read(key: key);
+
+        // Assert: Both namespaces should still read their correct values.
+        // If config markers were shared, one namespace might try to decrypt
+        // with the wrong algorithm after the other namespace initializes.
+        expect(
+          readA2,
+          equals(valueA),
+          reason:
+              'Namespace A must read its value correctly even after '
+              'namespace B initializes with different algorithms',
+        );
+        expect(
+          readB2,
+          equals(valueB),
+          reason:
+              'Namespace B must read its value correctly even after '
+              'namespace A initializes with different algorithms',
+        );
+
+        // Additional verification: Write new values and read back
+        const newValueA = 'updated_value_a';
+        const newValueB = 'updated_value_b';
+        await storageA.write(key: key, value: newValueA);
+        await storageB.write(key: key, value: newValueB);
+
+        expect(await storageA.read(key: key), equals(newValueA));
+        expect(await storageB.read(key: key), equals(newValueB));
       },
       skip: !Platform.isAndroid,
     );
