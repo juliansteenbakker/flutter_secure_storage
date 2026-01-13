@@ -72,9 +72,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     }
 
     @SuppressWarnings("unchecked")
-    private static String getKeyFromCall(MethodCall call) {
+    private static String getKeyFromCall(FlutterSecureStorage storage, MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return (String) arguments.get("key");
+        String key = (String) arguments.get("key");
+        return storage.addPrefixToKey(key);
     }
 
     @SuppressWarnings("unchecked")
@@ -85,7 +86,6 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
     private FlutterSecureStorage getOrCreateStorage(FlutterSecureStorageConfig config) {
         // Key by sharedPreferencesName only, matching AndroidOptions.sharedPreferencesName.
-        // Other config options (cipher algorithms, prefixes) are applied per call during initialize().
         final String name = config.getSharedPreferencesName();
         synchronized (storagesBySharedPreferencesName) {
             FlutterSecureStorage existing = storagesBySharedPreferencesName.get(name);
@@ -151,7 +151,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     try {
                         switch (call.method) {
                             case "write": {
-                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
+                                String key = getKeyFromCall(secureStorage, call);
                                 String value = getValueFromCall(call);
 
                                 if (value != null) {
@@ -163,7 +163,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "read": {
-                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 if (secureStorage.containsKey(key)) {
                                     String value = secureStorage.read(key);
@@ -178,14 +178,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "containsKey": {
-                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 boolean containsKey = secureStorage.containsKey(key);
                                 result.success(containsKey);
                                 break;
                             }
                             case "delete": {
-                                String key = secureStorage.addPrefixToKey(getKeyFromCall(call));
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 secureStorage.delete(key);
                                 result.success(null);
