@@ -378,6 +378,9 @@ class HomePageObject {
     await tester.pumpAndSettle(duration);
 
     await _tap(find.byKey(const Key('save')));
+
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await tester.pumpAndSettle(duration);
   }
 
   Future<void> deleteRow(int index) async {
