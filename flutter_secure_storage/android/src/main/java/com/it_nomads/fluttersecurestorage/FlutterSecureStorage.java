@@ -151,12 +151,12 @@ public class FlutterSecureStorage {
         }
 
         SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
-                config.getSharedPreferencesName(),
+                config.getEffectiveDataPrefsName(),
                 Context.MODE_PRIVATE
         );
 
         // Use namespaced config with legacy fallback for backwards compatibility
-        NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getSharedPreferencesName());
+        NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
@@ -832,7 +832,7 @@ public class FlutterSecureStorage {
             Log.i(TAG, "migrateOnAlgorithmChange is enabled. Attempting data migration...");
 
             SharedPreferences dataPrefs = context.getSharedPreferences(
-                    config.getSharedPreferencesName(),
+                    config.getEffectiveDataPrefsName(),
                     Context.MODE_PRIVATE
             );
 
@@ -899,7 +899,7 @@ public class FlutterSecureStorage {
 
             // Delete all encrypted data
             SharedPreferences dataPrefs = context.getSharedPreferences(
-                    config.getSharedPreferencesName(),
+                    config.getEffectiveDataPrefsName(),
                     Context.MODE_PRIVATE
             );
             dataPrefs.edit().clear().apply();
@@ -907,7 +907,7 @@ public class FlutterSecureStorage {
 
             // Delete stored wrapped keys
             SharedPreferences keyPrefs = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage",
+                    config.getEffectiveKeyStoragePrefsName(),
                     Context.MODE_PRIVATE
             );
             keyPrefs.edit().clear().apply();
@@ -1144,7 +1144,7 @@ public class FlutterSecureStorage {
                 .build();
         return EncryptedSharedPreferences.create(
                 context,
-                config.getSharedPreferencesName(),
+                config.getEffectiveDataPrefsName(),
                 key,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM

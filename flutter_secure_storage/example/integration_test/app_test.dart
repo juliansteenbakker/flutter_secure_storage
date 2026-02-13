@@ -59,19 +59,19 @@ void main() {
 
     testWidgets(
       'Android: namespaces with different cipher algorithms must not interfere '
-      '(config markers isolation)',
+      '(full storageNamespace isolation)',
       (WidgetTester tester) async {
-        // This test verifies that algorithm markers and migration flags are
-        // properly namespaced per sharedPreferencesName, preventing
-        // cross-namespace algorithm interference when different namespaces use
-        // different cipher algorithms.
+        // This test verifies that storageNamespace provides full isolation:
+        // data prefs, config markers, KeyStore aliases, and key storage.
+        // Different namespaces can safely use different cipher algorithms
+        // without conflicting KeyStore entries or wrapped keys.
         final pageObject = await _setupHomePage(tester);
         await pageObject.deleteAll();
 
-        // Use different algorithms per namespace to test isolation
+        // Use different algorithms per namespace to test full isolation
         const storageA = FlutterSecureStorage(
           aOptions: AndroidOptions(
-            sharedPreferencesName: 'namespace_alg_a',
+            storageNamespace: 'namespace_alg_a',
             keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
             storageCipherAlgorithm:
                 StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
@@ -79,7 +79,7 @@ void main() {
         );
         const storageB = FlutterSecureStorage(
           aOptions: AndroidOptions(
-            sharedPreferencesName: 'namespace_alg_b',
+            storageNamespace: 'namespace_alg_b',
             keyCipherAlgorithm:
                 KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
             storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
@@ -105,8 +105,9 @@ void main() {
         final readB2 = await storageB.read(key: key);
 
         // Assert: Both namespaces should still read their correct values.
-        // If config markers were shared, one namespace might try to decrypt
-        // with the wrong algorithm after the other namespace initializes.
+        // With full storageNamespace isolation, each namespace has its own
+        // KeyStore aliases and key storage, so different algorithms cannot
+        // interfere.
         expect(
           readA2,
           equals(valueA),

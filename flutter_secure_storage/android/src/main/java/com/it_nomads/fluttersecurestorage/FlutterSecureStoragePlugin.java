@@ -85,8 +85,11 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     }
 
     private FlutterSecureStorage getOrCreateStorage(FlutterSecureStorageConfig config) {
-        // Key by sharedPreferencesName only, matching AndroidOptions.sharedPreferencesName.
-        final String name = config.getSharedPreferencesName();
+        // Use "ns:" prefix for storageNamespace to avoid collisions with legacy
+        // sharedPreferencesName keys in the map.
+        final String name = config.hasStorageNamespace()
+                ? "ns:" + config.getStorageNamespace()
+                : config.getSharedPreferencesName();
         synchronized (storagesBySharedPreferencesName) {
             FlutterSecureStorage existing = storagesBySharedPreferencesName.get(name);
             if (existing != null) {

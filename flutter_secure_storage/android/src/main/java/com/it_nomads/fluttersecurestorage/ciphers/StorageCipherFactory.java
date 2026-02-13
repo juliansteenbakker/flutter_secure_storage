@@ -83,10 +83,10 @@ public class StorageCipherFactory {
         if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {
             if (isKeyStoreKeyCipher(keyCipher)) {
                 // Use KeyStore-based implementation (biometric/PIN auth capable)
-                return new StorageCipherImplementationAES23(context, keyCipher, cipher);
+                return new StorageCipherImplementationAES23(context, keyCipher, cipher, config);
             } else {
                 // Use RSA-wrapped implementation (standard secure storage)
-                return new StorageCipherImplementationGCM(context, keyCipher, cipher);
+                return new StorageCipherImplementationGCM(context, keyCipher, cipher, config);
             }
         }
 
@@ -94,7 +94,7 @@ public class StorageCipherFactory {
         if (algorithm.storageCipher == null) {
             throw new Exception("No implementation available for algorithm: " + algorithm.name());
         }
-        return algorithm.storageCipher.apply(context, keyCipher, cipher);
+        return algorithm.storageCipher.apply(context, keyCipher, cipher, config);
     }
 
     /**
