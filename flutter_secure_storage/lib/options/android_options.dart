@@ -6,6 +6,13 @@ part of '../flutter_secure_storage.dart';
 /// Algorithm used to encrypt/wrap the secret key in Android KeyStore.
 enum KeyCipherAlgorithm {
   /// Legacy RSA/ECB/PKCS1Padding for backwards compatibility.
+  ///
+  /// PKCS#1 v1.5 padding is vulnerable to padding-oracle attacks.
+  /// Existing data will be automatically migrated to the default algorithm
+  /// on first access when `migrateOnAlgorithmChange` is true (the default).
+  @Deprecated('RSA PKCS#1 v1.5 padding is insecure. '
+      'Use the default RSA_ECB_OAEPwithSHA_256andMGF1Padding instead. '
+      'Existing data is migrated automatically.')
   RSA_ECB_PKCS1Padding,
 
   /// RSA/ECB/OAEPWithSHA-256AndMGF1Padding (default, API 23+).
@@ -18,6 +25,15 @@ enum KeyCipherAlgorithm {
 /// Algorithm used to encrypt stored data.
 enum StorageCipherAlgorithm {
   /// Legacy AES/CBC/PKCS7Padding for backwards compatibility.
+  ///
+  /// CBC mode is vulnerable to padding-oracle attacks and does not provide
+  /// authentication. Existing data will be automatically migrated to the
+  /// default algorithm on first access when `migrateOnAlgorithmChange` is
+  /// true (the default).
+  @Deprecated(
+      'AES-CBC is insecure (no authentication, padding-oracle vulnerable). '
+      'Use the default AES_GCM_NoPadding instead. '
+      'Existing data is migrated automatically.')
   AES_CBC_PKCS7Padding,
 
   /// AES/GCM/NoPadding (default, API 23+).

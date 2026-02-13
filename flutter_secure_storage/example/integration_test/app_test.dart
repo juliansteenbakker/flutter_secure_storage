@@ -72,8 +72,11 @@ void main() {
         const storageA = FlutterSecureStorage(
           aOptions: AndroidOptions(
             storageNamespace: 'namespace_alg_a',
-            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+            keyCipherAlgorithm:
+                // ignore: deprecated_member_use — intentionally testing legacy algorithms
+                KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
             storageCipherAlgorithm:
+                // ignore: deprecated_member_use — intentionally testing legacy algorithms
                 StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
           ),
         );
