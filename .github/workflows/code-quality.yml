@@ -86,7 +86,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - api-level: 24
+          - api-level: 23
             target: default
           - api-level: 36
             target: google_apis
