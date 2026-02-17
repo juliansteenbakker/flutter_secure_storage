@@ -23,8 +23,11 @@ public class FlutterSecureStorageConfig {
     public static final String PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE = "migrateOnAlgorithmChange";
     public static final String PREF_OPTION_ENCRYPTED_SHARED_PREFERENCES = "encryptedSharedPreferences";
     public static final String PREF_OPTION_ENFORCE_BIOMETRICS = "enforceBiometrics";
-    public static final String PREF_OPTION_BIOMETRIC_PROMPT_TITLE = "prefOptionBiometricPromptTitle";
-    public static final String PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE = "prefOptionBiometricPromptSubtitle";
+    public static final String PREF_OPTION_BIOMETRIC_PROMPT_TITLE = "biometricPromptTitle";
+    public static final String PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE = "biometricPromptSubtitle";
+    // Legacy keys kept for backwards compatibility.
+    public static final String LEGACY_PREF_OPTION_BIOMETRIC_PROMPT_TITLE = "prefOptionBiometricPromptTitle";
+    public static final String LEGACY_PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE = "prefOptionBiometricPromptSubtitle";
     public static final String PREF_OPTION_STORAGE_CIPHER_ALGORITHM = "storageCipherAlgorithm";
     public static final String PREF_OPTION_KEY_CIPHER_ALGORITHM = "keyCipherAlgorithm";
 
@@ -46,22 +49,46 @@ public class FlutterSecureStorageConfig {
         this.migrateOnAlgorithmChange = getBooleanOption(options, PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, DEFAULT_MIGRATE_ON_ALGORITHM_CHANGE);
         this.useEncryptedSharedPreferences = getBooleanOption(options, PREF_OPTION_ENCRYPTED_SHARED_PREFERENCES, DEFAULT_ENCRYPTED_SHARED_PREFERENCES);
         this.enforceBiometrics = getBooleanOption(options, PREF_OPTION_ENFORCE_BIOMETRICS, DEFAULT_ENFORCE_BIOMETRICS);
-        this.biometricPromptTitle = getStringOption(options, PREF_OPTION_BIOMETRIC_PROMPT_TITLE, DEFAULT_BIOMETRIC_PROMPT_TITLE);
-        this.biometricPromptSubtitle = getStringOption(options, PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE, DEFAULT_BIOMETRIC_PROMPT_SUBTITLE);
+        this.biometricPromptTitle = getStringOption(
+                options,
+                PREF_OPTION_BIOMETRIC_PROMPT_TITLE,
+                LEGACY_PREF_OPTION_BIOMETRIC_PROMPT_TITLE,
+                DEFAULT_BIOMETRIC_PROMPT_TITLE
+        );
+        this.biometricPromptSubtitle = getStringOption(
+                options,
+                PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE,
+                LEGACY_PREF_OPTION_BIOMETRIC_PROMPT_SUBTITLE,
+                DEFAULT_BIOMETRIC_PROMPT_SUBTITLE
+        );
         this.storageCipherAlgorithm = getStringOption(options, PREF_OPTION_STORAGE_CIPHER_ALGORITHM, DEFAULT_STORAGE_CIPHER_ALGORITHM);
         this.keyCipherAlgorithm = getStringOption(options, PREF_OPTION_KEY_CIPHER_ALGORITHM, DEFAULT_KEY_CIPHER_ALGORITHM);
     }
 
     private String getStringOption(Map<String, Object> options, String key, String defaultValue) {
-        if (options.containsKey(key)) {
-            Object value = options.get(key);
-            if (value instanceof String strValue) {
-                if (!strValue.isEmpty()) {
-                    return strValue;
-                }
-            }
+        String value = getOptionalStringOption(options, key);
+        return value != null ? value : defaultValue;
+    }
+
+    private String getStringOption(Map<String, Object> options, String key, String fallbackKey, String defaultValue) {
+        String value = getOptionalStringOption(options, key);
+        if (value != null) {
+            return value;
         }
-        return defaultValue;
+
+        value = getOptionalStringOption(options, fallbackKey);
+        return value != null ? value : defaultValue;
+    }
+
+    private String getOptionalStringOption(Map<String, Object> options, String key) {
+        if (!options.containsKey(key)) {
+            return null;
+        }
+        Object value = options.get(key);
+        if (value instanceof String strValue && !strValue.isEmpty()) {
+            return strValue;
+        }
+        return null;
     }
 
     private boolean getBooleanOption(Map<String, Object> options, String key, boolean defaultValue) {
