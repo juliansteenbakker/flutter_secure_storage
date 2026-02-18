@@ -1083,7 +1083,10 @@ public class FlutterSecureStorage {
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
                 Log.w(TAG, "Biometric authentication failed, user not recognized");
-                securePreferencesCallback.onError(new Exception("Biometric authentication failed, user not recognized"));
+                // Keep the prompt active so user can retry.
+                // Completing with error here causes Dart result to be delivered
+                // before the prompt is dismissed, then a later success callback
+                // can trigger a second result ("Reply already submitted").
             }
 
             @Override
