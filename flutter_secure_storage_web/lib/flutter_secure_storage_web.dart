@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 import 'dart:js_interop' as js_interop;
 import 'dart:js_interop_unsafe' as js_interop;
+import 'dart:js_util' as js_util;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
@@ -104,19 +105,44 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     final storage = _getStorage(options);
     final map = <String, String>{};
     final prefix = '${options[_publicKey]!}.';
-    for (var j = 0; j < storage.length; j++) {
-      final key = storage.key(j) ?? '';
-      if (!key.startsWith(prefix)) {
-        continue;
+
+    // Defensive iteration: protect against corrupted Storage entries where
+    // the key may exist but getItem(key) returns null, or Storage.key(index)
+    // throws. In such cases remove the corrupted key and continue.
+    try {
+      for (var j = 0; j < storage.length; j++) {
+        String? key;
+        try {
+          key = storage.key(j);
+        } catch (_) {
+          // Fallback to JS interop if Storage.key() throws for a corrupted
+          // storage implementation.
+          key = js_util.callMethod(storage, 'key', [j]) as String?;
+        }
+
+        if (key == null || !key.startsWith(prefix)) {
+          continue;
+        }
+
+        final raw = storage.getItem(key);
+        if (raw == null) {
+          // corrupted entry — try to remove and skip
+          try {
+            storage.removeItem(key);
+          } catch (_) {}
+          continue;
+        }
+
+        final value = await _decryptValue(raw, options);
+        if (value == null) continue;
+
+        map[key.substring(prefix.length)] = value;
       }
-
-      final value = await _decryptValue(storage.getItem(key), options);
-
-      if (value == null) {
-        continue;
+    } catch (err) {
+      // Best-effort: do not fail the whole call on storage iteration errors.
+      if (kDebugMode) {
+        debugPrint('flutter_secure_storage_web.readAll() iteration failed: $err');
       }
-
-      map[key.substring(prefix.length)] = value;
     }
 
     return map;
