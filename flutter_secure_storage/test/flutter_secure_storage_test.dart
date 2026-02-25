@@ -378,7 +378,7 @@ void main() {
         'sharedPreferencesName': '',
         'preferencesKeyPrefix': '',
         'biometricPromptTitle': 'Authenticate to access',
-        'biometricPromptSubtitle': 'Use biometrics or device credentials',
+        'biometricPromptSubtitle': 'Use biometrics to continue',
       });
     });
 
@@ -432,7 +432,7 @@ void main() {
         'sharedPreferencesName': '',
         'preferencesKeyPrefix': '',
         'biometricPromptTitle': 'Authenticate to access',
-        'biometricPromptSubtitle': 'Use biometrics or device credentials',
+        'biometricPromptSubtitle': 'Use biometrics to continue',
       });
     });
 
@@ -588,7 +588,7 @@ void main() {
       );
       expect(
         options.toMap()['biometricPromptSubtitle'],
-        'Use biometrics or device credentials',
+        'Use biometrics to continue',
       );
     });
 

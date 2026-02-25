@@ -1,7 +1,6 @@
 package com.it_nomads.fluttersecurestorage.ciphers;
 
 import static android.security.keystore.KeyProperties.AUTH_BIOMETRIC_STRONG;
-import static android.security.keystore.KeyProperties.AUTH_DEVICE_CREDENTIAL;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -31,9 +30,14 @@ class KeyCipherImplementationAES23 implements KeyCipher {
     private static final String KEYSTORE_PROVIDER_ANDROID = "AndroidKeyStore";
     private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
     private static final String SHARED_PREFERENCES_KEY = "KeyStoreIV1";
+    private static final String STORAGE_APP_KEY = "BVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
     private static final int IV_SIZE = 16;
     private static final int KEY_SIZE = 256;
     protected final String keyAlias;
+    private final String ivSharedPreferencesName;
+    private final String ivSharedPreferencesKey;
+    private final String legacyScopedIvSharedPreferencesName;
+    private final String legacyScopedIvSharedPreferencesKey;
 
     protected final Context context;
     protected final FlutterSecureStorageConfig config;
@@ -41,6 +45,10 @@ class KeyCipherImplementationAES23 implements KeyCipher {
     public KeyCipherImplementationAES23(Context context, FlutterSecureStorageConfig config) throws Exception {
         this.context = context;
         this.config = config;
+        this.ivSharedPreferencesName = config.getKeyStoragePreferencesName();
+        this.ivSharedPreferencesKey = config.getNamespacedKey(SHARED_PREFERENCES_KEY);
+        this.legacyScopedIvSharedPreferencesName = SHARED_PREFERENCES_NAME + "_" + config.getStorageNamespace();
+        this.legacyScopedIvSharedPreferencesKey = SHARED_PREFERENCES_KEY + "_" + config.getStorageNamespace();
         keyAlias = createKeyAlias(context);
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
         ks.load(null);
@@ -70,8 +78,18 @@ class KeyCipherImplementationAES23 implements KeyCipher {
         ks.load(null);
         ks.deleteEntry(keyAlias);
 
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        preferences.edit().remove(SHARED_PREFERENCES_KEY).apply();
+        context.getSharedPreferences(ivSharedPreferencesName, Context.MODE_PRIVATE)
+                .edit()
+                .remove(ivSharedPreferencesKey)
+                .apply();
+        context.getSharedPreferences(legacyScopedIvSharedPreferencesName, Context.MODE_PRIVATE)
+                .edit()
+                .remove(legacyScopedIvSharedPreferencesKey)
+                .apply();
+        context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(SHARED_PREFERENCES_KEY)
+                .apply();
     }
 
     @Override
@@ -90,8 +108,18 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
     public Cipher getEncryptionCipher(Context context, Key key) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        String ivBase64 = preferences.getString(SHARED_PREFERENCES_KEY, null);
+        SharedPreferences preferences = context.getSharedPreferences(ivSharedPreferencesName, Context.MODE_PRIVATE);
+        String ivBase64 = preferences.getString(ivSharedPreferencesKey, null);
+
+        // Stale IV without matching app-key causes decrypt-mode cipher to fail when creating a new app-key.
+        if (ivBase64 != null && !hasStoredApplicationKey(context)) {
+            preferences.edit().remove(ivSharedPreferencesKey).apply();
+            ivBase64 = null;
+        }
+
+        if (ivBase64 == null) {
+            ivBase64 = migrateLegacyIvIfNeeded(context, preferences);
+        }
 
         if (ivBase64 != null) {
             byte[] iv =  Base64.decode(ivBase64, Base64.DEFAULT);
@@ -103,11 +131,46 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
             byte[] iv = cipher.getIV();
             SharedPreferences.Editor editor = preferences.edit();
-            editor.putString(SHARED_PREFERENCES_KEY,  Base64.encodeToString(iv, Base64.DEFAULT));
+            editor.putString(ivSharedPreferencesKey,  Base64.encodeToString(iv, Base64.DEFAULT));
             editor.apply();
         }
 
         return cipher;
+    }
+
+    private String migrateLegacyIvIfNeeded(Context context, SharedPreferences targetPreferences) {
+        if (!hasStoredApplicationKey(context)) {
+            return null;
+        }
+
+        SharedPreferences legacyScopedPreferences = context.getSharedPreferences(
+                legacyScopedIvSharedPreferencesName,
+                Context.MODE_PRIVATE
+        );
+        String legacyScopedIv = legacyScopedPreferences.getString(legacyScopedIvSharedPreferencesKey, null);
+        if (legacyScopedIv != null) {
+            targetPreferences.edit().putString(ivSharedPreferencesKey, legacyScopedIv).apply();
+            legacyScopedPreferences.edit().remove(legacyScopedIvSharedPreferencesKey).apply();
+            return legacyScopedIv;
+        }
+
+        return null;
+    }
+
+    private boolean hasStoredApplicationKey(Context context) {
+        SharedPreferences scopedPreferences = context.getSharedPreferences(
+                config.getKeyStoragePreferencesName(),
+                Context.MODE_PRIVATE
+        );
+        if (scopedPreferences.contains(config.getNamespacedKey(STORAGE_APP_KEY))) {
+            return true;
+        }
+
+        SharedPreferences legacyScopedPreferences = context.getSharedPreferences(
+                SHARED_PREFERENCES_NAME + "_" + config.getStorageNamespace(),
+                Context.MODE_PRIVATE
+        );
+        return legacyScopedPreferences.contains(STORAGE_APP_KEY + "_" + config.getStorageNamespace());
     }
 
     /**
@@ -139,6 +202,10 @@ class KeyCipherImplementationAES23 implements KeyCipher {
         boolean deviceHasSecurity = isDeviceSecure();
         boolean enforceBiometrics = config.getEnforceBiometrics();
 
+        if (enforceBiometrics && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric-only enforcement requires Android 11 (API 30) or higher. Current device API: " + Build.VERSION.SDK_INT);
+        }
+
         // ENFORCEMENT MODE: Fail if enforcement enabled but no device security
         if (enforceBiometrics && !deviceHasSecurity) {
             throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric enforcement enabled but device has no PIN, pattern, password, or biometric enrolled. Cannot generate secure key.");
@@ -162,7 +229,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 builder.setUserAuthenticationParameters(0,
-                        AUTH_DEVICE_CREDENTIAL | AUTH_BIOMETRIC_STRONG);
+                        AUTH_BIOMETRIC_STRONG);
             } else {
                 configureLegacyAuth(builder);
             }
@@ -207,7 +274,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         builder.setUserAuthenticationParameters(0,
-                                AUTH_DEVICE_CREDENTIAL | AUTH_BIOMETRIC_STRONG);
+                                AUTH_BIOMETRIC_STRONG);
                     } else {
                         configureLegacyAuth(builder);
                     }

@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.plugin.common.BinaryMessenger;
@@ -83,8 +84,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
      */
     static class MethodResultWrapper implements Result {
 
+        private static final String TAG = "FlutterSecureStoragePlugin";
         private final Result methodResult;
         private final Handler handler = new Handler(Looper.getMainLooper());
+        private final AtomicBoolean isCompleted = new AtomicBoolean(false);
 
         MethodResultWrapper(Result methodResult) {
             this.methodResult = methodResult;
@@ -92,16 +95,28 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
         @Override
         public void success(final Object result) {
+            if (!isCompleted.compareAndSet(false, true)) {
+                Log.w(TAG, "Ignoring duplicate success callback");
+                return;
+            }
             handler.post(() -> methodResult.success(result));
         }
 
         @Override
         public void error(@NonNull final String errorCode, final String errorMessage, final Object errorDetails) {
+            if (!isCompleted.compareAndSet(false, true)) {
+                Log.w(TAG, "Ignoring duplicate error callback");
+                return;
+            }
             handler.post(() -> methodResult.error(errorCode, errorMessage, errorDetails));
         }
 
         @Override
         public void notImplemented() {
+            if (!isCompleted.compareAndSet(false, true)) {
+                Log.w(TAG, "Ignoring duplicate notImplemented callback");
+                return;
+            }
             handler.post(methodResult::notImplemented);
         }
     }

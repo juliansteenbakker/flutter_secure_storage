@@ -17,7 +17,6 @@ package com.it_nomads.fluttersecurestorage.crypto;
 
 
 import static android.security.keystore.KeyProperties.AUTH_BIOMETRIC_STRONG;
-import static android.security.keystore.KeyProperties.AUTH_DEVICE_CREDENTIAL;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -294,7 +293,7 @@ public final class MasterKey {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                             Api30Impl.setUserAuthenticationParameters(keyGenBuilder,
                                     builder.mUserAuthenticationValidityDurationSeconds,
-                                    AUTH_DEVICE_CREDENTIAL | AUTH_BIOMETRIC_STRONG);
+                                    AUTH_BIOMETRIC_STRONG);
                         } else {
                             keyGenBuilder.setUserAuthenticationValidityDurationSeconds(
                                     builder.mUserAuthenticationValidityDurationSeconds);

@@ -178,7 +178,7 @@ class AndroidOptions extends Options {
         'biometricPromptTitle':
             biometricPromptTitle ?? 'Authenticate to access',
         'biometricPromptSubtitle':
-            biometricPromptSubtitle ?? 'Use biometrics or device credentials',
+            biometricPromptSubtitle ?? 'Use biometrics to continue',
       };
 
   /// Creates a copy of this AndroidOptions with the given fields replaced.

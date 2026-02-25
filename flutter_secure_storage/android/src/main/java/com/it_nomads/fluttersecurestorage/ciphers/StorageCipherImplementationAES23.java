@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.security.Key;
 import java.security.SecureRandom;
 
@@ -19,12 +21,32 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
     private static final String KEY_ALGORITHM = "AES";
     private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
     private static final String KEYSTORE_IV_NAME = "BVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    private final String sharedPreferencesName;
+    private final String sharedPreferencesKey;
+    private final String legacyScopedPreferencesName;
+    private final String legacyScopedPreferencesKey;
+    private final boolean shouldUseLegacyGlobalFallback;
     private final Cipher cipher;
     private final SecureRandom secureRandom;
     private final Key secretKey;
 
-    public StorageCipherImplementationAES23(Context context, KeyCipher ignoredKeyCipher, Cipher cipher) throws Exception{
+    public StorageCipherImplementationAES23(Context context, KeyCipher keyCipher, Cipher cipher) throws Exception{
         secureRandom = new SecureRandom();
+        FlutterSecureStorageConfig resolvedConfig = resolveConfig(keyCipher);
+        if (resolvedConfig == null) {
+            sharedPreferencesName = SHARED_PREFERENCES_NAME;
+            sharedPreferencesKey = KEYSTORE_IV_NAME;
+            legacyScopedPreferencesName = SHARED_PREFERENCES_NAME;
+            legacyScopedPreferencesKey = KEYSTORE_IV_NAME;
+            shouldUseLegacyGlobalFallback = true;
+        } else {
+            sharedPreferencesName = resolvedConfig.getKeyStoragePreferencesName();
+            sharedPreferencesKey = resolvedConfig.getNamespacedKey(KEYSTORE_IV_NAME);
+            legacyScopedPreferencesName = SHARED_PREFERENCES_NAME + "_" + resolvedConfig.getStorageNamespace();
+            legacyScopedPreferencesKey = KEYSTORE_IV_NAME + "_" + resolvedConfig.getStorageNamespace();
+            // Legacy global app-key is not profile-aware and can leak across biometric/non-biometric states.
+            shouldUseLegacyGlobalFallback = false;
+        }
         this.secretKey = loadOrGenerateApplicationKey(context, cipher);
         this.cipher = getCipher();
     }
@@ -32,8 +54,26 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
     private SecretKey loadOrGenerateApplicationKey(Context context, Cipher biometricCipher) throws Exception {
         final Cipher cipher = (biometricCipher != null) ? biometricCipher : getCipher();
         assert (cipher != null);
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        String encryptedAppKeyBase64 = preferences.getString(KEYSTORE_IV_NAME, null);
+        SharedPreferences preferences = context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE);
+        String encryptedAppKeyBase64 = preferences.getString(sharedPreferencesKey, null);
+        if (encryptedAppKeyBase64 == null) {
+            SharedPreferences legacyPreferences = context.getSharedPreferences(legacyScopedPreferencesName, Context.MODE_PRIVATE);
+            String legacyEncryptedAppKey = legacyPreferences.getString(legacyScopedPreferencesKey, null);
+            if (legacyEncryptedAppKey != null) {
+                encryptedAppKeyBase64 = legacyEncryptedAppKey;
+                preferences.edit().putString(sharedPreferencesKey, legacyEncryptedAppKey).apply();
+                legacyPreferences.edit().remove(legacyScopedPreferencesKey).apply();
+            }
+        }
+        if (encryptedAppKeyBase64 == null && shouldUseLegacyGlobalFallback) {
+            SharedPreferences legacyPreferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+            String legacyEncryptedAppKey = legacyPreferences.getString(KEYSTORE_IV_NAME, null);
+            if (legacyEncryptedAppKey != null) {
+                encryptedAppKeyBase64 = legacyEncryptedAppKey;
+                preferences.edit().putString(sharedPreferencesKey, legacyEncryptedAppKey).apply();
+                legacyPreferences.edit().remove(KEYSTORE_IV_NAME).apply();
+            }
+        }
 
         if (encryptedAppKeyBase64 != null) {
             // Decrypt existing key - may throw BadPaddingException, IllegalBlockSizeException if algorithm changed
@@ -48,7 +88,7 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
         byte[] newEncryptedAppKey = cipher.doFinal(appKey);
 
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putString(KEYSTORE_IV_NAME, Base64.encodeToString(newEncryptedAppKey, Base64.DEFAULT));
+        editor.putString(sharedPreferencesKey, Base64.encodeToString(newEncryptedAppKey, Base64.DEFAULT));
         editor.apply();
 
         return secretKey;
@@ -56,8 +96,24 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
 
     @Override
     public void deleteKey(Context context) {
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        preferences.edit().remove(KEYSTORE_IV_NAME).apply();
+        SharedPreferences preferences = context.getSharedPreferences(sharedPreferencesName, Context.MODE_PRIVATE);
+        preferences.edit().remove(sharedPreferencesKey).apply();
+
+        SharedPreferences legacyScopedPreferences = context.getSharedPreferences(
+                legacyScopedPreferencesName,
+                Context.MODE_PRIVATE
+        );
+        legacyScopedPreferences.edit().remove(legacyScopedPreferencesKey).apply();
+    }
+
+    private FlutterSecureStorageConfig resolveConfig(KeyCipher keyCipher) {
+        FlutterSecureStorageConfig resolvedConfig = null;
+        if (keyCipher instanceof KeyCipherImplementationRSA18) {
+            resolvedConfig = ((KeyCipherImplementationRSA18) keyCipher).config;
+        } else if (keyCipher instanceof KeyCipherImplementationAES23) {
+            resolvedConfig = ((KeyCipherImplementationAES23) keyCipher).config;
+        }
+        return resolvedConfig;
     }
 
     protected Cipher getCipher() throws Exception {

@@ -25,6 +25,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -35,7 +36,6 @@ public class FlutterSecureStorage {
 
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
-    private static final String SHARED_PREFERENCES_CONFIG_NAME = "FlutterSecureStorageConfiguration";
 
     private FlutterSecureStorageConfig config;
     @NonNull
@@ -44,6 +44,7 @@ public class FlutterSecureStorage {
     private SharedPreferences preferences;
     private StorageCipher storageCipher;
     private StorageCipherFactory storageCipherFactory;
+    private String runtimeConfigSignature;
 
     public FlutterSecureStorage(Context context) {
         this.context = context.getApplicationContext();
@@ -147,18 +148,44 @@ public class FlutterSecureStorage {
 
     public void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
         this.config = config;
+        final String newSignature = config.getRuntimeConfigSignature();
+        if (runtimeConfigSignature != null &&
+                !runtimeConfigSignature.equals(newSignature)) {
+            Log.i(
+                    TAG,
+                    "SecureStorage config changed. Resetting in-memory state. " +
+                            "old=" + runtimeConfigSignature + ", new=" + newSignature
+            );
+            preferences = null;
+            storageCipher = null;
+            storageCipherFactory = null;
+        }
+        runtimeConfigSignature = newSignature;
+
+        SharedPreferences configSource = context.getSharedPreferences(
+                config.getConfigPreferencesName(),
+                Context.MODE_PRIVATE
+        );
+
         if (preferences != null) {
+            // Custom cipher storage requires an initialized storage cipher.
+            // After biometric cancellation, preferences may be non-null while
+            // storageCipher is null; force re-initialization so prompt can reappear.
+            if (config.isUseEncryptedSharedPreferences() && !config.shouldMigrateOnAlgorithmChange()) {
+                callback.onSuccess(null);
+                return;
+            }
+            if (storageCipher == null) {
+                Log.w(TAG, "Storage cipher is not initialized. Re-initializing...");
+                initializeStorageCipher(configSource, callback);
+                return;
+            }
             callback.onSuccess(null);
             return;
         }
 
         SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
                 config.getSharedPreferencesName(),
-                Context.MODE_PRIVATE
-        );
-
-        SharedPreferences configSource = context.getSharedPreferences(
-                SHARED_PREFERENCES_CONFIG_NAME,
                 Context.MODE_PRIVATE
         );
 
@@ -296,11 +323,12 @@ public class FlutterSecureStorage {
                     try {
                         storageCipher = storageCipherFactory.getCurrentStorageCipher(context, result.getCryptoObject().getCipher());
                         Log.d(TAG, "Biometric authentication succeeded");
+                        callback.onSuccess(null);
                     } catch (Exception e) {
                         Log.e(TAG, "Failed to initialize storage cipher after authentication", e);
                         callback.onError(e);
+                        return;
                     }
-                    callback.onSuccess(null);
                 }
 
                 @Override
@@ -340,18 +368,22 @@ public class FlutterSecureStorage {
         Log.i(TAG, "Starting data migration from saved to current cipher algorithms...");
 
         try {
-            // Determine if this is a biometric migration
-            String savedStorageAlg = storageCipherFactory.getSavedKeyCipher(context).toString();
-            String currentStorageAlg = config.getPrefOptionStorageCipherAlgorithm();
+            // Determine migration direction from key cipher implementations.
+            // AES23 key cipher is the biometric/device-auth capable flow.
+            KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+            KeyCipher currentKeyCipher = storageCipherFactory.getCurrentKeyCipher(context);
 
-            boolean fromBiometric = isBiometricAlgorithm(savedStorageAlg);
-            boolean toBiometric = isBiometricAlgorithm(currentStorageAlg);
+            String savedKeyCipherName = savedKeyCipher.getClass().getSimpleName();
+            String currentKeyCipherName = currentKeyCipher.getClass().getSimpleName();
+
+            boolean fromBiometric = isBiometricKeyCipher(savedKeyCipher);
+            boolean toBiometric = isBiometricKeyCipher(currentKeyCipher);
 
             if (fromBiometric || toBiometric) {
-                Log.i(TAG, "Detected biometric migration: FROM=" + savedStorageAlg + ", TO=" + currentStorageAlg);
+                Log.i(TAG, "Detected biometric migration: FROM_KEY=" + savedKeyCipherName + ", TO_KEY=" + currentKeyCipherName);
                 migrateBiometric(configSource, dataSource, fromBiometric, toBiometric, callback);
             } else {
-                Log.i(TAG, "Detected non-biometric migration: FROM=" + savedStorageAlg + ", TO=" + currentStorageAlg);
+                Log.i(TAG, "Detected non-biometric migration: FROM_KEY=" + savedKeyCipherName + ", TO_KEY=" + currentKeyCipherName);
                 migrateNonBiometric(configSource, dataSource, callback);
             }
         } catch (Exception e) {
@@ -425,10 +457,13 @@ public class FlutterSecureStorage {
     }
 
     /**
-     * Checks if a storage cipher algorithm name indicates biometric authentication.
+     * Checks if a key cipher implementation indicates biometric/device authentication.
      */
-    private boolean isBiometricAlgorithm(String algorithmName) {
-        return algorithmName != null && algorithmName.contains("BIOMETRIC");
+    private boolean isBiometricKeyCipher(KeyCipher keyCipher) {
+        if (keyCipher == null) {
+            return false;
+        }
+        return keyCipher.getClass().getSimpleName().contains("AES23");
     }
 
     /**
@@ -906,12 +941,21 @@ public class FlutterSecureStorage {
                     config.getSharedPreferencesName(),
                     Context.MODE_PRIVATE
             );
-            dataPrefs.edit().clear().apply();
-            Log.d(TAG, "Deleted all encrypted data");
+            SharedPreferences.Editor dataEditor = dataPrefs.edit();
+            String scopedPrefix = config.getSharedPreferencesKeyPrefix() + "_";
+            int removedCount = 0;
+            for (String key : dataPrefs.getAll().keySet()) {
+                if (key.startsWith(scopedPrefix)) {
+                    dataEditor.remove(key);
+                    removedCount++;
+                }
+            }
+            dataEditor.apply();
+            Log.d(TAG, "Deleted scoped encrypted data entries: " + removedCount);
 
             // Delete stored wrapped keys
             SharedPreferences keyPrefs = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage",
+                    config.getKeyStoragePreferencesName(),
                     Context.MODE_PRIVATE
             );
             keyPrefs.edit().clear().apply();
@@ -948,8 +992,7 @@ public class FlutterSecureStorage {
             if (biometricManager == null) return false;
 
             int result = biometricManager.canAuthenticate(
-                    BiometricManager.Authenticators.BIOMETRIC_STRONG |
-                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG
             );
 
             return result == BiometricManager.BIOMETRIC_SUCCESS && isDeviceSecure();
@@ -978,6 +1021,12 @@ public class FlutterSecureStorage {
             return; // Graceful degradation
         }
 
+        // Biometric-only enforcement requires API 30+ so Keystore/prompt can
+        // explicitly restrict to BIOMETRIC_STRONG without device credential fallback.
+        if (enforceRequired && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric-only enforcement requires Android 11 (API 30) or higher");
+        }
+
         // Check device security first (PIN/pattern/password)
         if (!isDeviceSecure()) {
             if (enforceRequired) {
@@ -1000,8 +1049,7 @@ public class FlutterSecureStorage {
             }
 
             int result = biometricManager.canAuthenticate(
-                    BiometricManager.Authenticators.BIOMETRIC_STRONG |
-                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG
             );
 
             // Handle specific BiometricManager status codes
@@ -1057,20 +1105,37 @@ public class FlutterSecureStorage {
 
         BiometricPrompt.CryptoObject crypto = new BiometricPrompt.CryptoObject(cipher);
 
+        Executor executor = Executors.newSingleThreadExecutor();
         BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
                 .setTitle(config.getBiometricPromptTitle())
                 .setSubtitle(config.getPrefOptionBiometricPromptSubtitle());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+: biometric-only (no device credential fallback)
             promptInfoBuilder
-                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                    .setNegativeButton(
+                            context.getString(android.R.string.cancel),
+                            executor,
+                            (dialog, which) -> securePreferencesCallback.onError(
+                                    new Exception("Biometric authentication canceled by user")
+                            )
+                    );
+        } else {
+            // Android 9: framework prompt has no explicit device-credential API.
+            promptInfoBuilder.setNegativeButton(
+                    context.getString(android.R.string.cancel),
+                    executor,
+                    (dialog, which) -> securePreferencesCallback.onError(
+                            new Exception("Biometric authentication canceled by user")
+                    )
+            );
         }
 
         BiometricPrompt promptInfo = promptInfoBuilder
                 .build();
 
         CancellationSignal cancellationSignal = new CancellationSignal();
-        Executor executor = Executors.newSingleThreadExecutor();
 
         BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
             @Override
@@ -1083,7 +1148,10 @@ public class FlutterSecureStorage {
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
                 Log.w(TAG, "Biometric authentication failed, user not recognized");
-                securePreferencesCallback.onError(new Exception("Biometric authentication failed, user not recognized"));
+                // Keep the prompt active so user can retry.
+                // Completing with error here causes Dart result to be delivered
+                // before the prompt is dismissed, then a later success callback
+                // can trigger a second result ("Reply already submitted").
             }
 
             @Override
@@ -1167,6 +1235,15 @@ public class FlutterSecureStorage {
         final boolean deleteOnFailure = config.shouldDeleteOnFailure();
         final String target = (key != null) ? "key '" + key + "'" : "all data";
 
+        if (isAuthenticationAbortError(error)) {
+            Log.w(TAG, String.format(
+                    "Storage operation '%s' aborted for %s due to authentication cancellation. Keeping existing data.",
+                    operation,
+                    target
+            ), error);
+            return false;
+        }
+
         Log.e(TAG, String.format(
                 "Storage operation '%s' failed for %s. %s",
                 operation,
@@ -1200,9 +1277,24 @@ public class FlutterSecureStorage {
         }
     }
 
+    private boolean isAuthenticationAbortError(Exception error) {
+        String message = error != null ? error.getMessage() : null;
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.US);
+        return normalized.contains("authentication canceled")
+                || normalized.contains("authentication cancelled")
+                || normalized.contains("biometric authentication error [10]")
+                || normalized.contains("storage cipher is not initialized");
+    }
+
     private String decodeRawValue(String value) throws Exception {
         if (value == null) {
             return null;
+        }
+        if (storageCipher == null) {
+            throw new IllegalStateException("Storage cipher is not initialized");
         }
         byte[] data = Base64.decode(value, 0);
         byte[] result = storageCipher.decrypt(data);
