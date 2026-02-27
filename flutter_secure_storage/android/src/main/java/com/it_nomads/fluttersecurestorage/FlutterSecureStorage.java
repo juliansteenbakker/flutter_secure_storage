@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -36,6 +36,8 @@ public class FlutterSecureStorage {
 
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
+    // Framework BiometricPrompt does not expose BIOMETRIC_ERROR_NEGATIVE_BUTTON on all SDK stubs.
+    private static final int BIOMETRIC_ERROR_NEGATIVE_BUTTON_COMPAT = 13;
 
     private FlutterSecureStorageConfig config;
     @NonNull
@@ -144,6 +146,67 @@ public class FlutterSecureStorage {
         SharedPreferences.Editor editor = preferences.edit();
         editor.clear();
         editor.apply();
+    }
+
+    /**
+     * Force-resets current storage namespace without requiring a successful cipher initialization.
+     * This is used for explicit user-triggered recovery when biometric key is permanently invalidated.
+     */
+    public void forceResetCurrentStorage() throws Exception {
+        if (config == null) {
+            throw new IllegalStateException("Storage config is not initialized");
+        }
+
+        SharedPreferences configSource = context.getSharedPreferences(
+                config.getConfigPreferencesName(),
+                Context.MODE_PRIVATE
+        );
+
+        StorageCipherFactory localFactory = new StorageCipherFactory(
+                configSource,
+                config.getPrefOptionKeyCipherAlgorithm(),
+                config.getPrefOptionStorageCipherAlgorithm(),
+                config
+        );
+
+        try {
+            localFactory.getCurrentKeyCipher(context).deleteKey();
+            Log.i(TAG, "Force reset: deleted KeyStore key for current namespace");
+        } catch (Exception keyDeleteError) {
+            Log.w(TAG, "Force reset: failed to delete KeyStore key (may not exist)", keyDeleteError);
+        }
+
+        SharedPreferences dataPrefs = context.getSharedPreferences(
+                config.getSharedPreferencesName(),
+                Context.MODE_PRIVATE
+        );
+        SharedPreferences.Editor dataEditor = dataPrefs.edit();
+        String scopedPrefix = config.getSharedPreferencesKeyPrefix() + "_";
+        int removedCount = 0;
+        for (String key : dataPrefs.getAll().keySet()) {
+            if (key.startsWith(scopedPrefix)) {
+                dataEditor.remove(key);
+                removedCount++;
+            }
+        }
+        dataEditor.apply();
+
+        SharedPreferences keyPrefs = context.getSharedPreferences(
+                config.getKeyStoragePreferencesName(),
+                Context.MODE_PRIVATE
+        );
+        keyPrefs.edit().clear().apply();
+
+        SharedPreferences.Editor configEditor = configSource.edit();
+        localFactory.storeCurrentAlgorithms(configEditor);
+        configEditor.apply();
+
+        preferences = null;
+        storageCipher = null;
+        storageCipherFactory = null;
+        runtimeConfigSignature = null;
+
+        Log.i(TAG, "Force reset completed for namespace, removed entries=" + removedCount);
     }
 
     public void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
@@ -339,7 +402,15 @@ public class FlutterSecureStorage {
         } catch (javax.crypto.BadPaddingException e) {
             // Wrong key/padding for cipher, typically after algorithm change
             handleKeyMismatch(configSource, callback, e, "Bad padding, wrong key for cipher algorithm");
-        } catch (java.security.InvalidKeyException e) {
+        } catch (InvalidKeyException e) {
+            if (isKeyPermanentlyInvalidated(e)) {
+                callback.onError(new SecureStorageException(
+                        SecureStorageException.CODE_KEY_INVALIDATED,
+                        "Android KeyStore key was invalidated by biometric enrollment changes.",
+                        e
+                ));
+                return;
+            }
             // Key type doesn't match cipher requirements, typically after algorithm change
             handleKeyMismatch(configSource, callback, e, "Invalid key, key type incompatible with cipher");
         } catch (javax.crypto.IllegalBlockSizeException e) {
@@ -350,6 +421,14 @@ public class FlutterSecureStorage {
             Log.e(TAG, "Cryptographic algorithm not available on this device", e);
             callback.onError(new Exception("Required cryptographic algorithm not supported by device.", e));
         } catch (Exception e) {
+            if (isKeyPermanentlyInvalidated(e)) {
+                callback.onError(new SecureStorageException(
+                        SecureStorageException.CODE_KEY_INVALIDATED,
+                        "Android KeyStore key was invalidated by biometric enrollment changes.",
+                        e
+                ));
+                return;
+            }
             Log.e(TAG, "Failed to initialize storage cipher", e);
             callback.onError(e);
         }
@@ -1016,7 +1095,10 @@ public class FlutterSecureStorage {
     private void ensureBiometricAvailable(boolean enforceRequired) throws Exception {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             if (enforceRequired) {
-                throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric authentication requires Android 9 (API 28) or higher");
+                throw new SecureStorageException(
+                        SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                        "Biometric authentication requires Android 9 (API 28) or higher"
+                );
             }
             return; // Graceful degradation
         }
@@ -1024,13 +1106,19 @@ public class FlutterSecureStorage {
         // Biometric-only enforcement requires API 30+ so Keystore/prompt can
         // explicitly restrict to BIOMETRIC_STRONG without device credential fallback.
         if (enforceRequired && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric-only enforcement requires Android 11 (API 30) or higher");
+            throw new SecureStorageException(
+                    SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                    "Biometric-only enforcement requires Android 11 (API 30) or higher"
+            );
         }
 
         // Check device security first (PIN/pattern/password)
         if (!isDeviceSecure()) {
             if (enforceRequired) {
-                throw new Exception("BIOMETRIC_UNAVAILABLE: Device has no PIN, pattern, password, or biometric enrolled. Please secure your device in Settings.");
+                throw new SecureStorageException(
+                        SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                        "Device has no PIN, pattern, password, or biometric enrolled."
+                );
             } else {
                 Log.w(TAG, "Device has no security. Biometric authentication will be skipped (enforceBiometrics=false).");
             }
@@ -1043,7 +1131,10 @@ public class FlutterSecureStorage {
 
             if (biometricManager == null) {
                 if (enforceRequired) {
-                    throw new Exception("BIOMETRIC_UNAVAILABLE: BiometricManager not available on this device");
+                    throw new SecureStorageException(
+                            SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                            "BiometricManager not available on this device"
+                    );
                 }
                 return;
             }
@@ -1059,30 +1150,45 @@ public class FlutterSecureStorage {
 
                 case BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE:
                     if (enforceRequired) {
-                        throw new Exception("BIOMETRIC_UNAVAILABLE: No biometric hardware detected on this device");
+                        throw new SecureStorageException(
+                                SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                                "No biometric hardware detected on this device"
+                        );
                     }
                     break;
 
                 case BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE:
                     if (enforceRequired) {
-                        throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric hardware temporarily unavailable");
+                        throw new SecureStorageException(
+                                SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                                "Biometric hardware temporarily unavailable"
+                        );
                     }
                     break;
 
                 case BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED:
                     if (enforceRequired) {
-                        throw new Exception("BIOMETRIC_UNAVAILABLE: No fingerprint or face enrolled. Please enroll in Settings.");
+                        throw new SecureStorageException(
+                                SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                                "No fingerprint or face enrolled."
+                        );
                     }
                     break;
 
                 case BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED:
                     if (enforceRequired) {
-                        throw new Exception("BIOMETRIC_UNAVAILABLE: Security update required for biometric authentication");
+                        throw new SecureStorageException(
+                                SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                                "Security update required for biometric authentication"
+                        );
                     }
                     break;
                 default:
                     if (enforceRequired) {
-                        throw new Exception("BIOMETRIC_UNAVAILABLE: Unknown biometric status (code: " + result + ")");
+                        throw new SecureStorageException(
+                                SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                                "Unknown biometric status (code: " + result + ")"
+                        );
                     }
                     break;
             }
@@ -1098,36 +1204,43 @@ public class FlutterSecureStorage {
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             if (enforceRequired) {
-                throw new Exception("BIOMETRIC_UNAVAILABLE: Biometric authentication requires Android 9 (API 28) or higher");
+                throw new SecureStorageException(
+                        SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                        "Biometric authentication requires Android 9 (API 28) or higher"
+                );
             }
             return; // Skip authentication if not enforced
         }
 
         BiometricPrompt.CryptoObject crypto = new BiometricPrompt.CryptoObject(cipher);
-
         Executor executor = Executors.newSingleThreadExecutor();
+
         BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
                 .setTitle(config.getBiometricPromptTitle())
                 .setSubtitle(config.getPrefOptionBiometricPromptSubtitle());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+: biometric-only (no device credential fallback)
             promptInfoBuilder
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
                     .setNegativeButton(
                             context.getString(android.R.string.cancel),
                             executor,
                             (dialog, which) -> securePreferencesCallback.onError(
-                                    new Exception("Biometric authentication canceled by user")
+                                    new SecureStorageException(
+                                            SecureStorageException.CODE_AUTH_CANCELLED,
+                                            "Biometric authentication cancelled by user"
+                                    )
                             )
                     );
         } else {
-            // Android 9: framework prompt has no explicit device-credential API.
             promptInfoBuilder.setNegativeButton(
                     context.getString(android.R.string.cancel),
                     executor,
                     (dialog, which) -> securePreferencesCallback.onError(
-                            new Exception("Biometric authentication canceled by user")
+                            new SecureStorageException(
+                                    SecureStorageException.CODE_AUTH_CANCELLED,
+                                    "Biometric authentication cancelled by user"
+                            )
                     )
             );
         }
@@ -1158,7 +1271,26 @@ public class FlutterSecureStorage {
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
                 Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
-                securePreferencesCallback.onError(new Exception("Biometric authentication error [" + errorCode + "]: " + errString));
+                if (isCancellationErrorCode(errorCode)) {
+                    securePreferencesCallback.onError(new SecureStorageException(
+                            SecureStorageException.CODE_AUTH_CANCELLED,
+                            "Biometric authentication cancelled (code: " + errorCode + ")"
+                    ));
+                    return;
+                }
+
+                if (isBiometricUnavailableErrorCode(errorCode)) {
+                    securePreferencesCallback.onError(new SecureStorageException(
+                            SecureStorageException.CODE_BIOMETRIC_UNAVAILABLE,
+                            "Biometric authentication unavailable (code: " + errorCode + ")"
+                    ));
+                    return;
+                }
+
+                securePreferencesCallback.onError(new SecureStorageException(
+                        SecureStorageException.CODE_AUTH_FAILED,
+                        "Biometric authentication failed (code: " + errorCode + ")"
+                ));
             }
         };
 
@@ -1278,15 +1410,13 @@ public class FlutterSecureStorage {
     }
 
     private boolean isAuthenticationAbortError(Exception error) {
-        String message = error != null ? error.getMessage() : null;
-        if (message == null) {
+        SecureStorageException storageException = SecureStorageException.from(error);
+        if (storageException == null) {
             return false;
         }
-        String normalized = message.toLowerCase(Locale.US);
-        return normalized.contains("authentication canceled")
-                || normalized.contains("authentication cancelled")
-                || normalized.contains("biometric authentication error [10]")
-                || normalized.contains("storage cipher is not initialized");
+        final String code = storageException.getCode();
+        return SecureStorageException.CODE_AUTH_CANCELLED.equals(code)
+                || SecureStorageException.CODE_STORAGE_NOT_INITIALIZED.equals(code);
     }
 
     private String decodeRawValue(String value) throws Exception {
@@ -1294,11 +1424,38 @@ public class FlutterSecureStorage {
             return null;
         }
         if (storageCipher == null) {
-            throw new IllegalStateException("Storage cipher is not initialized");
+            throw new SecureStorageException(
+                    SecureStorageException.CODE_STORAGE_NOT_INITIALIZED,
+                    "Storage cipher is not initialized"
+            );
         }
         byte[] data = Base64.decode(value, 0);
         byte[] result = storageCipher.decrypt(data);
 
         return new String(result, charset);
+    }
+
+    private boolean isCancellationErrorCode(int errorCode) {
+        return errorCode == BiometricPrompt.BIOMETRIC_ERROR_CANCELED
+                || errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
+                || errorCode == BIOMETRIC_ERROR_NEGATIVE_BUTTON_COMPAT;
+    }
+
+    private boolean isBiometricUnavailableErrorCode(int errorCode) {
+        return errorCode == BiometricPrompt.BIOMETRIC_ERROR_HW_UNAVAILABLE
+                || errorCode == BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS
+                || errorCode == BiometricPrompt.BIOMETRIC_ERROR_HW_NOT_PRESENT;
+    }
+
+    private boolean isKeyPermanentlyInvalidated(Throwable throwable) {
+        Throwable cursor = throwable;
+        while (cursor != null) {
+            if ("android.security.keystore.KeyPermanentlyInvalidatedException"
+                    .equals(cursor.getClass().getName())) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 }

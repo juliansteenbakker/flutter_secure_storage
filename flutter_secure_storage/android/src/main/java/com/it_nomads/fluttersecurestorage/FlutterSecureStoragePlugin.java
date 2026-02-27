@@ -8,8 +8,6 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -163,6 +161,8 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                     String value = secureStorage.read(key);
                                     result.success(value);
                                 } else {
+                                    // Preserve plugin semantics: reading a missing key returns null.
+                                    // Missing-key-as-error caused noisy stack traces and broke caller flow.
                                     result.success(null);
                                 }
                                 break;
@@ -220,6 +220,21 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
                 @Override
                 public void onError(Exception e) {
+                    if (isDeleteOperation(call.method) && isKeyInvalidatedError(e)) {
+                        try {
+                            Log.w(
+                                    TAG,
+                                    "Initialization failed with KEY_INVALIDATED during " + call.method +
+                                            ". Forcing namespace reset for manual recovery."
+                            );
+                            secureStorage.forceResetCurrentStorage();
+                            result.success(null);
+                            return;
+                        } catch (Exception resetError) {
+                            handleException(resetError);
+                            return;
+                        }
+                    }
                     handleException(e);
                 }
             });
@@ -227,11 +242,46 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
 
         private void handleException(Exception e) {
-            StringWriter stringWriter = new StringWriter();
-            e.printStackTrace(new PrintWriter(stringWriter));
-            // Send exception message as the message field so Flutter can parse it
+            String errorCode = resolveErrorCode(e);
             String errorMessage = e.getMessage() != null ? e.getMessage() : "Unknown error";
-            result.error("Exception encountered", errorMessage, stringWriter.toString());
+            Log.e(TAG, "Secure storage error [" + errorCode + "]: " + errorMessage, e);
+            result.error(errorCode, errorMessage, null);
+        }
+
+        private String resolveErrorCode(Exception e) {
+            SecureStorageException storageException = SecureStorageException.from(e);
+            return storageException != null
+                    ? storageException.getCode()
+                    : classifyErrorCode(e);
+        }
+
+        private boolean isDeleteOperation(String method) {
+            return "delete".equals(method) || "deleteAll".equals(method);
+        }
+
+        private boolean isKeyInvalidatedError(Exception e) {
+            return SecureStorageException.CODE_KEY_INVALIDATED.equals(resolveErrorCode(e));
+        }
+
+        private String classifyErrorCode(Exception e) {
+            if (hasCauseType(e, "android.security.keystore.KeyPermanentlyInvalidatedException")) {
+                return SecureStorageException.CODE_KEY_INVALIDATED;
+            }
+            if (hasCauseType(e, "android.security.keystore.UserNotAuthenticatedException")) {
+                return SecureStorageException.CODE_AUTH_CANCELLED;
+            }
+            return SecureStorageException.CODE_UNKNOWN;
+        }
+
+        private boolean hasCauseType(Throwable throwable, String className) {
+            Throwable cursor = throwable;
+            while (cursor != null) {
+                if (className.equals(cursor.getClass().getName())) {
+                    return true;
+                }
+                cursor = cursor.getCause();
+            }
+            return false;
         }
     }
 }
