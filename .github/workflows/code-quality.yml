@@ -170,7 +170,7 @@ jobs:
       - name: Install Melos
         run: flutter pub global activate melos
 
-      - uses: futureware-tech/simulator-action@v4
+      - uses: futureware-tech/simulator-action@v5
         with:
           os: ${{ env.SIM_OS }}
           os_version: ${{ env.SIM_OS_VERSION }}
