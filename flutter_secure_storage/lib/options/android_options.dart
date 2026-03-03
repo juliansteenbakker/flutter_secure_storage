@@ -50,6 +50,7 @@ class AndroidOptions extends Options {
     bool encryptedSharedPreferences = false,
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
+    bool migrateWithBackup = false,
     bool enforceBiometrics = false,
     KeyCipherAlgorithm keyCipherAlgorithm =
         KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
@@ -62,6 +63,7 @@ class AndroidOptions extends Options {
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
+        _migrateWithBackup = migrateWithBackup,
         _enforceBiometrics = enforceBiometrics,
         _keyCipherAlgorithm = keyCipherAlgorithm,
         _storageCipherAlgorithm = storageCipherAlgorithm;
@@ -82,6 +84,7 @@ class AndroidOptions extends Options {
     bool encryptedSharedPreferences = false,
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
+    bool migrateWithBackup = false,
     bool enforceBiometrics = false,
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
@@ -90,6 +93,7 @@ class AndroidOptions extends Options {
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
         _resetOnError = resetOnError,
         _migrateOnAlgorithmChange = migrateOnAlgorithmChange,
+        _migrateWithBackup = migrateWithBackup,
         _enforceBiometrics = enforceBiometrics,
         _keyCipherAlgorithm = KeyCipherAlgorithm.AES_GCM_NoPadding,
         _storageCipherAlgorithm = StorageCipherAlgorithm.AES_GCM_NoPadding;
@@ -111,6 +115,14 @@ class AndroidOptions extends Options {
   ///
   /// Defaults to true.
   final bool _migrateOnAlgorithmChange;
+
+  /// Enable crash-resistant migration with backup protection.
+  /// Creates backup copies of encrypted data before migration starts.
+  /// If migration fails or crashes, data can be recovered from backup.
+  /// Works in conjunction with migrateOnAlgorithmChange.
+  ///
+  /// Defaults to false.
+  final bool _migrateWithBackup;
 
   /// Whether to enforce biometric/PIN authentication.
   ///
@@ -170,6 +182,7 @@ class AndroidOptions extends Options {
         'encryptedSharedPreferences': '$_encryptedSharedPreferences',
         'resetOnError': '$_resetOnError',
         'migrateOnAlgorithmChange': '$_migrateOnAlgorithmChange',
+        'migrateWithBackup': '$_migrateWithBackup',
         'enforceBiometrics': '$_enforceBiometrics',
         'keyCipherAlgorithm': _keyCipherAlgorithm.name,
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
@@ -186,6 +199,7 @@ class AndroidOptions extends Options {
     bool? encryptedSharedPreferences,
     bool? resetOnError,
     bool? migrateOnAlgorithmChange,
+    bool? migrateWithBackup,
     bool? enforceBiometrics,
     KeyCipherAlgorithm? keyCipherAlgorithm,
     StorageCipherAlgorithm? storageCipherAlgorithm,
@@ -202,6 +216,7 @@ class AndroidOptions extends Options {
         resetOnError: resetOnError ?? _resetOnError,
         migrateOnAlgorithmChange:
             migrateOnAlgorithmChange ?? _migrateOnAlgorithmChange,
+        migrateWithBackup: migrateWithBackup ?? _migrateWithBackup,
         enforceBiometrics: enforceBiometrics ?? _enforceBiometrics,
         keyCipherAlgorithm: keyCipherAlgorithm ?? _keyCipherAlgorithm,
         storageCipherAlgorithm:
