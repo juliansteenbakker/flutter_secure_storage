@@ -2,6 +2,7 @@
 //  FlutterSecureStorageDarwinPlugin.swift
 //
 
+import LocalAuthentication
 #if os(iOS)
 import Flutter
 import UIKit
@@ -150,13 +151,13 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
 
         let value = arguments["value"] as? String
 
-        let parameters = KeychainQueryParameters(
+        var parameters = KeychainQueryParameters(
             key: arguments["key"] as? String,
             accessGroup: options["groupId"] as? String,
             service: options["accountName"] as? String,
             isSynchronizable: (options["synchronizable"] as? String).flatMap { Bool($0) },
             accessibilityLevel: options["accessibility"] as? String,
-            usesDataProtectionKeychain: (options["useDataProtectionKeyChain"] as? String).flatMap { Bool($0) } ?? true,
+            usesDataProtectionKeychain: (options["usesDataProtectionKeychain"] as? String).flatMap { Bool($0) } ?? true,
             shouldReturnData: true, // Default behavior for most operations.
             itemLabel: options["label"] as? String,
             itemDescription: options["description"] as? String,
@@ -165,8 +166,19 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
             isPlaceholder: (options["isPlaceholder"] as? String).flatMap { Bool($0) },
             shouldReturnPersistentReference: (options["persistentReference"] as? String).flatMap { Bool($0) },
             authenticationUIBehavior: options["authenticationUIBehavior"] as? String,
-            accessControlFlags: options["accessControlFlags"] as? String
+            accessControlFlags: options["accessControlFlags"] as? String,
+            useSecureEnclave: (options["useSecureEnclave"] as? String).flatMap { Bool($0) }
         )
+
+        // Reuse a single authentication context to avoid multiple prompts per call
+        // when Secure Enclave is explicitly enabled.
+        if parameters.useSecureEnclave == true {
+            if #available(iOS 9.0, macOS 10.12, *) {
+                let context = LAContext()
+                context.touchIDAuthenticationAllowableReuseDuration = 30
+                parameters.authenticationContext = context
+            }
+        }
 
         return (parameters, value)
     }

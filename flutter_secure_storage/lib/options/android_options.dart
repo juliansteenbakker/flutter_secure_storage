@@ -103,9 +103,9 @@ class AndroidOptions extends Options {
 
   /// When an error is detected, automatically reset all data. This will prevent
   /// fatal errors regarding an unknown key however keep in mind that it will
-  /// PERMANENLTY erase the data when an error occurs.
+  /// PERMANENTLY erase the data when an error occurs.
   ///
-  /// Defaults to false.
+  /// Defaults to true.
   final bool _resetOnError;
 
   /// When the encryption algorithm changes, automatically migrate existing data

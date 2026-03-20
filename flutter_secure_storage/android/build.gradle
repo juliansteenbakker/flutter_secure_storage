@@ -8,7 +8,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.1'
+        classpath 'com.android.tools.build:gradle:8.13.2'
     }
 }
 
@@ -44,5 +44,5 @@ android {
 }
 
 dependencies {
-    implementation("com.google.crypto.tink:tink-android:1.19.0")
+    implementation("com.google.crypto.tink:tink-android:1.20.0")
 }
