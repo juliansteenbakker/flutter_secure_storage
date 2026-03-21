@@ -131,7 +131,13 @@ class FlutterSecureStorage {
     }
     
     /// Creates an access control object based on the provided parameters.
+    /// NOTE: Only create AccessControl when explicit security flags (biometrics/passcode) are
+    /// provided. Without flags, baseQuery sets kSecAttrAccessible + kSecAttrSynchronizable as
+    /// plain attributes — which is required for extension targets (e.g. NotificationServiceExtension)
+    /// to access items via kSecAttrSynchronizable:true. Using kSecAttrAccessControl prevents
+    /// kSecAttrSynchronizable from being set, making the item invisible to the NSE.
     private func createAccessControl(params: KeychainQueryParameters) -> SecAccessControl? {
+        guard let flagString = params.accessControlFlags, !flagString.isEmpty else { return nil }
         guard let accessibilityLevel = params.accessibilityLevel else { return nil }
         let protection = parseAccessibleAttr(accessibilityLevel)
         let flags = parseAccessControlFlags(params.accessControlFlags)
