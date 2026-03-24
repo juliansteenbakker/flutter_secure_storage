@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -121,10 +122,32 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         @SuppressWarnings("unchecked")
         @Override
         public void run() {
-            Map<String, Object> options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
-            FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+            // Patch for v10.0.0: guard against null/invalid payload before initialize().
+            // Route unexpected exceptions (including NPE) through result.error instead of crashing.
+            try {
+                if (secureStorage == null) {
+                    handleException(new IllegalStateException("FlutterSecureStorage not initialized"));
+                    return;
+                }
+                if (call == null || call.arguments == null) {
+                    handleException(new IllegalArgumentException("Method call arguments are null"));
+                    return;
+                }
+                if (!(call.arguments instanceof Map)) {
+                    handleException(new IllegalArgumentException("Method call arguments must be a Map"));
+                    return;
+                }
+                Map<String, Object> args = (Map<String, Object>) call.arguments;
+                Object rawOptions = args.get("options");
+                Map<String, Object> options;
+                if (rawOptions instanceof Map) {
+                    options = (Map<String, Object>) rawOptions;
+                } else {
+                    options = new HashMap<>();
+                }
+                FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
 
-            secureStorage.initialize(config, new SecurePreferencesCallback<>() {
+                secureStorage.initialize(config, new SecurePreferencesCallback<>() {
                 @Override
                 public void onSuccess(Void unused) {
                     try {
@@ -208,6 +231,9 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     handleException(e);
                 }
             });
+            } catch (Exception e) {
+                handleException(e);
+            }
         }
 
 
