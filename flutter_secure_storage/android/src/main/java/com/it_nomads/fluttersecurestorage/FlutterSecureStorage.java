@@ -143,7 +143,7 @@ public class FlutterSecureStorage {
         editor.apply();
     }
 
-    protected void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
+    public void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
         this.config = config;
         if (preferences != null) {
             callback.onSuccess(null);
