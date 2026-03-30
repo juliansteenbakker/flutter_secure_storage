@@ -128,7 +128,7 @@ public class FlutterSecureStorageConfig {
 
     /**
      * Returns the effective SharedPreferences name for wrapped-key storage.
-     * When storageNamespace is set, returns "FlutterSecureKeyStorage:&lt;namespace&gt;";
+     * When storageNamespace is set, returns "FlutterSecureKeyStorage:namespace";
      * otherwise returns the legacy "FlutterSecureKeyStorage".
      */
     public String getEffectiveKeyStoragePrefsName() {
@@ -139,7 +139,7 @@ public class FlutterSecureStorageConfig {
 
     /**
      * Returns a suffix to append to Android KeyStore aliases for namespace
-     * isolation.  Returns ".&lt;namespace&gt;" when storageNamespace is set,
+     * isolation.  Returns ".namespace" when storageNamespace is set,
      * otherwise returns "".
      */
     public String getKeyAliasSuffix() {
