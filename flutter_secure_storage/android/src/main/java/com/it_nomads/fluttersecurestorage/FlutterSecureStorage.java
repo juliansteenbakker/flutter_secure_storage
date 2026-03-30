@@ -144,11 +144,11 @@ public class FlutterSecureStorage {
     }
 
     protected void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
-        this.config = config;
         if (preferences != null) {
             callback.onSuccess(null);
             return;
         }
+        this.config = config;
 
         SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
                 config.getEffectiveDataPrefsName(),
