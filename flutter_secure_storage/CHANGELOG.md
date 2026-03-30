@@ -1,3 +1,7 @@
+## NEXT
+**Fixes:**
+- Fixed crash on biometric failure (not error).
+
 ## 10.0.0
 This major release brings significant security improvements, platform updates, and modernization across all supported platforms.
 
