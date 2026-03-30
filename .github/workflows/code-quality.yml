@@ -86,10 +86,15 @@ jobs:
     strategy:
       matrix:
         include:
+          - api-level: 23
+            target: default
+            flutter-version: "3.32.x"
           - api-level: 24
             target: default
+            flutter-version: ""
           - api-level: 36
             target: google_apis
+            flutter-version: ""
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -105,6 +110,7 @@ jobs:
           java-version: "17"
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ matrix.flutter-version || '' }}
           channel: stable
           cache: true
       - name: Install Melos
