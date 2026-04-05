@@ -36,7 +36,6 @@ public class FlutterSecureStorageConfig {
     public static final String PREF_OPTION_STORAGE_CIPHER_ALGORITHM = "storageCipherAlgorithm";
     public static final String PREF_OPTION_KEY_CIPHER_ALGORITHM = "keyCipherAlgorithm";
     public static final String PREF_OPTION_STORAGE_NAMESPACE = "storageNamespace";
-    public static final String PREF_OPTION_MIGRATE_WITH_BACKUP = "migrateWithBackup";
 
     private static final String TAG = "FlutterSecureStorageConfig";
 
@@ -53,7 +52,6 @@ public class FlutterSecureStorageConfig {
     private final String biometricPromptSubtitle;
     private final String keyCipherAlgorithm;
     private final String storageCipherAlgorithm;
-    private final boolean migrateWithBackup;
 
     public FlutterSecureStorageConfig(Map<String, Object> options) {
         this.sharedPreferencesName = getStringOption(options, PREF_OPTION_NAME, DEFAULT_PREF_NAME);
@@ -77,7 +75,6 @@ public class FlutterSecureStorageConfig {
         );
         this.storageCipherAlgorithm = getStringOption(options, PREF_OPTION_STORAGE_CIPHER_ALGORITHM, DEFAULT_STORAGE_CIPHER_ALGORITHM);
         this.keyCipherAlgorithm = getStringOption(options, PREF_OPTION_KEY_CIPHER_ALGORITHM, DEFAULT_KEY_CIPHER_ALGORITHM);
-        this.migrateWithBackup = getBooleanOption(options, PREF_OPTION_MIGRATE_WITH_BACKUP, false);
 
         // Parse storageNamespace (empty string → null)
         String nsRaw = null;
@@ -144,7 +141,6 @@ public class FlutterSecureStorageConfig {
     public String getPrefOptionBiometricPromptSubtitle() { return biometricPromptSubtitle; }
     public String getPrefOptionStorageCipherAlgorithm() { return storageCipherAlgorithm; }
     public String getPrefOptionKeyCipherAlgorithm() { return keyCipherAlgorithm; }
-    public boolean shouldMigrateWithBackup() { return migrateWithBackup; }
 
     /** Returns the raw storageNamespace value, or null if not set. */
     @Nullable

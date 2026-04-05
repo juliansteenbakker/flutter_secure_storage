@@ -43,7 +43,7 @@ public class MigrationBackupTest {
 
         config = new FlutterSecureStorageConfig(new HashMap<>());
 
-        HashMap<String, String> backupOptions = new HashMap<>();
+        HashMap<String, Object> backupOptions = new HashMap<>();
         backupOptions.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_WITH_BACKUP, "true");
         configWithBackup = new FlutterSecureStorageConfig(backupOptions);
     }

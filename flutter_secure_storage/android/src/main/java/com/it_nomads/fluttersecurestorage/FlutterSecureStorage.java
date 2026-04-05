@@ -440,7 +440,7 @@ public class FlutterSecureStorage {
      * Step 7 cleans up all _MIGRATED markers after full migration completes.
      */
     private void encryptAllWithCurrentCipherTracked(Map<String, String> cache, SharedPreferences dataTarget,
-                                                    SharedPreferences configSource,
+                                                    NamespacedConfigSource configSource,
                                                     StorageCipher currentStorageCipher,
                                                     String keyPrefix) throws Exception {
         int count = 0;
@@ -1193,7 +1193,7 @@ public class FlutterSecureStorage {
      * We just copy ESP keys → custom cipher without creating backups (ESP encryption is the backup).
      */
     private void migrateESPWithBackup(SharedPreferences espSource, SharedPreferences target,
-                                      SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
+                                      NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting ESP→custom cipher migration WITH backup protection...");
 
         // Initialize custom cipher for migration target
@@ -1334,7 +1334,7 @@ public class FlutterSecureStorage {
     // MIGRATION WITH BACKUP METHODS
     // ============================================================================
 
-        private void migrateNonBiometricWithBackup(SharedPreferences configSource, SharedPreferences dataSource,
+        private void migrateNonBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                    SecurePreferencesCallback<Void> callback) {
             Log.i(TAG, "Starting non-biometric migration WITH BACKUP (rename operation)...");
 
@@ -1560,7 +1560,7 @@ public class FlutterSecureStorage {
                   encryptedCount + " encrypted, " + espCount + " ESP)");
             return decryptedCache;
         }
-        private void migrateFromBiometricToNonBiometricWithBackup(SharedPreferences configSource, SharedPreferences dataSource,
+        private void migrateFromBiometricToNonBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                                    SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
@@ -1652,7 +1652,7 @@ public class FlutterSecureStorage {
                 callback.onError(e);
             }
         }
-        private void migrateFromNonBiometricToBiometricWithBackup(SharedPreferences configSource, SharedPreferences dataSource,
+        private void migrateFromNonBiometricToBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                                    SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
@@ -1745,7 +1745,7 @@ public class FlutterSecureStorage {
                 callback.onError(e);
             }
         }
-        private void migrateBiometricToBiometricWithBackup(SharedPreferences configSource, SharedPreferences dataSource,
+        private void migrateBiometricToBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                             SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(

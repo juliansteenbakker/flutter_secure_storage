@@ -31,7 +31,7 @@ public class MigrationBackup {
      */
     public static void createBackup(SharedPreferences dataSource,
                                    SharedPreferences keyStorage,
-                                   SharedPreferences configSource,
+                                   NamespacedConfigSource configSource,
                                    FlutterSecureStorageConfig config,
                                    String keyPrefix) {
         createBackup(dataSource, keyStorage, null, configSource, config, keyPrefix);
@@ -52,7 +52,7 @@ public class MigrationBackup {
     public static void createBackup(SharedPreferences dataSource,
                                    SharedPreferences keyStorage,
                                    SharedPreferences espSource,
-                                   SharedPreferences configSource,
+                                   NamespacedConfigSource configSource,
                                    FlutterSecureStorageConfig config,
                                    String keyPrefix) {
         // Check if backup already exists - skip if complete or deleted
@@ -151,7 +151,7 @@ public class MigrationBackup {
      */
     public static void deleteBackup(SharedPreferences dataSource,
                                    SharedPreferences keyStorage,
-                                   SharedPreferences configSource,
+                                   NamespacedConfigSource configSource,
                                    FlutterSecureStorageConfig config,
                                    String keyPrefix) {
         deleteBackup(dataSource, keyStorage, null, configSource, config, keyPrefix);
@@ -171,7 +171,7 @@ public class MigrationBackup {
     public static void deleteBackup(SharedPreferences dataSource,
                                    SharedPreferences keyStorage,
                                    SharedPreferences espSource,
-                                   SharedPreferences configSource,
+                                   NamespacedConfigSource configSource,
                                    FlutterSecureStorageConfig config,
                                    String keyPrefix) {
         deleteBackupData(dataSource, keyStorage, espSource, keyPrefix);
@@ -190,7 +190,7 @@ public class MigrationBackup {
      * @param config Configuration object
      * @param status Status string (started/complete/deleted)
      */
-    public static void setBackupStatus(SharedPreferences configSource,
+    public static void setBackupStatus(NamespacedConfigSource configSource,
                                       FlutterSecureStorageConfig config,
                                       String status) {
         if (!config.shouldMigrateWithBackup()) {
@@ -209,7 +209,7 @@ public class MigrationBackup {
      * @param config Configuration object
      * @return Status string or null if not present
      */
-    public static String getBackupStatus(SharedPreferences configSource,
+    public static String getBackupStatus(NamespacedConfigSource configSource,
                                         FlutterSecureStorageConfig config) {
         return configSource.getString(BACKUP_STATUS_KEY, null);
     }
@@ -221,7 +221,7 @@ public class MigrationBackup {
      * @param config Configuration object
      * @return true if backup status is "complete"
      */
-    public static boolean hasBackup(SharedPreferences configSource,
+    public static boolean hasBackup(NamespacedConfigSource configSource,
                                    FlutterSecureStorageConfig config) {
         String status = getBackupStatus(configSource, config);
         return STATUS_COMPLETE.equals(status);
@@ -317,7 +317,7 @@ public class MigrationBackup {
      */
     public static void deleteOriginalData(SharedPreferences dataSource,
                                           SharedPreferences keyStorage,
-                                          SharedPreferences configSource,
+                                          NamespacedConfigSource configSource,
                                           String keyPrefix) {
         int dataCount = 0;
         int preservedCount = 0;
@@ -375,7 +375,7 @@ public class MigrationBackup {
      * @param keyPrefix Prefix to filter marker keys
      * @return true if at least one _MIGRATED marker exists
      */
-    public static boolean hasMigratedMarkers(SharedPreferences configSource, String keyPrefix) {
+    public static boolean hasMigratedMarkers(NamespacedConfigSource configSource, String keyPrefix) {
         for (Map.Entry<String, ?> entry : configSource.getAll().entrySet()) {
             String key = entry.getKey();
             if (key.endsWith(MIGRATED_SUFFIX) && key.contains(keyPrefix)) {
@@ -393,7 +393,7 @@ public class MigrationBackup {
      * @param configSource SharedPreferences used for migration status tracking
      * @param keyPrefix Prefix to filter marker keys (matches the prefix used when writing markers)
      */
-    public static void deleteMigratedMarkers(SharedPreferences configSource, String keyPrefix) {
+    public static void deleteMigratedMarkers(NamespacedConfigSource configSource, String keyPrefix) {
         SharedPreferences.Editor editor = configSource.edit();
         int count = 0;
         for (Map.Entry<String, ?> entry : configSource.getAll().entrySet()) {
