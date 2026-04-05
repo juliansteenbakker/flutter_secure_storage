@@ -1076,13 +1076,6 @@ public class FlutterSecureStorage {
             }
 
             @Override
-            public void onAuthenticationFailed() {
-                super.onAuthenticationFailed();
-                Log.w(TAG, "Biometric authentication failed, user not recognized");
-                securePreferencesCallback.onError(new Exception("Biometric authentication failed, user not recognized"));
-            }
-
-            @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
                 Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
