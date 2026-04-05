@@ -175,6 +175,26 @@ public class StorageCipherFactoryTest {
         assertEquals("AES_GCM_NoPadding",                     target.getString(PREF_STORAGE_ALGORITHM, null));
     }
 
+    // -------------------------------------------------------------------------
+    // migrateWithBackup — constructor does not write algorithm markers
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void noSavedMarkers_migrateWithBackup_doesNotWriteAlgorithmsToPrefs() {
+        // When migrateWithBackup=true and no markers exist, the constructor must
+        // NOT write the current algorithms (step 7 of the migration flow does that).
+        HashMap<String, String> options = new HashMap<>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_WITH_BACKUP, "true");
+        FlutterSecureStorageConfig backupConfig = new FlutterSecureStorageConfig(options);
+
+        new StorageCipherFactory(configPrefs,
+                "RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding",
+                backupConfig);
+
+        assertNull(configPrefs.getString(PREF_KEY_ALGORITHM, null));
+        assertNull(configPrefs.getString(PREF_STORAGE_ALGORITHM, null));
+    }
+
     @Test
     public void storeCurrentAlgorithms_doesNotWriteSavedAlgorithms() {
         // Saved = PKCS1/CBC, current = OAEP/GCM — stored values should reflect current, not saved
