@@ -10,6 +10,8 @@ import java.util.Map;
  * Implements a rename-based backup strategy: copy to _BACKUP, mark complete, delete originals.
  */
 public class MigrationBackup {
+    private MigrationBackup() {}
+
     private static final String TAG = "MigrationBackup";
     private static final String BACKUP_STATUS_KEY = "FlutterSecureStorageBackupStatus";
     private static final String BACKUP_SUFFIX = "_BACKUP";
@@ -225,16 +227,6 @@ public class MigrationBackup {
                                    FlutterSecureStorageConfig config) {
         String status = getBackupStatus(configSource, config);
         return STATUS_COMPLETE.equals(status);
-    }
-
-    /**
-     * Deletes _BACKUP entries from storage (without updating status).
-     * Internal helper method.
-     */
-    private static void deleteBackupData(SharedPreferences dataSource,
-                                        SharedPreferences keyStorage,
-                                        String keyPrefix) {
-        deleteBackupData(dataSource, keyStorage, null, keyPrefix);
     }
 
     /**

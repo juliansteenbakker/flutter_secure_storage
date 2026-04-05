@@ -240,6 +240,33 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void createBackup_withEspSource_continuesWhenEspCommitFails() {
+        SharedPreferences failingEsp = new FailingCommitSharedPreferences(
+                RuntimeEnvironment.getApplication().getSharedPreferences("TestEspFailCommit", Context.MODE_PRIVATE));
+        dataSource.edit().putString(KEY_PREFIX + "_key1", "value1").commit();
+
+        // ESP commit failure is caught internally — data backup still completes
+        MigrationBackup.createBackup(dataSource, keyStorage, failingEsp, configSource, configWithBackup, KEY_PREFIX);
+
+        assertEquals("value1", dataSource.getString(KEY_PREFIX + "_key1_BACKUP", null));
+        assertEquals(MigrationBackup.STATUS_COMPLETE, configSource.getString(BACKUP_STATUS_KEY, null));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void createBackup_throwsWhenDataEditorCommitFails() {
+        SharedPreferences failingData = new FailingCommitSharedPreferences(dataSource);
+
+        MigrationBackup.createBackup(failingData, keyStorage, configSource, configWithBackup, KEY_PREFIX);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void createBackup_throwsWhenKeyEditorCommitFails() {
+        SharedPreferences failingKeys = new FailingCommitSharedPreferences(keyStorage);
+
+        MigrationBackup.createBackup(dataSource, failingKeys, configSource, configWithBackup, KEY_PREFIX);
+    }
+
+    @Test
     public void createBackup_withCorruptedEspSource_continuesAndCompletesBackup() {
         SharedPreferences corruptedEsp = new ThrowingSharedPreferences(
                 RuntimeEnvironment.getApplication().getSharedPreferences("TestEspCorrupted", Context.MODE_PRIVATE));
@@ -440,6 +467,49 @@ public class MigrationBackupTest {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * SharedPreferences wrapper whose edit() returns an Editor that always returns false from
+     * commit(), to exercise the commit-failure RuntimeException paths in MigrationBackup.
+     */
+    private static class FailingCommitSharedPreferences implements SharedPreferences {
+        private final SharedPreferences delegate;
+
+        FailingCommitSharedPreferences(SharedPreferences delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public Map<String, ?> getAll() { return delegate.getAll(); }
+        @Override public String getString(String key, String defValue) { return delegate.getString(key, defValue); }
+        @Override public Set<String> getStringSet(String key, Set<String> defValues) { return delegate.getStringSet(key, defValues); }
+        @Override public int getInt(String key, int defValue) { return delegate.getInt(key, defValue); }
+        @Override public long getLong(String key, long defValue) { return delegate.getLong(key, defValue); }
+        @Override public float getFloat(String key, float defValue) { return delegate.getFloat(key, defValue); }
+        @Override public boolean getBoolean(String key, boolean defValue) { return delegate.getBoolean(key, defValue); }
+        @Override public boolean contains(String key) { return delegate.contains(key); }
+        @Override public Editor edit() { return new FailingEditor(delegate.edit()); }
+        @Override public void registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { delegate.registerOnSharedPreferenceChangeListener(listener); }
+        @Override public void unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { delegate.unregisterOnSharedPreferenceChangeListener(listener); }
+    }
+
+    private static class FailingEditor implements SharedPreferences.Editor {
+        private final SharedPreferences.Editor delegate;
+
+        FailingEditor(SharedPreferences.Editor delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public SharedPreferences.Editor putString(String key, String value) { return delegate.putString(key, value); }
+        @Override public SharedPreferences.Editor putStringSet(String key, Set<String> values) { return delegate.putStringSet(key, values); }
+        @Override public SharedPreferences.Editor putInt(String key, int value) { return delegate.putInt(key, value); }
+        @Override public SharedPreferences.Editor putLong(String key, long value) { return delegate.putLong(key, value); }
+        @Override public SharedPreferences.Editor putFloat(String key, float value) { return delegate.putFloat(key, value); }
+        @Override public SharedPreferences.Editor putBoolean(String key, boolean value) { return delegate.putBoolean(key, value); }
+        @Override public SharedPreferences.Editor remove(String key) { return delegate.remove(key); }
+        @Override public SharedPreferences.Editor clear() { return delegate.clear(); }
+        @Override public boolean commit() { return false; }
+        @Override public void apply() { delegate.apply(); }
+    }
 
     /**
      * SharedPreferences wrapper whose getAll() throws to simulate a corrupted
