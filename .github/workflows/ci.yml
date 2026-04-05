@@ -131,7 +131,7 @@ jobs:
           path: flutter_secure_storage/coverage/lcov.info
 
       - name: Upload Flutter Coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: flutter_secure_storage/coverage/lcov.info
@@ -170,7 +170,7 @@ jobs:
         run: ./gradlew :flutter_secure_storage:jacocoTestReport
 
       - name: Upload Android Coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: flutter_secure_storage/android/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
