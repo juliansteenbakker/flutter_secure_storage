@@ -179,12 +179,15 @@ jobs:
         include:
           - api-level: 23
             target: default
+            arch: x86
             flutter-version: "3.32.x"
           - api-level: 24
             target: default
+            arch: ${{ matrix.arch }}
             flutter-version: ""
           - api-level: 36
             target: google_apis
+            arch: ${{ matrix.arch }}
             flutter-version: ""
 
     steps:
@@ -227,7 +230,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}
 
       - name: Create AVD Snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -235,7 +238,7 @@ jobs:
         with:
           api-level: ${{ matrix.api-level }}
           target: ${{ matrix.target }}
-          arch: x86_64
+          arch: ${{ matrix.arch }}
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
@@ -246,7 +249,7 @@ jobs:
         with:
           api-level: ${{ matrix.api-level }}
           target: ${{ matrix.target }}
-          arch: x86_64
+          arch: ${{ matrix.arch }}
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
