@@ -38,7 +38,7 @@ class KeyCipherImplementationRSA18 implements KeyCipher {
     }
 
     protected String createKeyAlias() {
-        return context.getPackageName() + ".FlutterSecureStoragePluginKey";
+        return context.getPackageName() + ".FlutterSecureStoragePluginKey" + config.getKeyAliasSuffix();
     }
 
     @Override
