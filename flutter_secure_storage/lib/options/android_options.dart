@@ -55,8 +55,13 @@ class AndroidOptions extends Options {
         KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
     StorageCipherAlgorithm storageCipherAlgorithm =
         StorageCipherAlgorithm.AES_GCM_NoPadding,
+    @Deprecated(
+        'Use storageNamespace instead. sharedPreferencesName only isolates '
+        'data storage; storageNamespace provides full isolation including '
+        'KeyStore aliases and key storage.')
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
+    this.storageNamespace,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
@@ -83,8 +88,13 @@ class AndroidOptions extends Options {
     bool resetOnError = true,
     bool migrateOnAlgorithmChange = true,
     bool enforceBiometrics = false,
+    @Deprecated(
+        'Use storageNamespace instead. sharedPreferencesName only isolates '
+        'data storage; storageNamespace provides full isolation including '
+        'KeyStore aliases and key storage.')
     this.sharedPreferencesName,
     this.preferencesKeyPrefix,
+    this.storageNamespace,
     this.biometricPromptTitle,
     this.biometricPromptSubtitle,
   })  : _encryptedSharedPreferences = encryptedSharedPreferences,
@@ -143,6 +153,10 @@ class AndroidOptions extends Options {
   /// be used if nothing is provided here.
   ///
   /// WARNING: If you change this you can't retrieve already saved preferences.
+  @Deprecated(
+      'Use storageNamespace instead. sharedPreferencesName only isolates '
+      'data storage; storageNamespace provides full isolation including '
+      'KeyStore aliases and key storage.')
   final String? sharedPreferencesName;
 
   /// The prefix for a shared preference key. The prefix is used to make sure
@@ -155,6 +169,20 @@ class AndroidOptions extends Options {
   ///
   /// WARNING: If you change this you can't retrieve already saved preferences.
   final String? preferencesKeyPrefix;
+
+  /// Provides full namespace isolation for this storage instance.
+  ///
+  /// When set, **all** storage artifacts are namespaced:
+  /// - Data SharedPreferences
+  /// - Config/algorithm markers
+  /// - Android KeyStore aliases
+  /// - Wrapped-key SharedPreferences
+  ///
+  /// This allows multiple `FlutterSecureStorage` instances to use different
+  /// cipher algorithms without conflicting KeyStore entries or key storage.
+  ///
+  /// Prefer this over `sharedPreferencesName` for new code.
+  final String? storageNamespace;
 
   /// The title shown in the biometric authentication prompt.
   final String? biometricPromptTitle;
@@ -173,8 +201,10 @@ class AndroidOptions extends Options {
         'enforceBiometrics': '$_enforceBiometrics',
         'keyCipherAlgorithm': _keyCipherAlgorithm.name,
         'storageCipherAlgorithm': _storageCipherAlgorithm.name,
+        // ignore: deprecated_member_use_from_same_package — legacy support
         'sharedPreferencesName': sharedPreferencesName ?? '',
         'preferencesKeyPrefix': preferencesKeyPrefix ?? '',
+        'storageNamespace': storageNamespace ?? '',
         'biometricPromptTitle':
             biometricPromptTitle ?? 'Authenticate to access',
         'biometricPromptSubtitle':
@@ -190,13 +220,17 @@ class AndroidOptions extends Options {
     KeyCipherAlgorithm? keyCipherAlgorithm,
     StorageCipherAlgorithm? storageCipherAlgorithm,
     String? preferencesKeyPrefix,
+    @Deprecated(
+        'Use storageNamespace instead. sharedPreferencesName only isolates '
+        'data storage; storageNamespace provides full isolation including '
+        'KeyStore aliases and key storage.')
     String? sharedPreferencesName,
+    String? storageNamespace,
     String? biometricPromptTitle,
     String? biometricPromptSubtitle,
   }) =>
       AndroidOptions(
-        // Will be removed in v11.0.0
-        // ignore: deprecated_member_use_from_same_package
+        // ignore: deprecated_member_use_from_same_package — will be removed in v11
         encryptedSharedPreferences:
             encryptedSharedPreferences ?? _encryptedSharedPreferences,
         resetOnError: resetOnError ?? _resetOnError,
@@ -206,9 +240,12 @@ class AndroidOptions extends Options {
         keyCipherAlgorithm: keyCipherAlgorithm ?? _keyCipherAlgorithm,
         storageCipherAlgorithm:
             storageCipherAlgorithm ?? _storageCipherAlgorithm,
+        // ignore: deprecated_member_use_from_same_package — legacy support
         sharedPreferencesName:
+            // ignore: deprecated_member_use_from_same_package — legacy support
             sharedPreferencesName ?? this.sharedPreferencesName,
         preferencesKeyPrefix: preferencesKeyPrefix ?? this.preferencesKeyPrefix,
+        storageNamespace: storageNamespace ?? this.storageNamespace,
         biometricPromptTitle: biometricPromptTitle ?? this.biometricPromptTitle,
         biometricPromptSubtitle:
             biometricPromptSubtitle ?? this.biometricPromptSubtitle,
