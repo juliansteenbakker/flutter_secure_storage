@@ -20,6 +20,11 @@ allprojects {
 }
 
 apply plugin: 'com.android.library'
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.12"
+}
 
 android {
     if (project.android.hasProperty("namespace")) {
@@ -40,9 +45,45 @@ android {
     defaultConfig {
         minSdkVersion 23
     }
-    
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all {
+                jacoco {
+                    includeNoLocationClasses = true
+                    excludes = ['jdk.internal.*']
+                }
+            }
+        }
+    }
+}
+
+tasks.register('jacocoTestReport', JacocoReport) {
+    dependsOn 'testDebugUnitTest'
+
+    reports {
+        xml.required = true
+        html.required = false
+    }
+
+    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*']
+    def debugTree = fileTree(
+        dir: layout.buildDirectory.dir("intermediates/javac/debug").get().asFile,
+        excludes: fileFilter
+    )
+
+    sourceDirectories.setFrom(files(["${project.projectDir}/src/main/java"]))
+    classDirectories.setFrom(files([debugTree]))
+    executionData.setFrom(fileTree(dir: layout.buildDirectory.get().asFile, includes: [
+        'jacoco/testDebugUnitTest.exec',
+        'outputs/unit_test_code_coverage/debugUnitTest/*.exec'
+    ]))
 }
 
 dependencies {
     implementation("com.google.crypto.tink:tink-android:1.20.0")
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.13'
 }

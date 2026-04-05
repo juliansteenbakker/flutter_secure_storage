@@ -1,0 +1,308 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  analysis:
+    name: Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter Version Info
+        run: flutter doctor -v
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: Lint Code
+        run: melos analyze
+
+  formatting:
+    name: Formatting
+    needs: analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: Check Code Formatting
+        run: melos format --output none --set-exit-if-changed
+
+  unit_tests:
+    name: Unit Tests
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: flutter_secure_storage
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pub-cache
+            flutter_secure_storage/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Unit Tests with Coverage
+        run: flutter test --coverage
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: flutter_secure_storage/coverage/lcov.info
+
+      - name: Upload Flutter Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: flutter_secure_storage/coverage/lcov.info
+          flags: flutter
+          name: codecov-flutter
+          fail_ci_if_error: true
+
+  unit_tests_android:
+    name: Android Unit Tests
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Example App (generates native build files)
+        working-directory: flutter_secure_storage/example
+        run: flutter build apk --debug
+
+      - name: Run Android Unit Tests with Coverage
+        working-directory: flutter_secure_storage/example/android
+        run: ./gradlew :flutter_secure_storage:jacocoTestReport
+
+      - name: Upload Android Coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: flutter_secure_storage/android/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+          flags: android
+          name: codecov-android
+          fail_ci_if_error: true
+
+  integration_tests_android:
+    name: Android Tests
+    needs: [unit_tests, unit_tests_android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - api-level: 23
+            target: default
+            arch: x86
+            flutter-version: "3.32.x"
+          - api-level: 24
+            target: default
+            arch: x86_64
+            flutter-version: ""
+          - api-level: 36
+            target: google_apis
+            arch: x86_64
+            flutter-version: ""
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          df -h
+
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.flutter-version || '' }}
+          channel: stable
+          cache: true
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+#      - name: Cache Gradle
+#        uses: gradle/actions/setup-gradle@v5
+
+      - name: Cache AVD
+        uses: actions/cache@v5
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}
+
+      - name: Create AVD Snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run Integration Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: flutter test integration_test
+          working-directory: flutter_secure_storage/example
+
+  integration_tests_ios:
+    name: iOS Tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    needs: [unit_tests, unit_tests_android]
+
+    env:
+      SIM_OS: iOS
+      SIM_OS_VERSION: "26.2"
+      SIM_DEVICE: "iPhone 17"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set Up Simulator
+        id: simulator
+        uses: futureware-tech/simulator-action@v5
+        with:
+          os: ${{ env.SIM_OS }}
+          os_version: ${{ env.SIM_OS_VERSION }}
+          model: ${{ env.SIM_DEVICE }}
+          erase_before_boot: true
+          wait_for_boot: true
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage/example
+        run: flutter pub get
+
+      - name: Run Integration Tests
+        working-directory: flutter_secure_storage/example
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          echo "Using simulator: $DEVICE_ID"
+          flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose
