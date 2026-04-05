@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+import com.it_nomads.fluttersecurestorage.NamespacedConfigSource;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -26,24 +27,29 @@ public class StorageCipherFactoryTest {
     // Must match the private constants in StorageCipherFactory
     private static final String PREF_KEY_ALGORITHM     = "FlutterSecureSAlgorithmKey";
     private static final String PREF_STORAGE_ALGORITHM = "FlutterSecureSAlgorithmStorage";
+    private static final String NAMESPACED_PREFS_NAME  = "FlutterSecureStorageConfiguration:TestNamespace";
 
-    private SharedPreferences configPrefs;
+    private NamespacedConfigSource configSource;
+    private SharedPreferences namespacedPrefs;
     private FlutterSecureStorageConfig config;
 
     @Before
     public void setUp() {
         Context context = RuntimeEnvironment.getApplication();
-        configPrefs = context.getSharedPreferences("TestConfig", Context.MODE_PRIVATE);
-        configPrefs.edit().clear().commit();
+        configSource = new NamespacedConfigSource(context, "TestNamespace");
+        namespacedPrefs = context.getSharedPreferences(NAMESPACED_PREFS_NAME, Context.MODE_PRIVATE);
+        namespacedPrefs.edit().clear().commit();
+        // Clear legacy global config to ensure test isolation
+        context.getSharedPreferences("FlutterSecureStorageConfiguration", Context.MODE_PRIVATE).edit().clear().commit();
         config = new FlutterSecureStorageConfig(new HashMap<>());
     }
 
     private StorageCipherFactory factory(String keyAlg, String storageAlg) {
-        return new StorageCipherFactory(configPrefs, keyAlg, storageAlg, config);
+        return new StorageCipherFactory(configSource, keyAlg, storageAlg, config);
     }
 
     private void saveAlgorithms(String keyAlg, String storageAlg) {
-        configPrefs.edit()
+        configSource.edit()
                 .putString(PREF_KEY_ALGORITHM, keyAlg)
                 .putString(PREF_STORAGE_ALGORITHM, storageAlg)
                 .commit();
@@ -65,8 +71,8 @@ public class StorageCipherFactoryTest {
     public void noSavedMarkers_writesCurrentAlgorithmsToPrefs() {
         factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
 
-        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", configPrefs.getString(PREF_KEY_ALGORITHM, null));
-        assertEquals("AES_GCM_NoPadding",                     configPrefs.getString(PREF_STORAGE_ALGORITHM, null));
+        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", namespacedPrefs.getString(PREF_KEY_ALGORITHM, null));
+        assertEquals("AES_GCM_NoPadding",                     namespacedPrefs.getString(PREF_STORAGE_ALGORITHM, null));
     }
 
     @Test
