@@ -15,8 +15,14 @@ import org.robolectric.annotation.Config;
 
 import java.util.HashMap;
 
+import java.security.Key;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -196,5 +202,41 @@ public class StorageCipherFactoryTest {
 
         assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", target.getString(PREF_KEY_ALGORITHM, null));
         assertEquals("AES_GCM_NoPadding",                     target.getString(PREF_STORAGE_ALGORITHM, null));
+    }
+
+    // -------------------------------------------------------------------------
+    // createStorageCipher — exercises the three dispatch branches
+    // -------------------------------------------------------------------------
+
+    /**
+     * Minimal KeyCipher that wraps/unwraps using raw key bytes.
+     * Allows StorageCipherImplementation constructors to work without Android KeyStore.
+     */
+    private static class FakeKeyCipher implements KeyCipher {
+        @Override public byte[] wrap(Key key) { return key.getEncoded(); }
+        @Override public Key unwrap(byte[] wrappedKey, String algorithm) {
+            return new SecretKeySpec(wrappedKey, algorithm);
+        }
+        @Override public Cipher getCipher(Context context) { return null; }
+        @Override public void deleteKey() {}
+    }
+
+    @Test
+    public void createStorageCipher_gcmAlgorithm_withNonKeyStoreKeyCipher_returnsGcmImplementation()
+            throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        StorageCipher result = factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .createStorageCipher(context, new FakeKeyCipher(), null, StorageCipherAlgorithm.AES_GCM_NoPadding);
+        assertNotNull(result);
+        assertTrue(result instanceof StorageCipherImplementationGCM);
+    }
+
+    @Test
+    public void createStorageCipher_cbcAlgorithm_returnsCbcImplementation() throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        StorageCipher result = factory("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding")
+                .createStorageCipher(context, new FakeKeyCipher(), null, StorageCipherAlgorithm.AES_CBC_PKCS7Padding);
+        assertNotNull(result);
+        assertTrue(result instanceof StorageCipherImplementationAES18);
     }
 }

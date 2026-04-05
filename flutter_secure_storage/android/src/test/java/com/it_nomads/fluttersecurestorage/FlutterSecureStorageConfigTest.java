@@ -272,6 +272,14 @@ public class FlutterSecureStorageConfigTest {
     }
 
     @Test
+    public void storageNamespace_nullValue_treatedAsAbsent() {
+        // Covers the `value instanceof String` = false branch when a null is placed in the map
+        Map<String, Object> options = new HashMap<>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_STORAGE_NAMESPACE, null);
+        assertNull(new FlutterSecureStorageConfig(options).getStorageNamespace());
+    }
+
+    @Test
     public void defaults_storageNamespace_isNull() {
         assertNull(emptyConfig().getStorageNamespace());
     }

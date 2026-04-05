@@ -77,7 +77,7 @@ public class StorageCipherFactory {
      * Dynamically selects the appropriate StorageCipher implementation based on
      * the KeyCipher type and StorageCipherAlgorithm.
      */
-    private StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
+    /* package */ StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
                                                Cipher cipher, StorageCipherAlgorithm algorithm) throws Exception {
         // For AES_GCM_NoPadding, choose implementation based on KeyCipher type
         if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {
