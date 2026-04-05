@@ -1,4 +1,9 @@
 ## NEXT
+
+### Android
+- Added `storageNamespace` option to `AndroidOptions` for full namespace isolation across storage instances (SharedPreferences, KeyStore aliases, config/key storage). Use this instead of `sharedPreferencesName` when running multiple `FlutterSecureStorage` instances with different cipher configurations.
+- Deprecated `sharedPreferencesName` in favor of `storageNamespace`, which provides complete isolation rather than data-only isolation.
+
 **Fixes:**
 - Fixed crash on biometric failure (not error).
 
