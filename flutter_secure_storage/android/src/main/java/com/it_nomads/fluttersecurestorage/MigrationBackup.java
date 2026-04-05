@@ -344,7 +344,7 @@ public class MigrationBackup {
         // If _MIGRATED markers exist, step 5 already ran in a prior crashed run and wrote the new
         // wrapped AES key to keyStorage. Deleting it now would cause BAD_DECRYPT because step 5
         // will skip those keys (they're already migrated) and never rewrite the key.
-        if (preservedCount == 0) {
+        if (configSource == null || !hasMigratedMarkers(configSource, keyPrefix)) {
             // No already-migrated keys — safe to delete keyStorage originals
             SharedPreferences.Editor keyEditor = keyStorage.edit();
             for (Map.Entry<String, ?> entry : keyStorage.getAll().entrySet()) {
@@ -356,8 +356,8 @@ public class MigrationBackup {
             }
             keyEditor.commit();
         } else {
-            // Some keys were already migrated in a prior run — the new wrapped AES key is in
-            // keyStorage and must be preserved. Step 5 will skip those keys and won't rewrite it.
+            // _MIGRATED markers exist — step 5 already ran in a prior crashed run and wrote the
+            // new wrapped AES key to keyStorage. Must be preserved.
             Log.d(TAG, "Preserving keyStorage originals (new wrapped AES key) — already-migrated keys exist");
         }
 
