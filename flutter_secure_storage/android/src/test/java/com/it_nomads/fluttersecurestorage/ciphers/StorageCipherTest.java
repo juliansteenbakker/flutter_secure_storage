@@ -2,6 +2,8 @@ package com.it_nomads.fluttersecurestorage.ciphers;
 
 import android.content.Context;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -11,6 +13,7 @@ import org.robolectric.annotation.Config;
 
 import java.security.Key;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,6 +27,7 @@ import static org.junit.Assert.assertNotEquals;
 public class StorageCipherTest {
 
     private Context context;
+    private FlutterSecureStorageConfig defaultConfig;
 
     /**
      * Fake KeyCipher that wraps/unwraps by encoding the raw key bytes.
@@ -53,6 +57,7 @@ public class StorageCipherTest {
     @Before
     public void setUp() {
         context = RuntimeEnvironment.getApplication();
+        defaultConfig = new FlutterSecureStorageConfig(new HashMap<>());
     }
 
     // -------------------------------------------------------------------------
@@ -61,7 +66,7 @@ public class StorageCipherTest {
 
     @Test
     public void gcm_encryptDecrypt_roundTrip() throws Exception {
-        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "hello secure world".getBytes(StandardCharsets.UTF_8);
 
         byte[] encrypted = cipher.encrypt(plaintext);
@@ -72,7 +77,7 @@ public class StorageCipherTest {
 
     @Test
     public void gcm_encrypt_producesNonEmptyOutput() throws Exception {
-        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] encrypted = cipher.encrypt("test".getBytes(StandardCharsets.UTF_8));
 
         assertNotNull(encrypted);
@@ -81,7 +86,7 @@ public class StorageCipherTest {
 
     @Test
     public void gcm_encrypt_outputDiffersFromInput() throws Exception {
-        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "sensitive data".getBytes(StandardCharsets.UTF_8);
         byte[] encrypted = cipher.encrypt(plaintext);
 
@@ -92,7 +97,7 @@ public class StorageCipherTest {
 
     @Test
     public void gcm_encrypt_differentCallsProduceDifferentCiphertext() throws Exception {
-        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "same input".getBytes(StandardCharsets.UTF_8);
 
         byte[] first = cipher.encrypt(plaintext);
@@ -105,12 +110,12 @@ public class StorageCipherTest {
     @Test
     public void gcm_keyPersistedAcrossInstances() throws Exception {
         // First instance generates and stores the key
-        StorageCipherImplementationGCM first = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM first = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "persistent key test".getBytes(StandardCharsets.UTF_8);
         byte[] encrypted = first.encrypt(plaintext);
 
         // Second instance should load the same key from SharedPreferences
-        StorageCipherImplementationGCM second = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM second = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] decrypted = second.decrypt(encrypted);
 
         assertArrayEquals(plaintext, decrypted);
@@ -118,11 +123,11 @@ public class StorageCipherTest {
 
     @Test
     public void gcm_deleteKey_removesKeyFromPreferences() throws Exception {
-        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM cipher = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         cipher.deleteKey(context);
 
         // After deletion, a new instance should generate a fresh key (not throw)
-        StorageCipherImplementationGCM fresh = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationGCM fresh = new StorageCipherImplementationGCM(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "after delete".getBytes(StandardCharsets.UTF_8);
         assertArrayEquals(plaintext, fresh.decrypt(fresh.encrypt(plaintext)));
     }
@@ -133,7 +138,7 @@ public class StorageCipherTest {
 
     @Test
     public void aes18_encryptDecrypt_roundTrip() throws Exception {
-        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "hello secure world".getBytes(StandardCharsets.UTF_8);
 
         byte[] encrypted = cipher.encrypt(plaintext);
@@ -144,7 +149,7 @@ public class StorageCipherTest {
 
     @Test
     public void aes18_encrypt_producesNonEmptyOutput() throws Exception {
-        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] encrypted = cipher.encrypt("test".getBytes(StandardCharsets.UTF_8));
 
         assertNotNull(encrypted);
@@ -153,7 +158,7 @@ public class StorageCipherTest {
 
     @Test
     public void aes18_encrypt_outputDiffersFromInput() throws Exception {
-        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "sensitive data".getBytes(StandardCharsets.UTF_8);
         byte[] encrypted = cipher.encrypt(plaintext);
 
@@ -162,7 +167,7 @@ public class StorageCipherTest {
 
     @Test
     public void aes18_encrypt_differentCallsProduceDifferentCiphertext() throws Exception {
-        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "same input".getBytes(StandardCharsets.UTF_8);
 
         byte[] first = cipher.encrypt(plaintext);
@@ -175,12 +180,12 @@ public class StorageCipherTest {
     @Test
     public void aes18_keyPersistedAcrossInstances() throws Exception {
         // First instance generates and stores the key
-        StorageCipherImplementationAES18 first = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 first = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "persistent key test".getBytes(StandardCharsets.UTF_8);
         byte[] encrypted = first.encrypt(plaintext);
 
         // Second instance should load the same key from SharedPreferences
-        StorageCipherImplementationAES18 second = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 second = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] decrypted = second.decrypt(encrypted);
 
         assertArrayEquals(plaintext, decrypted);
@@ -188,11 +193,11 @@ public class StorageCipherTest {
 
     @Test
     public void aes18_deleteKey_removesKeyFromPreferences() throws Exception {
-        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 cipher = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         cipher.deleteKey(context);
 
         // After deletion, a new instance should generate a fresh key (not throw)
-        StorageCipherImplementationAES18 fresh = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null);
+        StorageCipherImplementationAES18 fresh = new StorageCipherImplementationAES18(context, new FakeKeyCipher(), null, defaultConfig);
         byte[] plaintext = "after delete".getBytes(StandardCharsets.UTF_8);
         assertArrayEquals(plaintext, fresh.decrypt(fresh.encrypt(plaintext)));
     }
