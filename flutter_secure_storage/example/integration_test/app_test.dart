@@ -10,6 +10,123 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('Secure Storage Tests', () {
+    testWidgets(
+      'Android: deleteAll() must not clear other '
+      'sharedPreferencesName namespace (regression #1023)',
+      (WidgetTester tester) async {
+        // This is a plugin-level regression test for:
+        // https://github.com/juliansteenbakker/flutter_secure_storage/issues/1023
+        //
+        // The Android implementation must isolate namespaces created via
+        // AndroidOptions.sharedPreferencesName. A deleteAll() issued against
+        // one
+        // namespace must not delete keys stored in another namespace.
+        final pageObject = await _setupHomePage(tester);
+
+        // Use the app's popup menu path to ensure the plugin is initialized and
+        // stable before we run the direct namespace assertions below.
+        await pageObject.deleteAll();
+
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_a'),
+        );
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_b'),
+        );
+
+        const key = 'it_android_namespace_key';
+        const valueA = 'value_a';
+        const valueB = 'value_b';
+
+        // Arrange
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Act
+        await storageB.deleteAll();
+
+        // Assert
+        final readA = await storageA.read(key: key);
+        expect(
+          readA,
+          equals(valueA),
+          reason: 'Deleting keys from namespace_b must not affect namespace_a',
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
+
+    testWidgets(
+      'Android: namespaces with different cipher algorithms must not interfere '
+      '(full storageNamespace isolation)',
+      (WidgetTester tester) async {
+        // This test verifies that storageNamespace provides full isolation:
+        // data prefs, config markers, KeyStore aliases, and key storage.
+        // Different namespaces can safely use different cipher algorithms
+        // without conflicting KeyStore entries or wrapped keys.
+        final pageObject = await _setupHomePage(tester);
+        await pageObject.deleteAll();
+
+        // Use different algorithms per namespace to test full isolation
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            storageNamespace: 'namespace_alg_a',
+            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+            storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          ),
+        );
+        // storageB uses default algorithms (OAEP/GCM) — distinct from storageA
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_alg_b'),
+        );
+
+        const key = 'it_android_algorithm_isolation_key';
+        const valueA = 'value_algorithm_a';
+        const valueB = 'value_algorithm_b';
+
+        // Arrange: Write values to both namespaces with different algorithms
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Verify both can read their own values
+        expect(await storageA.read(key: key), equals(valueA));
+        expect(await storageB.read(key: key), equals(valueB));
+
+        // Act: Force re-initialization by reading again (triggers config
+        // marker checks). This simulates what happens when switching between
+        // namespaces.
+        final readA2 = await storageA.read(key: key);
+        final readB2 = await storageB.read(key: key);
+
+        // Assert: Both namespaces should still read their correct values.
+        // With full storageNamespace isolation, each namespace has its own
+        // KeyStore aliases and key storage, so different algorithms cannot
+        // interfere.
+        expect(
+          readA2,
+          equals(valueA),
+          reason: 'Namespace A must read its value correctly even after '
+              'namespace B initializes with different algorithms',
+        );
+        expect(
+          readB2,
+          equals(valueB),
+          reason: 'Namespace B must read its value correctly even after '
+              'namespace A initializes with different algorithms',
+        );
+
+        // Additional verification: Write new values and read back
+        const newValueA = 'updated_value_a';
+        const newValueB = 'updated_value_b';
+        await storageA.write(key: key, value: newValueA);
+        await storageB.write(key: key, value: newValueB);
+
+        expect(await storageA.read(key: key), equals(newValueA));
+        expect(await storageB.read(key: key), equals(newValueB));
+      },
+      skip: !Platform.isAndroid,
+    );
+
     testWidgets('Add a Random Row', (WidgetTester tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
