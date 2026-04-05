@@ -174,7 +174,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
-      max-parallel: 1
       matrix:
         include:
           - api-level: 23
