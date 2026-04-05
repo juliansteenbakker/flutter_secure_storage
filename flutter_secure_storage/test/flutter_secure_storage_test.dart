@@ -372,6 +372,7 @@ void main() {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'true',
         'migrateOnAlgorithmChange': 'true',
+        'migrateWithBackup': 'false',
         'enforceBiometrics': 'false',
         'keyCipherAlgorithm': 'RSA_ECB_OAEPwithSHA_256andMGF1Padding',
         'storageCipherAlgorithm': 'AES_GCM_NoPadding',
@@ -408,6 +409,7 @@ void main() {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'false',
         'migrateOnAlgorithmChange': 'false',
+        'migrateWithBackup': 'false',
         'enforceBiometrics': 'true',
         'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
         'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
@@ -426,6 +428,7 @@ void main() {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'true',
         'migrateOnAlgorithmChange': 'true',
+        'migrateWithBackup': 'false',
         'enforceBiometrics': 'false',
         'keyCipherAlgorithm': 'AES_GCM_NoPadding',
         'storageCipherAlgorithm': 'AES_GCM_NoPadding',
@@ -449,6 +452,7 @@ void main() {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'true',
         'migrateOnAlgorithmChange': 'true',
+        'migrateWithBackup': 'false',
         'enforceBiometrics': 'true',
         'keyCipherAlgorithm': 'AES_GCM_NoPadding',
         'storageCipherAlgorithm': 'AES_GCM_NoPadding',
@@ -514,6 +518,7 @@ void main() {
         'encryptedSharedPreferences': 'false',
         'resetOnError': 'false',
         'migrateOnAlgorithmChange': 'false',
+        'migrateWithBackup': 'false',
         'enforceBiometrics': 'true',
         'keyCipherAlgorithm': 'RSA_ECB_PKCS1Padding',
         'storageCipherAlgorithm': 'AES_CBC_PKCS7Padding',
@@ -611,6 +616,26 @@ void main() {
 
       expect(options.toMap()['migrateOnAlgorithmChange'], 'false');
       expect(options.toMap()['resetOnError'], 'true');
+    });
+
+    test('AndroidOptions migrateWithBackup default is false', () {
+      const options = AndroidOptions.defaultOptions;
+
+      expect(options.toMap()['migrateWithBackup'], 'false');
+    });
+
+    test('AndroidOptions with migrateWithBackup enabled', () {
+      const options = AndroidOptions(migrateWithBackup: true);
+
+      expect(options.toMap()['migrateWithBackup'], 'true');
+    });
+
+    test('copyWith can enable migrateWithBackup', () {
+      const original = AndroidOptions.defaultOptions;
+      final copied = original.copyWith(migrateWithBackup: true);
+
+      expect(copied.toMap()['migrateWithBackup'], 'true');
+      expect(copied.toMap()['migrateOnAlgorithmChange'], 'true');
     });
 
     test('Deprecated encryptedSharedPreferences still functions', () {
