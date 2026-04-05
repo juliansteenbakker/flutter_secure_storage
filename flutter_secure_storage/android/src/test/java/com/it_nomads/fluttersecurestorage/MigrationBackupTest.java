@@ -26,7 +26,7 @@ public class MigrationBackupTest {
 
     private SharedPreferences dataSource;
     private SharedPreferences keyStorage;
-    private SharedPreferences configSource;
+    private NamespacedConfigSource configSource;
     private FlutterSecureStorageConfig config;
     private FlutterSecureStorageConfig configWithBackup;
 
@@ -35,7 +35,7 @@ public class MigrationBackupTest {
         Context context = RuntimeEnvironment.getApplication();
         dataSource   = context.getSharedPreferences("TestData",   Context.MODE_PRIVATE);
         keyStorage   = context.getSharedPreferences("TestKeys",   Context.MODE_PRIVATE);
-        configSource = context.getSharedPreferences("TestConfig", Context.MODE_PRIVATE);
+        configSource = new NamespacedConfigSource(context, "TestConfig");
 
         dataSource.edit().clear().commit();
         keyStorage.edit().clear().commit();
