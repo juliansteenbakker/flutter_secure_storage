@@ -32,10 +32,8 @@ import java.util.concurrent.Executors;
 import javax.crypto.Cipher;
 
 public class FlutterSecureStorage {
-
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
-    private static final String SHARED_PREFERENCES_CONFIG_NAME = "FlutterSecureStorageConfiguration";
 
     private FlutterSecureStorageConfig config;
     @NonNull
@@ -146,23 +144,19 @@ public class FlutterSecureStorage {
     }
 
     public void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
-        this.config = config;
-
-        // Use cached preferences if available
         if (preferences != null) {
             callback.onSuccess(null);
             return;
         }
+        this.config = config;
 
         SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
-                config.getSharedPreferencesName(),
+                config.getEffectiveDataPrefsName(),
                 Context.MODE_PRIVATE
         );
 
-        SharedPreferences configSource = context.getSharedPreferences(
-                SHARED_PREFERENCES_CONFIG_NAME,
-                Context.MODE_PRIVATE
-        );
+        // Use namespaced config with legacy fallback for backwards compatibility
+        NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
@@ -259,7 +253,7 @@ public class FlutterSecureStorage {
         }
     }
 
-    private void initializeStorageCipher(SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
+    private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         try {
             storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
@@ -335,7 +329,7 @@ public class FlutterSecureStorage {
      * @param dataSource SharedPreferences containing encrypted data
      * @param callback Callback to notify of success/failure
      */
-    private void migrateData(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateData(NamespacedConfigSource configSource, SharedPreferences dataSource,
                             SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting data migration from saved to current cipher algorithms...");
 
@@ -501,7 +495,7 @@ public class FlutterSecureStorage {
      * @param dataSource SharedPreferences containing encrypted data
      * @param callback Callback to notify of success/failure
      */
-    private void migrateNonBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateNonBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                     SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting non-biometric migration (no authentication required)...");
 
@@ -560,7 +554,7 @@ public class FlutterSecureStorage {
     /**
      * Updates algorithm markers in config to match current cipher algorithms.
      */
-    private void updateAlgorithmMarkers(SharedPreferences configSource) {
+    private void updateAlgorithmMarkers(NamespacedConfigSource configSource) {
         SharedPreferences.Editor editor = configSource.edit();
         storageCipherFactory.storeCurrentAlgorithms(editor);
         editor.commit();
@@ -580,7 +574,7 @@ public class FlutterSecureStorage {
      * @param toBiometric True if migrating TO a biometric algorithm
      * @param callback Callback to notify of success/failure
      */
-    private void migrateBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                  boolean fromBiometric, boolean toBiometric,
                                  SecurePreferencesCallback<Void> callback) {
         Log.i(TAG, "Starting biometric migration (authentication required)...");
@@ -625,7 +619,7 @@ public class FlutterSecureStorage {
      * Migrates FROM biometric → TO non-biometric.
      * Requires authentication with OLD biometric cipher to decrypt.
      */
-    private void migrateFromBiometricToNonBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateFromBiometricToNonBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                     SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Get OLD biometric cipher (requires authentication)
@@ -703,7 +697,7 @@ public class FlutterSecureStorage {
      * Migrates FROM non-biometric → TO biometric.
      * Requires authentication with NEW biometric cipher to encrypt.
      */
-    private void migrateFromNonBiometricToBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateFromNonBiometricToBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                                     SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Decrypt with OLD non-biometric cipher (no auth)
@@ -782,7 +776,7 @@ public class FlutterSecureStorage {
      * Migrates FROM biometric → TO biometric (changing biometric algorithms).
      * Requires authentication with both OLD and NEW biometric ciphers.
      */
-    private void migrateBiometricToBiometric(SharedPreferences configSource, SharedPreferences dataSource,
+    private void migrateBiometricToBiometric(NamespacedConfigSource configSource, SharedPreferences dataSource,
                                             SecurePreferencesCallback<Void> callback) {
         try {
             // Step 1: Get OLD biometric cipher
@@ -885,13 +879,13 @@ public class FlutterSecureStorage {
         }
     }
 
-    private void setEncryptedPrefsMigrated(SharedPreferences configSource) {
+    private void setEncryptedPrefsMigrated(NamespacedConfigSource configSource) {
         SharedPreferences.Editor editor = configSource.edit();
         editor.putBoolean("ENCRYPTED_PREFERENCES_MIGRATED", true);
         editor.commit();
     }
 
-    private Boolean getEncryptedPrefsMigrated(SharedPreferences configSource) {
+    private Boolean getEncryptedPrefsMigrated(NamespacedConfigSource configSource) {
         return configSource.getBoolean("ENCRYPTED_PREFERENCES_MIGRATED", false);
     }
 
@@ -904,7 +898,7 @@ public class FlutterSecureStorage {
      * @param exception The original exception (BadPaddingException, InvalidKeyException, etc.)
      * @param errorType Human-readable description of the error type
      */
-    private void handleKeyMismatch(SharedPreferences configSource, SecurePreferencesCallback<Void> callback,
+    private void handleKeyMismatch(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
                                    Exception exception, String errorType) {
         Log.e(TAG, "Key mismatch detected during cipher initialization: " + errorType, exception);
         Log.e(TAG, "This typically occurs after an algorithm change.");
@@ -915,7 +909,7 @@ public class FlutterSecureStorage {
             Log.i(TAG, "migrateOnAlgorithmChange is enabled. Attempting data migration...");
 
             SharedPreferences dataPrefs = context.getSharedPreferences(
-                    config.getSharedPreferencesName(),
+                    config.getEffectiveDataPrefsName(),
                     Context.MODE_PRIVATE
             );
 
@@ -971,7 +965,7 @@ public class FlutterSecureStorage {
      * Deletes all encrypted data, keys, and algorithm markers, then reinitializes.
      * Extracted from handleKeyMismatch for reuse.
      */
-    private void deleteAllDataAndKeys(SharedPreferences configSource, SecurePreferencesCallback<Void> callback) {
+    private void deleteAllDataAndKeys(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         try {
             // Delete keys from AndroidKeyStore
             try {
@@ -984,7 +978,7 @@ public class FlutterSecureStorage {
 
             // Delete all encrypted data
             SharedPreferences dataPrefs = context.getSharedPreferences(
-                    config.getSharedPreferencesName(),
+                    config.getEffectiveDataPrefsName(),
                     Context.MODE_PRIVATE
             );
             dataPrefs.edit().clear().apply();
@@ -992,7 +986,7 @@ public class FlutterSecureStorage {
 
             // Delete stored wrapped keys
             SharedPreferences keyPrefs = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage",
+                    config.getEffectiveKeyStoragePrefsName(),
                     Context.MODE_PRIVATE
             );
             keyPrefs.edit().clear().apply();
@@ -1170,13 +1164,6 @@ public class FlutterSecureStorage {
             }
 
             @Override
-            public void onAuthenticationFailed() {
-                super.onAuthenticationFailed();
-                Log.w(TAG, "Biometric authentication failed, user not recognized");
-                securePreferencesCallback.onError(new Exception("Biometric authentication failed, user not recognized"));
-            }
-
-            @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
                 Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
@@ -1282,7 +1269,7 @@ public class FlutterSecureStorage {
                 .build();
         return EncryptedSharedPreferences.create(
                 context,
-                config.getSharedPreferencesName(),
+                config.getEffectiveDataPrefsName(),
                 key,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
@@ -1483,10 +1470,10 @@ public class FlutterSecureStorage {
                 MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
                                             config.getSharedPreferencesKeyPrefix());
                 MigrationBackup.deleteMigratedMarkers(configSource, config.getSharedPreferencesKeyPrefix());
-    
+
                 // Update algorithm markers to NEW algorithms
                 updateAlgorithmMarkers(configSource);
-    
+
                 // Delete OLD RSA keys from Android KeyStore
                 if (storageCipherFactory.changedKeyAlgorithm()) {
                     try {
@@ -1498,7 +1485,7 @@ public class FlutterSecureStorage {
                         Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
                     }
                 }
-    
+
                 // Update storageCipher to current
                 storageCipher = currentCipher;
 
@@ -1578,7 +1565,7 @@ public class FlutterSecureStorage {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
                     "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
-    
+
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
                 if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
@@ -1592,18 +1579,18 @@ public class FlutterSecureStorage {
                     );
                     Log.i(TAG, "Backup created successfully");
                 }
-    
+
                 // Step 1: Get OLD biometric cipher (requires authentication)
                 Log.d(TAG, "Step 1/7: Getting saved biometric cipher...");
                 KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
                 Cipher oldKeyCipher = savedKeyCipher.getCipher(context);
-    
+
                 if (oldKeyCipher == null) {
                     throw new Exception("Failed to get saved biometric cipher");
                 }
-    
+
                 Log.i(TAG, "Authenticating with OLD biometric cipher to decrypt data...");
-    
+
                 // Authenticate with OLD cipher
                 authenticateUser(oldKeyCipher, new SecurePreferencesCallback<>() {
                     @Override
@@ -1613,24 +1600,24 @@ public class FlutterSecureStorage {
                             Log.d(TAG, "Step 2/7: Decrypting all data from _BACKUP with saved biometric cipher...");
                             StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, oldKeyCipher);
                             Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
-    
+
                             // Step 3: Get NEW non-biometric cipher (no auth)
                             Log.d(TAG, "Step 3/7: Initializing current non-biometric cipher...");
                             StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
-    
+
                             // Step 4: Encrypt all data with NEW cipher
                             Log.d(TAG, "Step 4/7: Encrypting all data with current cipher...");
                             encryptAllWithCurrentCipher(decryptedCache, dataSource, currentCipher);
-    
+
                             // Step 5: Delete backup - data successfully re-encrypted
                             Log.d(TAG, "Step 5/7: Deleting backup after successful re-encryption...");
                             MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
                                                         config.getSharedPreferencesKeyPrefix());
-    
+
                             // Step 6: Update algorithm markers AFTER successful re-encryption
                             Log.d(TAG, "Step 6/7: Updating algorithm markers to current...");
                             updateAlgorithmMarkers(configSource);
-    
+
                             // Step 7: Delete OLD biometric AES key from Android KeyStore
                             Log.d(TAG, "Step 7/7: Deleting old biometric AES key from Android KeyStore...");
                             if (storageCipherFactory.changedKeyAlgorithm()) {
@@ -1643,9 +1630,9 @@ public class FlutterSecureStorage {
                                     Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
                                 }
                             }
-    
+
                             storageCipher = currentCipher;
-    
+
                             Log.i(TAG, "Biometric→Non-biometric migration WITH BACKUP completed! Data no longer requires biometric authentication.");
                             callback.onSuccess(null);
                         } catch (Exception e) {
@@ -1653,7 +1640,7 @@ public class FlutterSecureStorage {
                             callback.onError(e);
                         }
                     }
-    
+
                     @Override
                     public void onError(Exception e) {
                         Log.e(TAG, "Biometric authentication failed for migration", e);
@@ -1670,7 +1657,7 @@ public class FlutterSecureStorage {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
                     "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
-    
+
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
                 if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
@@ -1684,23 +1671,23 @@ public class FlutterSecureStorage {
                     );
                     Log.i(TAG, "Backup created successfully");
                 }
-    
+
                 // Step 1: Decrypt with OLD non-biometric cipher FROM BACKUP (no auth)
                 Log.d(TAG, "Step 1/7: Decrypting all data from _BACKUP with saved non-biometric cipher...");
                 StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, null);
                 Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
-    
+
                 // Step 2: Get NEW biometric cipher (requires authentication)
                 Log.d(TAG, "Step 2/7: Getting current biometric cipher...");
                 KeyCipher currentKeyCipher = storageCipherFactory.getCurrentKeyCipher(context);
                 Cipher newCipher = currentKeyCipher.getCipher(context);
-    
+
                 if (newCipher == null) {
                     throw new Exception("Failed to get current biometric cipher");
                 }
-    
+
                 Log.i(TAG, "Authenticating with NEW biometric cipher to encrypt data...");
-    
+
                 // Authenticate with NEW cipher
                 final Map<String, String> cachedData = decryptedCache; // Make final for lambda
                 authenticateUser(newCipher, new SecurePreferencesCallback<>() {
@@ -1710,20 +1697,20 @@ public class FlutterSecureStorage {
                             // Step 3: Initialize current biometric cipher
                             Log.d(TAG, "Step 3/7: Initializing current biometric cipher...");
                             StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, newCipher);
-    
+
                             // Step 4: Encrypt all data with NEW biometric cipher
                             Log.d(TAG, "Step 4/7: Encrypting all data with current biometric cipher...");
                             encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
-    
+
                             // Step 5: Delete backup - data successfully re-encrypted
                             Log.d(TAG, "Step 5/7: Deleting backup after successful re-encryption...");
                             MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
                                                         config.getSharedPreferencesKeyPrefix());
-    
+
                             // Step 6: Update algorithm markers AFTER successful re-encryption
                             Log.d(TAG, "Step 6/7: Updating algorithm markers to current...");
                             updateAlgorithmMarkers(configSource);
-    
+
                             // Step 7: Delete OLD RSA key from Android KeyStore
                             Log.d(TAG, "Step 7/7: Deleting old RSA key from Android KeyStore...");
                             if (storageCipherFactory.changedKeyAlgorithm()) {
@@ -1736,9 +1723,9 @@ public class FlutterSecureStorage {
                                     Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
                                 }
                             }
-    
+
                             storageCipher = currentCipher;
-    
+
                             Log.i(TAG, "Non-biometric→Biometric migration WITH BACKUP completed! Data now requires biometric authentication.");
                             callback.onSuccess(null);
                         } catch (Exception e) {
@@ -1746,7 +1733,7 @@ public class FlutterSecureStorage {
                             callback.onError(e);
                         }
                     }
-    
+
                     @Override
                     public void onError(Exception e) {
                         Log.e(TAG, "Biometric authentication failed for migration", e);
@@ -1763,7 +1750,7 @@ public class FlutterSecureStorage {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
                     "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
-    
+
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
                 if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
@@ -1777,18 +1764,18 @@ public class FlutterSecureStorage {
                     );
                     Log.i(TAG, "Backup created successfully");
                 }
-    
+
                 // Step 1: Get OLD biometric cipher
                 Log.d(TAG, "Step 1/8: Getting saved biometric cipher...");
                 KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
                 Cipher oldCipher = savedKeyCipher.getCipher(context);
-    
+
                 if (oldCipher == null) {
                     throw new Exception("Failed to get saved biometric cipher");
                 }
-    
+
                 Log.i(TAG, "Authenticating with OLD biometric cipher to decrypt data...");
-    
+
                 // First authentication: OLD cipher
                 authenticateUser(oldCipher, new SecurePreferencesCallback<>() {
                     @Override
@@ -1798,24 +1785,24 @@ public class FlutterSecureStorage {
                             Log.d(TAG, "Step 2/8: Decrypting all data from _BACKUP with saved biometric cipher...");
                             StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, oldCipher);
                             Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
-    
+
                             if (decryptedCache.isEmpty()) {
                                 Log.i(TAG, "No data found in _BACKUP keys to migrate");
                             } else {
                                 Log.i(TAG, "Found " + decryptedCache.size() + " items to migrate from _BACKUP keys");
                             }
-    
+
                             // Step 3: Get NEW biometric cipher (CONTINUES REGARDLESS)
                             Log.d(TAG, "Step 3/8: Getting current biometric cipher...");
                             KeyCipher currentKeyCipher = storageCipherFactory.getCurrentKeyCipher(context);
                             Cipher newCipher = currentKeyCipher.getCipher(context);
-    
+
                             if (newCipher == null) {
                                 throw new Exception("Failed to get current biometric cipher");
                             }
-    
+
                             Log.i(TAG, "Authenticating with NEW biometric cipher to encrypt data...");
-    
+
                             // Second authentication: NEW cipher
                             final Map<String, String> cachedData = decryptedCache;
                             authenticateUser(newCipher, new SecurePreferencesCallback<>() {
@@ -1825,7 +1812,7 @@ public class FlutterSecureStorage {
                                         // Step 4: Initialize current biometric cipher
                                         Log.d(TAG, "Step 4/8: Initializing current biometric cipher...");
                                         StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, newCipher);
-    
+
                                         // Step 5: Encrypt all data with NEW biometric cipher
                                         if (cachedData.isEmpty()) {
                                             Log.i(TAG, "Step 5/8: No data to encrypt, skipping...");
@@ -1833,16 +1820,16 @@ public class FlutterSecureStorage {
                                             Log.d(TAG, "Step 5/8: Encrypting all data with current biometric cipher...");
                                             encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
                                         }
-    
+
                                         // Step 6: Delete backup - data successfully re-encrypted
                                         Log.d(TAG, "Step 6/8: Deleting backup after successful re-encryption...");
                                         MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
                                                                     config.getSharedPreferencesKeyPrefix());
-    
+
                                         // Step 7: Update algorithm markers AFTER successful re-encryption
                                         Log.d(TAG, "Step 7/8: Updating algorithm markers to current...");
                                         updateAlgorithmMarkers(configSource);
-    
+
                                         // Step 8: Delete OLD biometric AES key from Android KeyStore
                                         Log.d(TAG, "Step 8/8: Deleting old biometric AES key from Android KeyStore...");
                                         if (storageCipherFactory.changedKeyAlgorithm()) {
@@ -1855,9 +1842,9 @@ public class FlutterSecureStorage {
                                                 Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
                                             }
                                         }
-    
+
                                         storageCipher = currentCipher;
-    
+
                                         Log.i(TAG, "Biometric→Biometric migration WITH BACKUP completed! Data now uses new biometric cipher.");
                                         Log.i(TAG, "Migrated " + cachedData.size() + " data items with new biometric algorithm.");
                                         callback.onSuccess(null);
@@ -1866,7 +1853,7 @@ public class FlutterSecureStorage {
                                         callback.onError(e);
                                     }
                                 }
-    
+
                                 @Override
                                 public void onError(Exception e) {
                                     Log.e(TAG, "Second biometric authentication failed for migration", e);
@@ -1878,7 +1865,7 @@ public class FlutterSecureStorage {
                             callback.onError(e);
                         }
                     }
-    
+
                     @Override
                     public void onError(Exception e) {
                         Log.e(TAG, "First biometric authentication failed for migration", e);

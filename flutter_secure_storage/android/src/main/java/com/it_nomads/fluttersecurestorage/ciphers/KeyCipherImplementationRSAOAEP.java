@@ -27,7 +27,7 @@ class KeyCipherImplementationRSAOAEP extends KeyCipherImplementationRSA18 {
 
     @Override
     protected String createKeyAlias() {
-        return context.getPackageName() + ".FlutterSecureStoragePluginKeyOAEP";
+        return context.getPackageName() + ".FlutterSecureStoragePluginKeyOAEP" + config.getKeyAliasSuffix();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
