@@ -28,10 +28,10 @@ void main() {
         await pageObject.deleteAll();
 
         const storageA = FlutterSecureStorage(
-          aOptions: AndroidOptions(sharedPreferencesName: 'namespace_a'),
+          aOptions: AndroidOptions(storageNamespace: 'namespace_a'),
         );
         const storageB = FlutterSecureStorage(
-          aOptions: AndroidOptions(sharedPreferencesName: 'namespace_b'),
+          aOptions: AndroidOptions(storageNamespace: 'namespace_b'),
         );
 
         const key = 'it_android_namespace_key';
@@ -50,8 +50,7 @@ void main() {
         expect(
           readA,
           equals(valueA),
-          reason:
-              'Deleting keys from namespace_b must not affect namespace_a',
+          reason: 'Deleting keys from namespace_b must not affect namespace_a',
         );
       },
       skip: !Platform.isAndroid,
@@ -73,17 +72,12 @@ void main() {
           aOptions: AndroidOptions(
             storageNamespace: 'namespace_alg_a',
             keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-            storageCipherAlgorithm:
-                StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+            storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
           ),
         );
+        // storageB uses default algorithms (OAEP/GCM) — distinct from storageA
         const storageB = FlutterSecureStorage(
-          aOptions: AndroidOptions(
-            storageNamespace: 'namespace_alg_b',
-            keyCipherAlgorithm:
-                KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
-            storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
-          ),
+          aOptions: AndroidOptions(storageNamespace: 'namespace_alg_b'),
         );
 
         const key = 'it_android_algorithm_isolation_key';
@@ -111,15 +105,13 @@ void main() {
         expect(
           readA2,
           equals(valueA),
-          reason:
-              'Namespace A must read its value correctly even after '
+          reason: 'Namespace A must read its value correctly even after '
               'namespace B initializes with different algorithms',
         );
         expect(
           readB2,
           equals(valueB),
-          reason:
-              'Namespace B must read its value correctly even after '
+          reason: 'Namespace B must read its value correctly even after '
               'namespace A initializes with different algorithms',
         );
 

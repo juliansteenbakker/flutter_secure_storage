@@ -249,4 +249,29 @@ public class FlutterSecureStorageConfigTest {
         FlutterSecureStorageConfig config = configFrom(FlutterSecureStorageConfig.PREF_OPTION_ENFORCE_BIOMETRICS, "true");
         assertTrue(config.toString().contains("enforceBiometrics=true"));
     }
+
+    // -------------------------------------------------------------------------
+    // migrateWithBackup
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void shouldMigrateWithBackup_defaultIsFalse() {
+        assertFalse(new FlutterSecureStorageConfig(new HashMap<>()).shouldMigrateWithBackup());
+    }
+
+    @Test
+    public void shouldMigrateWithBackup_trueWhenSet() {
+        FlutterSecureStorageConfig config = configFrom(
+            FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_WITH_BACKUP, "true"
+        );
+        assertTrue(config.shouldMigrateWithBackup());
+    }
+
+    @Test
+    public void toString_containsMigrateWithBackup() {
+        FlutterSecureStorageConfig config = configFrom(
+            FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_WITH_BACKUP, "true"
+        );
+        assertTrue(config.toString().contains("migrateWithBackup=true"));
+    }
 }
