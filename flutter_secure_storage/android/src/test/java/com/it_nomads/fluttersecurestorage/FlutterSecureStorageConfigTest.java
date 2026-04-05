@@ -7,6 +7,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class FlutterSecureStorageConfigTest {
@@ -248,6 +249,74 @@ public class FlutterSecureStorageConfigTest {
     public void toString_containsEnforceBiometrics() {
         FlutterSecureStorageConfig config = configFrom(FlutterSecureStorageConfig.PREF_OPTION_ENFORCE_BIOMETRICS, "true");
         assertTrue(config.toString().contains("enforceBiometrics=true"));
+    }
+
+    // -------------------------------------------------------------------------
+    // storageNamespace
+    // -------------------------------------------------------------------------
+
+    private FlutterSecureStorageConfig configWithNamespace(String namespace) {
+        Map<String, Object> options = new HashMap<>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_STORAGE_NAMESPACE, namespace);
+        return new FlutterSecureStorageConfig(options);
+    }
+
+    @Test
+    public void storageNamespace_parsedFromOptions() {
+        assertEquals("MyNamespace", configWithNamespace("MyNamespace").getStorageNamespace());
+    }
+
+    @Test
+    public void storageNamespace_emptyString_treatedAsNull() {
+        assertNull(configWithNamespace("").getStorageNamespace());
+    }
+
+    @Test
+    public void defaults_storageNamespace_isNull() {
+        assertNull(emptyConfig().getStorageNamespace());
+    }
+
+    @Test
+    public void hasStorageNamespace_trueWhenSet() {
+        assertTrue(configWithNamespace("MyNamespace").hasStorageNamespace());
+    }
+
+    @Test
+    public void hasStorageNamespace_falseWhenNotSet() {
+        assertFalse(emptyConfig().hasStorageNamespace());
+    }
+
+    @Test
+    public void getEffectiveDataPrefsName_returnsNamespace_whenSet() {
+        assertEquals("MyNamespace", configWithNamespace("MyNamespace").getEffectiveDataPrefsName());
+    }
+
+    @Test
+    public void getEffectiveDataPrefsName_returnsSharedPreferencesName_whenNoNamespace() {
+        assertEquals("FlutterSecureStorage", emptyConfig().getEffectiveDataPrefsName());
+    }
+
+    @Test
+    public void getEffectiveKeyStoragePrefsName_withNamespace() {
+        assertEquals(
+            "FlutterSecureKeyStorage:MyNamespace",
+            configWithNamespace("MyNamespace").getEffectiveKeyStoragePrefsName()
+        );
+    }
+
+    @Test
+    public void getEffectiveKeyStoragePrefsName_withoutNamespace() {
+        assertEquals("FlutterSecureKeyStorage", emptyConfig().getEffectiveKeyStoragePrefsName());
+    }
+
+    @Test
+    public void getKeyAliasSuffix_withNamespace() {
+        assertEquals(".MyNamespace", configWithNamespace("MyNamespace").getKeyAliasSuffix());
+    }
+
+    @Test
+    public void getKeyAliasSuffix_withoutNamespace() {
+        assertEquals("", emptyConfig().getKeyAliasSuffix());
     }
 
     // -------------------------------------------------------------------------
