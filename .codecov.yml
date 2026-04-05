@@ -1,0 +1,38 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+      flutter:
+        flags: [flutter]
+        target: auto
+        threshold: 1%
+      android:
+        flags: [android]
+        target: auto
+        threshold: 1%
+
+flags:
+  flutter:
+    paths:
+      - flutter_secure_storage/lib/
+    carryforward: true
+  android:
+    paths:
+      - flutter_secure_storage/android/src/main/java/
+    carryforward: true
+
+ignore:
+  # FlutterSecureStorage is covered by Android integration tests, not unit tests
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/FlutterSecureStorage.java"
+  # FlutterSecureStoragePlugin is Flutter channel glue, not unit tested
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/FlutterSecureStoragePlugin.java"
+  # crypto/ is a bundled copy of the AndroidX crypto library, not our code
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/crypto/**"
+  # KeyCipher implementations require AndroidKeyStore (hardware-backed), covered by integration tests
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/KeyCipherImplementationAES23.java"
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/KeyCipherImplementationRSA18.java"
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/KeyCipherImplementationRSAOAEP.java"
+  # StorageCipherImplementationAES23 requires an initialized biometric Cipher, covered by integration tests
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/StorageCipherImplementationAES23.java"

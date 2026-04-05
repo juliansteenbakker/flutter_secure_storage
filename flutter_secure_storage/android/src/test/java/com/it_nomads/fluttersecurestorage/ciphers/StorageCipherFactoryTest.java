@@ -1,0 +1,194 @@
+package com.it_nomads.fluttersecurestorage.ciphers;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
+
+import java.util.HashMap;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34)
+public class StorageCipherFactoryTest {
+
+    // Must match the private constants in StorageCipherFactory
+    private static final String PREF_KEY_ALGORITHM     = "FlutterSecureSAlgorithmKey";
+    private static final String PREF_STORAGE_ALGORITHM = "FlutterSecureSAlgorithmStorage";
+
+    private SharedPreferences configPrefs;
+    private FlutterSecureStorageConfig config;
+
+    @Before
+    public void setUp() {
+        Context context = RuntimeEnvironment.getApplication();
+        configPrefs = context.getSharedPreferences("TestConfig", Context.MODE_PRIVATE);
+        configPrefs.edit().clear().commit();
+        config = new FlutterSecureStorageConfig(new HashMap<>());
+    }
+
+    private StorageCipherFactory factory(String keyAlg, String storageAlg) {
+        return new StorageCipherFactory(configPrefs, keyAlg, storageAlg, config);
+    }
+
+    private void saveAlgorithms(String keyAlg, String storageAlg) {
+        configPrefs.edit()
+                .putString(PREF_KEY_ALGORITHM, keyAlg)
+                .putString(PREF_STORAGE_ALGORITHM, storageAlg)
+                .commit();
+    }
+
+    // -------------------------------------------------------------------------
+    // First launch — no saved algorithm markers
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void noSavedMarkers_savedAlgorithmsDefaultToLegacy() {
+        // With no markers, saved algorithms are the v9.2.4 defaults.
+        // Current is OAEP+GCM, so re-encryption must be required.
+        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
+    @Test
+    public void noSavedMarkers_writesCurrentAlgorithmsToPrefs() {
+        factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", configPrefs.getString(PREF_KEY_ALGORITHM, null));
+        assertEquals("AES_GCM_NoPadding",                     configPrefs.getString(PREF_STORAGE_ALGORITHM, null));
+    }
+
+    @Test
+    public void noSavedMarkers_withLegacyCurrentAlgorithms_doesNotRequireReEncryption() {
+        // App never changed defaults — current == saved legacy defaults, nothing to migrate.
+        assertFalse(factory("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding")
+                .requiresReEncryption());
+    }
+
+    // -------------------------------------------------------------------------
+    // Saved markers present — algorithm change detection
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void savedMatchesCurrent_doesNotRequireReEncryption() {
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
+    @Test
+    public void keyAlgorithmChanged_requiresReEncryption() {
+        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+
+        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
+    @Test
+    public void storageAlgorithmChanged_requiresReEncryption() {
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
+
+        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
+    // -------------------------------------------------------------------------
+    // changedKeyAlgorithm
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void changedKeyAlgorithm_trueWhenKeyAlgorithmChanged() {
+        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+
+        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .changedKeyAlgorithm());
+    }
+
+    @Test
+    public void changedKeyAlgorithm_falseWhenOnlyStorageAlgorithmChanged() {
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
+
+        StorageCipherFactory f = factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        assertFalse(f.changedKeyAlgorithm());
+        assertTrue(f.requiresReEncryption()); // storage still changed
+    }
+
+    @Test
+    public void changedKeyAlgorithm_falseWhenNothingChanged() {
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .changedKeyAlgorithm());
+    }
+
+    // -------------------------------------------------------------------------
+    // Legacy algorithm name compatibility
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void legacyBiometricKeyName_resolvedToCurrentEnum() {
+        saveAlgorithms("AES_GCM_NoPadding_BIOMETRIC", "AES_GCM_NoPadding_BIOMETRIC");
+
+        // Legacy names resolve to the same enum values as current names — no migration needed
+        assertFalse(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
+    @Test
+    public void legacyBiometricKeyName_changedKeyAlgorithm_false() {
+        saveAlgorithms("AES_GCM_NoPadding_BIOMETRIC", "AES_GCM_NoPadding");
+
+        assertFalse(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .changedKeyAlgorithm());
+    }
+
+    // -------------------------------------------------------------------------
+    // storeCurrentAlgorithms
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void storeCurrentAlgorithms_writesCorrectValues() {
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        Context context = RuntimeEnvironment.getApplication();
+        SharedPreferences target = context.getSharedPreferences("TargetPrefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = target.edit();
+
+        factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .storeCurrentAlgorithms(editor);
+        editor.commit();
+
+        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", target.getString(PREF_KEY_ALGORITHM, null));
+        assertEquals("AES_GCM_NoPadding",                     target.getString(PREF_STORAGE_ALGORITHM, null));
+    }
+
+    @Test
+    public void storeCurrentAlgorithms_doesNotWriteSavedAlgorithms() {
+        // Saved = PKCS1/CBC, current = OAEP/GCM — stored values should reflect current, not saved
+        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding");
+
+        Context context = RuntimeEnvironment.getApplication();
+        SharedPreferences target = context.getSharedPreferences("TargetPrefs2", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = target.edit();
+
+        factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .storeCurrentAlgorithms(editor);
+        editor.commit();
+
+        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", target.getString(PREF_KEY_ALGORITHM, null));
+        assertEquals("AES_GCM_NoPadding",                     target.getString(PREF_STORAGE_ALGORITHM, null));
+    }
+}
