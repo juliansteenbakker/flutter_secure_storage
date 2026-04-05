@@ -11,6 +11,8 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -95,6 +97,13 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void hasBackup_returnsFalse_whenStatusIsDeleted() {
+        configSource.edit().putString(BACKUP_STATUS_KEY, MigrationBackup.STATUS_DELETED).commit();
+
+        assertFalse(MigrationBackup.hasBackup(configSource, configWithBackup));
+    }
+
+    @Test
     public void hasBackup_returnsTrue_whenStatusIsComplete() {
         configSource.edit().putString(BACKUP_STATUS_KEY, MigrationBackup.STATUS_COMPLETE).commit();
 
@@ -171,6 +180,19 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void createBackup_skipsNonStringDataEntries() {
+        dataSource.edit()
+                .putString(KEY_PREFIX + "_stringKey", "stringValue")
+                .putInt(KEY_PREFIX + "_intKey", 42)
+                .commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, configSource, configWithBackup, KEY_PREFIX);
+
+        assertEquals("stringValue", dataSource.getString(KEY_PREFIX + "_stringKey_BACKUP", null));
+        assertNull(dataSource.getString(KEY_PREFIX + "_intKey_BACKUP", null));
+    }
+
+    @Test
     public void createBackup_doesNotCopyEntriesWithoutKeyPrefix() {
         dataSource.edit().putString("OtherPrefix_key1", "value1").commit();
 
@@ -187,6 +209,48 @@ public class MigrationBackupTest {
 
         // Should not create _BACKUP_BACKUP
         assertNull(dataSource.getString(KEY_PREFIX + "_key1_BACKUP_BACKUP", null));
+    }
+
+    // -------------------------------------------------------------------------
+    // createBackup with espSource
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void createBackup_withEspSource_copiesEspEntriesToBackup() {
+        SharedPreferences espSource = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("TestEsp", Context.MODE_PRIVATE);
+        espSource.edit().clear().commit();
+        espSource.edit().putString(KEY_PREFIX + "_espKey1", "encryptedEspValue1").commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
+
+        assertEquals("encryptedEspValue1", espSource.getString(KEY_PREFIX + "_espKey1_BACKUP", null));
+    }
+
+    @Test
+    public void createBackup_withEspSource_doesNotDoubleBackupEspBackupEntries() {
+        SharedPreferences espSource = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("TestEsp", Context.MODE_PRIVATE);
+        espSource.edit().clear().commit();
+        espSource.edit().putString(KEY_PREFIX + "_espKey1_BACKUP", "alreadyBackedUp").commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
+
+        assertNull(espSource.getString(KEY_PREFIX + "_espKey1_BACKUP_BACKUP", null));
+    }
+
+    @Test
+    public void createBackup_withCorruptedEspSource_continuesAndCompletesBackup() {
+        SharedPreferences corruptedEsp = new ThrowingSharedPreferences(
+                RuntimeEnvironment.getApplication().getSharedPreferences("TestEspCorrupted", Context.MODE_PRIVATE));
+        dataSource.edit().putString(KEY_PREFIX + "_key1", "value1").commit();
+
+        // Should not throw — exception is caught and ESP backup is skipped
+        MigrationBackup.createBackup(dataSource, keyStorage, corruptedEsp, configSource, configWithBackup, KEY_PREFIX);
+
+        // Data backup still completes
+        assertEquals("value1", dataSource.getString(KEY_PREFIX + "_key1_BACKUP", null));
+        assertEquals(MigrationBackup.STATUS_COMPLETE, configSource.getString(BACKUP_STATUS_KEY, null));
     }
 
     // -------------------------------------------------------------------------
@@ -218,6 +282,22 @@ public class MigrationBackupTest {
 
         assertNull(keyStorage.getString("wrappedKey1_BACKUP", null));
         assertEquals("wrappedValue", keyStorage.getString("wrappedKey1", null));
+    }
+
+    @Test
+    public void deleteBackup_withEspSource_removesEspBackupEntries() {
+        SharedPreferences espSource = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("TestEsp", Context.MODE_PRIVATE);
+        espSource.edit().clear().commit();
+        espSource.edit()
+                .putString(KEY_PREFIX + "_espKey1", "espValue")
+                .putString(KEY_PREFIX + "_espKey1_BACKUP", "backupEspValue")
+                .commit();
+
+        MigrationBackup.deleteBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
+
+        assertNull(espSource.getString(KEY_PREFIX + "_espKey1_BACKUP", null));
+        assertEquals("espValue", espSource.getString(KEY_PREFIX + "_espKey1", null));
     }
 
     @Test
@@ -288,6 +368,23 @@ public class MigrationBackupTest {
         assertEquals("newWrappedValue", keyStorage.getString("wrappedKey1", null));
     }
 
+    @Test
+    public void deleteOriginalData_preservesKeyStorage_whenDataSourceEmptyButMigratedMarkersExist() {
+        // Regression test for cc0d932: dataSource is empty (all values already re-encrypted and
+        // written back), but configSource still has _MIGRATED markers from the previous run.
+        // preservedCount stays 0 because there are no dataSource entries to iterate, yet
+        // hasMigratedMarkers() must still return true so keyStorage is preserved.
+        keyStorage.edit().putString("wrappedKey1", "newWrappedValue").commit();
+        configSource.edit()
+                .putBoolean(KEY_PREFIX + "_key1_MIGRATED", true)
+                .commit();
+        // dataSource intentionally empty
+
+        MigrationBackup.deleteOriginalData(dataSource, keyStorage, configSource, KEY_PREFIX);
+
+        assertEquals("newWrappedValue", keyStorage.getString("wrappedKey1", null));
+    }
+
     // -------------------------------------------------------------------------
     // hasMigratedMarkers / deleteMigratedMarkers
     // -------------------------------------------------------------------------
@@ -338,5 +435,37 @@ public class MigrationBackupTest {
         MigrationBackup.deleteMigratedMarkers(configSource, KEY_PREFIX);
 
         assertTrue(configSource.contains("OtherPrefix_key1_MIGRATED"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * SharedPreferences wrapper whose getAll() throws to simulate a corrupted
+     * EncryptedSharedPreferences instance. All other methods delegate to the real backing store.
+     */
+    private static class ThrowingSharedPreferences implements SharedPreferences {
+        private final SharedPreferences delegate;
+
+        ThrowingSharedPreferences(SharedPreferences delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Map<String, ?> getAll() {
+            throw new RuntimeException("Simulated ESP corruption");
+        }
+
+        @Override public String getString(String key, String defValue) { return delegate.getString(key, defValue); }
+        @Override public Set<String> getStringSet(String key, Set<String> defValues) { return delegate.getStringSet(key, defValues); }
+        @Override public int getInt(String key, int defValue) { return delegate.getInt(key, defValue); }
+        @Override public long getLong(String key, long defValue) { return delegate.getLong(key, defValue); }
+        @Override public float getFloat(String key, float defValue) { return delegate.getFloat(key, defValue); }
+        @Override public boolean getBoolean(String key, boolean defValue) { return delegate.getBoolean(key, defValue); }
+        @Override public boolean contains(String key) { return delegate.contains(key); }
+        @Override public Editor edit() { return delegate.edit(); }
+        @Override public void registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { delegate.registerOnSharedPreferenceChangeListener(listener); }
+        @Override public void unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener listener) { delegate.unregisterOnSharedPreferenceChangeListener(listener); }
     }
 }
