@@ -4,6 +4,24 @@ coverage:
       default:
         target: auto
         threshold: 1%
+      flutter:
+        flags: [flutter]
+        target: auto
+        threshold: 1%
+      android:
+        flags: [android]
+        target: auto
+        threshold: 1%
+
+flags:
+  flutter:
+    paths:
+      - flutter_secure_storage/lib/
+    carryforward: true
+  android:
+    paths:
+      - flutter_secure_storage/android/src/main/java/
+    carryforward: true
 
 ignore:
   # FlutterSecureStorage is covered by Android integration tests, not unit tests
