@@ -183,11 +183,11 @@ jobs:
             flutter-version: "3.32.x"
           - api-level: 24
             target: default
-            arch: ${{ matrix.arch }}
+            arch: x86_64
             flutter-version: ""
           - api-level: 36
             target: google_apis
-            arch: ${{ matrix.arch }}
+            arch: x86_64
             flutter-version: ""
 
     steps:
