@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -16,16 +18,17 @@ public class StorageCipherImplementationGCM implements StorageCipher {
     private static final int keySize = 16;
     private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
-    private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
     private static final String SHARED_PREFERENCES_KEY = "AESVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    private final String keyStoragePrefsName;
     private final Cipher cipher;
     private final SecureRandom secureRandom;
     private final Key secretKey;
 
-    public StorageCipherImplementationGCM(Context context, KeyCipher rsaCipher, Cipher ignoredCipher) throws Exception {
+    public StorageCipherImplementationGCM(Context context, KeyCipher rsaCipher, Cipher ignoredCipher, FlutterSecureStorageConfig config) throws Exception {
+        keyStoragePrefsName = config.getEffectiveKeyStoragePrefsName();
         secureRandom = new SecureRandom();
 
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(keyStoragePrefsName, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = preferences.edit();
 
         String aesKey = preferences.getString(SHARED_PREFERENCES_KEY, null);
@@ -51,7 +54,7 @@ public class StorageCipherImplementationGCM implements StorageCipher {
 
     @Override
     public void deleteKey(Context context) {
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(keyStoragePrefsName, Context.MODE_PRIVATE);
         preferences.edit().remove(SHARED_PREFERENCES_KEY).apply();
     }
 
