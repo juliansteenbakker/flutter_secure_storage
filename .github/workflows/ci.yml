@@ -262,8 +262,8 @@ jobs:
 
     env:
       SIM_OS: iOS
-      SIM_OS_VERSION: "18.5"
-      SIM_DEVICE: "iPhone 16"
+      SIM_OS_VERSION: "26.2"
+      SIM_DEVICE: "iPhone 17"
 
     steps:
       - name: Checkout Repository
@@ -283,13 +283,22 @@ jobs:
           model: ${{ env.SIM_DEVICE }}
           erase_before_boot: true
           wait_for_boot: true
+          boot_retries: 3
+          boot_timeout_seconds: 360
 
       - name: Install Dependencies
         working-directory: flutter_secure_storage/example
         run: flutter pub get
 
+      - name: Debug simulator state
+        run: |
+          xcrun simctl list devices
+          xcrun simctl bootstatus "${{ steps.simulator.outputs.udid }}" -b
+
       - name: Run Integration Tests
         working-directory: flutter_secure_storage/example
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.udid }}
         run: |
-          DEVICE_ID=$(xcrun simctl list devices | grep "${SIM_DEVICE}" | grep Booted | awk -F '[()]' '{print $2}')
-          flutter test integration_test/app_test.dart -d "$DEVICE_ID"
+          echo "Using simulator: $DEVICE_ID"
+          flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose
