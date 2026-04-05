@@ -202,6 +202,24 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void createBackup_skipsNonStringKeyStorageEntries() {
+        keyStorage.edit().putInt("intWrappedKey", 42).commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, configSource, configWithBackup, KEY_PREFIX);
+
+        assertNull(keyStorage.getString("intWrappedKey_BACKUP", null));
+    }
+
+    @Test
+    public void createBackup_doesNotDoubleBackupExistingKeyStorageBackupEntries() {
+        keyStorage.edit().putString("wrappedKey1_BACKUP", "alreadyBackedUp").commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, configSource, configWithBackup, KEY_PREFIX);
+
+        assertNull(keyStorage.getString("wrappedKey1_BACKUP_BACKUP", null));
+    }
+
+    @Test
     public void createBackup_doesNotDoubleBackupExistingBackupEntries() {
         dataSource.edit().putString(KEY_PREFIX + "_key1_BACKUP", "alreadyBackedUp").commit();
 
@@ -225,6 +243,22 @@ public class MigrationBackupTest {
         MigrationBackup.createBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
 
         assertEquals("encryptedEspValue1", espSource.getString(KEY_PREFIX + "_espKey1_BACKUP", null));
+    }
+
+    @Test
+    public void createBackup_withEspSource_skipsNonStringAndNonPrefixEspEntries() {
+        SharedPreferences espSource = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("TestEspSkip", Context.MODE_PRIVATE);
+        espSource.edit().clear().commit();
+        espSource.edit()
+                .putString("OtherPrefix_espKey", "otherValue")  // no keyPrefix
+                .putInt(KEY_PREFIX + "_intEspKey", 99)           // non-String
+                .commit();
+
+        MigrationBackup.createBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
+
+        assertNull(espSource.getString("OtherPrefix_espKey_BACKUP", null));
+        assertNull(espSource.getString(KEY_PREFIX + "_intEspKey_BACKUP", null));
     }
 
     @Test
@@ -328,6 +362,27 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void deleteBackup_doesNotRemoveDataBackupEntriesWithoutKeyPrefix() {
+        dataSource.edit().putString("OtherPrefix_key1_BACKUP", "otherBackupValue").commit();
+
+        MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, configWithBackup, KEY_PREFIX);
+
+        assertEquals("otherBackupValue", dataSource.getString("OtherPrefix_key1_BACKUP", null));
+    }
+
+    @Test
+    public void deleteBackup_withEspSource_doesNotRemoveEspBackupEntriesWithoutKeyPrefix() {
+        SharedPreferences espSource = RuntimeEnvironment.getApplication()
+                .getSharedPreferences("TestEspOther", Context.MODE_PRIVATE);
+        espSource.edit().clear().commit();
+        espSource.edit().putString("OtherPrefix_espKey_BACKUP", "otherBackupValue").commit();
+
+        MigrationBackup.deleteBackup(dataSource, keyStorage, espSource, configSource, configWithBackup, KEY_PREFIX);
+
+        assertEquals("otherBackupValue", espSource.getString("OtherPrefix_espKey_BACKUP", null));
+    }
+
+    @Test
     public void deleteBackup_removesStatusKey() {
         configSource.edit().putString(BACKUP_STATUS_KEY, MigrationBackup.STATUS_COMPLETE).commit();
 
@@ -339,6 +394,38 @@ public class MigrationBackupTest {
     // -------------------------------------------------------------------------
     // deleteOriginalData
     // -------------------------------------------------------------------------
+
+    @Test
+    public void deleteOriginalData_doesNotRemoveDataEntriesWithoutKeyPrefix() {
+        dataSource.edit().putString("OtherPrefix_key1", "otherValue").commit();
+
+        MigrationBackup.deleteOriginalData(dataSource, keyStorage, KEY_PREFIX);
+
+        assertEquals("otherValue", dataSource.getString("OtherPrefix_key1", null));
+    }
+
+    @Test
+    public void deleteOriginalData_doesNotRemoveKeyStorageBackupEntries() {
+        keyStorage.edit()
+                .putString("wrappedKey1", "wrappedValue")
+                .putString("wrappedKey1_BACKUP", "backupWrappedValue")
+                .commit();
+
+        MigrationBackup.deleteOriginalData(dataSource, keyStorage, KEY_PREFIX);
+
+        assertNull(keyStorage.getString("wrappedKey1", null));
+        assertEquals("backupWrappedValue", keyStorage.getString("wrappedKey1_BACKUP", null));
+    }
+
+    @Test
+    public void deleteOriginalData_deletesKeyStorage_whenConfigSourceNotNullButNoMigratedMarkers() {
+        keyStorage.edit().putString("wrappedKey1", "wrappedValue").commit();
+        // configSource is not null but has no _MIGRATED markers
+
+        MigrationBackup.deleteOriginalData(dataSource, keyStorage, configSource, KEY_PREFIX);
+
+        assertNull(keyStorage.getString("wrappedKey1", null));
+    }
 
     @Test
     public void deleteOriginalData_removesNonBackupDataEntries() {
@@ -431,6 +518,13 @@ public class MigrationBackupTest {
     }
 
     @Test
+    public void hasMigratedMarkers_ignoresNonMigratedEntriesInConfigSource() {
+        configSource.edit().putString(BACKUP_STATUS_KEY, MigrationBackup.STATUS_COMPLETE).commit();
+
+        assertFalse(MigrationBackup.hasMigratedMarkers(configSource, KEY_PREFIX));
+    }
+
+    @Test
     public void hasMigratedMarkers_ignoresMarkersForOtherPrefixes() {
         configSource.edit()
                 .putBoolean("OtherPrefix_key1_MIGRATED", true)
@@ -450,6 +544,24 @@ public class MigrationBackupTest {
 
         assertFalse(configSource.contains(KEY_PREFIX + "_key1_MIGRATED"));
         assertFalse(configSource.contains(KEY_PREFIX + "_key2_MIGRATED"));
+    }
+
+    @Test
+    public void deleteMigratedMarkers_doesNotRemoveNonMigratedEntries() {
+        configSource.edit()
+                .putString(BACKUP_STATUS_KEY, MigrationBackup.STATUS_COMPLETE)
+                .putBoolean(KEY_PREFIX + "_key1_MIGRATED", true)
+                .commit();
+
+        MigrationBackup.deleteMigratedMarkers(configSource, KEY_PREFIX);
+
+        assertEquals(MigrationBackup.STATUS_COMPLETE, configSource.getString(BACKUP_STATUS_KEY, null));
+    }
+
+    @Test
+    public void deleteMigratedMarkers_noOp_whenNoMarkersExist() {
+        // count stays 0 — exercises the count == 0 branch (no log written)
+        MigrationBackup.deleteMigratedMarkers(configSource, KEY_PREFIX);
     }
 
     @Test
