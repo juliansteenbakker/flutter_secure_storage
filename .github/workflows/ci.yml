@@ -178,6 +178,108 @@ jobs:
           name: codecov-android
           fail_ci_if_error: true
 
+  unit_tests_windows:
+    name: Windows Unit Tests
+    needs: formatting
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage_windows
+        run: flutter pub get
+
+      - name: Run Windows Unit Tests with Coverage
+        working-directory: flutter_secure_storage_windows
+        run: flutter test --coverage
+
+      - name: Upload Windows Coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: flutter_secure_storage_windows/coverage/lcov.info
+          flags: windows
+          name: codecov-windows
+          fail_ci_if_error: true
+
+  native_tests_windows:
+    name: Windows Native Tests
+    needs: formatting
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage/example
+        run: flutter pub get
+
+      - name: Build Windows Example (generates CMake project)
+        working-directory: flutter_secure_storage/example
+        run: flutter build windows --debug
+
+      - name: Reconfigure CMake with BUILD_TESTING
+        working-directory: flutter_secure_storage/example
+        run: |
+          cmake -DBUILD_TESTING=ON `
+            -S windows `
+            -B build/windows/x64
+
+      - name: Build Native Test Binary
+        working-directory: flutter_secure_storage/example
+        run: |
+          cmake --build build/windows/x64 `
+            --target flutter_secure_storage_windows_test `
+            --config Debug
+
+      - name: Run Native Windows Tests
+        working-directory: flutter_secure_storage/example
+        run: |
+          ctest --test-dir build/windows/x64/plugins/flutter_secure_storage_windows `
+            --output-on-failure `
+            -C Debug
+
+  integration_tests_windows:
+    name: Windows Integration Tests
+    needs: [unit_tests, unit_tests_windows]
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage/example
+        run: flutter pub get
+
+      - name: Run Windows Integration Tests
+        working-directory: flutter_secure_storage/example
+        run: flutter test integration_test/windows_test.dart -d windows
+
   integration_tests_android:
     name: Android Tests
     needs: [unit_tests, unit_tests_android]

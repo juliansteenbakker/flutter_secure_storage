@@ -27,3 +27,7 @@ if(NOT DEFINED STORAGE_PREFIX)
 else()
   add_compile_definitions(SECURE_STORAGE_KEY_PREFIX="${STORAGE_PREFIX}_VGhpcyBpcyB0aGUgcHJlZml4IGZv_")
 endif()
+
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
