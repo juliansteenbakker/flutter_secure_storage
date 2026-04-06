@@ -304,13 +304,23 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Setup ChromeDriver
+        uses: nanasess/setup-chromedriver@v2
+
+      - name: Start ChromeDriver
+        run: chromedriver --port=4444 &
+
       - name: Install Dependencies
         working-directory: flutter_secure_storage/example
         run: flutter pub get
 
       - name: Run Web Integration Tests
         working-directory: flutter_secure_storage/example
-        run: flutter test integration_test/web_test.dart -d chrome
+        run: |
+          flutter drive \
+            --driver=test_driver/app_test_test.dart \
+            --target=integration_test/web_test.dart \
+            -d web-server
 
   integration_tests_ios:
     name: iOS Tests
