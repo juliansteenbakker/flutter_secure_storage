@@ -49,9 +49,13 @@ public class StorageCipherFactory {
         currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
-            final SharedPreferences.Editor source = configSource.edit();
-            storeCurrentAlgorithms(source);
-            source.apply();
+            // Don't write algorithm markers during migrateWithBackup
+            // (the migration flow writes them at step 7 after success).
+            if (!config.shouldMigrateWithBackup()) {
+                final SharedPreferences.Editor source = configSource.edit();
+                storeCurrentAlgorithms(source);
+                source.apply();
+            }
         }
     }
 

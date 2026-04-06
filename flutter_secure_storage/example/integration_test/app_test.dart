@@ -545,6 +545,36 @@ void main() {
       },
     );
 
+    testWidgets(
+      'Android: migrateWithBackup migrates data from RSA_PKCS1/AES_CBC to '
+      'OAEP/GCM',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        const legacyOptions = AndroidOptions(
+          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          migrateOnAlgorithmChange: false,
+        );
+        // Default algorithms (OAEP/GCM) with backup-protected migration
+        const backupStorage = FlutterSecureStorage(
+          aOptions: AndroidOptions(migrateWithBackup: true),
+        );
+        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+        await legacyStorage.write(
+          key: 'backup_migrate_key',
+          value: 'backup_migrate_value',
+          aOptions: legacyOptions,
+        );
+
+        final value = await backupStorage.read(key: 'backup_migrate_key');
+        expect(value, 'backup_migrate_value');
+
+        await backupStorage.deleteAll();
+      },
+    );
+
     testWidgets('iOS device: deleteAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
