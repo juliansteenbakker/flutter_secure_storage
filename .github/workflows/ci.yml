@@ -178,6 +178,30 @@ jobs:
           name: codecov-android
           fail_ci_if_error: true
 
+  unit_tests_web:
+    name: Web Unit Tests
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage_web
+        run: flutter pub get
+
+      - name: Run Web Unit Tests
+        working-directory: flutter_secure_storage_web
+        run: flutter test --platform chrome
+
   unit_tests_windows:
     name: Windows Unit Tests
     needs: formatting
@@ -365,6 +389,40 @@ jobs:
           disable-animations: true
           script: flutter test integration_test
           working-directory: flutter_secure_storage/example
+
+  integration_tests_web:
+    name: Web Integration Tests
+    needs: [unit_tests, unit_tests_web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Setup ChromeDriver
+        uses: nanasess/setup-chromedriver@v2
+
+      - name: Start ChromeDriver
+        run: chromedriver --port=4444 &
+
+      - name: Install Dependencies
+        working-directory: flutter_secure_storage/example
+        run: flutter pub get
+
+      - name: Run Web Integration Tests
+        working-directory: flutter_secure_storage/example
+        run: |
+          flutter drive \
+            --driver=test_driver/app_test_test.dart \
+            --target=integration_test/web_test.dart \
+            -d web-server
 
   integration_tests_ios:
     name: iOS Tests
