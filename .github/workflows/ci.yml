@@ -261,6 +261,7 @@ jobs:
 
       - name: Reconfigure CMake with BUILD_TESTING
         working-directory: flutter_secure_storage/example
+        shell: pwsh
         run: |
           cmake -DBUILD_TESTING=ON `
             -S windows `
@@ -268,6 +269,7 @@ jobs:
 
       - name: Build Native Test Binary
         working-directory: flutter_secure_storage/example
+        shell: pwsh
         run: |
           cmake --build build/windows/x64 `
             --target flutter_secure_storage_windows_test `
@@ -275,6 +277,7 @@ jobs:
 
       - name: Run Native Windows Tests
         working-directory: flutter_secure_storage/example
+        shell: pwsh
         run: |
           ctest --test-dir build/windows/x64/plugins/flutter_secure_storage_windows `
             --output-on-failure `
