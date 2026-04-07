@@ -56,9 +56,7 @@ const _storage = FlutterSecureStorage(
   wOptions: WindowsOptions(useBackwardCompatibility: true),
 );
 
-const _storageNoCompat = FlutterSecureStorage(
-  wOptions: WindowsOptions(useBackwardCompatibility: false),
-);
+const _storageNoCompat = FlutterSecureStorage();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,12 +66,15 @@ const _storageNoCompat = FlutterSecureStorage(
 /// migration has completed.
 Future<void> _checkMigration() async {
   final legacy = await _legacyReadAll();
-  expect(legacy, isEmpty,
-      reason: 'Legacy Credential Store should be empty after migration');
+  expect(
+    legacy,
+    isEmpty,
+    reason: 'Legacy Credential Store should be empty after migration',
+  );
 }
 
 /// Runs a complete CRUD cycle (write → read → containsKey → readAll → delete
-/// → deleteAll) against [storage], using [key1] and optionally [key2].
+/// → deleteAll) against `storage`, using [key1] and optionally [key2].
 Future<void> _doTestSuite({
   required String key1,
   String? key2,
@@ -86,7 +87,7 @@ Future<void> _doTestSuite({
 
   // Write
   await s.write(key: key1, value: value1);
-  if (key2 != null) await s.write(key: key2, value: v2!);
+  if (key2 != null) await s.write(key: key2, value: v2);
 
   // Read
   expect(await s.read(key: key1), value1);
@@ -128,7 +129,8 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-    await _storage.deleteAll(); // cleans DPAPI store (and legacy when compat=true)
+    await _storage.deleteAll(); // cleans DPAPI store
+    // (and legacy when compat=true)
     await _legacyDeleteAll(); // belt-and-suspenders: clean Credential Store
   });
 
