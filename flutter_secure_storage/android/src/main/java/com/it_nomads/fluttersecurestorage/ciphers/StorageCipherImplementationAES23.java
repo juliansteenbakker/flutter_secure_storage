@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+
 import java.security.Key;
 import java.security.SecureRandom;
 
@@ -17,13 +19,14 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
     private static final int defaultIvSize = 12;
     private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
-    private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
     private static final String KEYSTORE_IV_NAME = "BVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    private final String keyStoragePrefsName;
     private final Cipher cipher;
     private final SecureRandom secureRandom;
     private final Key secretKey;
 
-    public StorageCipherImplementationAES23(Context context, KeyCipher ignoredKeyCipher, Cipher cipher) throws Exception{
+    public StorageCipherImplementationAES23(Context context, KeyCipher ignoredKeyCipher, Cipher cipher, FlutterSecureStorageConfig config) throws Exception {
+        keyStoragePrefsName = config.getEffectiveKeyStoragePrefsName();
         secureRandom = new SecureRandom();
         this.secretKey = loadOrGenerateApplicationKey(context, cipher);
         this.cipher = getCipher();
@@ -32,7 +35,7 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
     private SecretKey loadOrGenerateApplicationKey(Context context, Cipher biometricCipher) throws Exception {
         final Cipher cipher = (biometricCipher != null) ? biometricCipher : getCipher();
         assert (cipher != null);
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(keyStoragePrefsName, Context.MODE_PRIVATE);
         String encryptedAppKeyBase64 = preferences.getString(KEYSTORE_IV_NAME, null);
 
         if (encryptedAppKeyBase64 != null) {
@@ -56,7 +59,7 @@ public class StorageCipherImplementationAES23 implements StorageCipher {
 
     @Override
     public void deleteKey(Context context) {
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(keyStoragePrefsName, Context.MODE_PRIVATE);
         preferences.edit().remove(KEYSTORE_IV_NAME).apply();
     }
 

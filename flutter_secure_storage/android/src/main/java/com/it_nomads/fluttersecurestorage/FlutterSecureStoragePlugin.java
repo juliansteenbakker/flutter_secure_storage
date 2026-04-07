@@ -24,13 +24,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
 
     private static final String TAG = "FlutterSecureStoragePlugin";
     private MethodChannel channel;
-    private FlutterSecureStorage secureStorage;
+    private Context applicationContext;
+    private final Map<String, FlutterSecureStorage> storagesBySharedPreferencesName = new HashMap<>();
     private HandlerThread workerThread;
     private Handler workerThreadHandler;
 
     public void initInstance(BinaryMessenger messenger, Context context) {
         try {
-            secureStorage = new FlutterSecureStorage(context);
+            applicationContext = context.getApplicationContext();
 
             workerThread = new HandlerThread("com.it_nomads.fluttersecurestorage.worker");
             workerThread.start();
@@ -57,7 +58,10 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
             channel.setMethodCallHandler(null);
             channel = null;
         }
-        secureStorage = null;
+        synchronized (storagesBySharedPreferencesName) {
+            storagesBySharedPreferencesName.clear();
+        }
+        applicationContext = null;
     }
 
     @Override
@@ -68,15 +72,33 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
     }
 
     @SuppressWarnings("unchecked")
-    private String getKeyFromCall(MethodCall call) {
+    private static String getKeyFromCall(FlutterSecureStorage storage, MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
-        return secureStorage.addPrefixToKey((String) arguments.get("key"));
+        String key = (String) arguments.get("key");
+        return storage.addPrefixToKey(key);
     }
 
     @SuppressWarnings("unchecked")
-    private String getValueFromCall(MethodCall call) {
+    private static String getValueFromCall(MethodCall call) {
         Map<String, Object> arguments = (Map<String, Object>) call.arguments;
         return (String) arguments.get("value");
+    }
+
+    private FlutterSecureStorage getOrCreateStorage(FlutterSecureStorageConfig config) {
+        // Use "ns:" prefix for storageNamespace to avoid collisions with legacy
+        // sharedPreferencesName keys in the map.
+        final String name = config.hasStorageNamespace()
+                ? "ns:" + config.getStorageNamespace()
+                : config.getSharedPreferencesName();
+        synchronized (storagesBySharedPreferencesName) {
+            FlutterSecureStorage existing = storagesBySharedPreferencesName.get(name);
+            if (existing != null) {
+                return existing;
+            }
+            FlutterSecureStorage created = new FlutterSecureStorage(applicationContext);
+            storagesBySharedPreferencesName.put(name, created);
+            return created;
+        }
     }
 
     /**
@@ -122,13 +144,8 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         @SuppressWarnings("unchecked")
         @Override
         public void run() {
-            // Patch for v10.0.0: guard against null/invalid payload before initialize().
-            // Route unexpected exceptions (including NPE) through result.error instead of crashing.
+            // Guard MethodChannel payload before initialize(); funnel unexpected exceptions to result.error.
             try {
-                if (secureStorage == null) {
-                    handleException(new IllegalStateException("FlutterSecureStorage not initialized"));
-                    return;
-                }
                 if (call == null || call.arguments == null) {
                     handleException(new IllegalArgumentException("Method call arguments are null"));
                     return;
@@ -146,6 +163,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     options = new HashMap<>();
                 }
                 FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+                FlutterSecureStorage secureStorage = getOrCreateStorage(config);
 
                 secureStorage.initialize(config, new SecurePreferencesCallback<>() {
                 @Override
@@ -153,7 +171,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     try {
                         switch (call.method) {
                             case "write": {
-                                String key = getKeyFromCall(call);
+                                String key = getKeyFromCall(secureStorage, call);
                                 String value = getValueFromCall(call);
 
                                 if (value != null) {
@@ -165,7 +183,7 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "read": {
-                                String key = getKeyFromCall(call);
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 if (secureStorage.containsKey(key)) {
                                     String value = secureStorage.read(key);
@@ -180,14 +198,14 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                                 break;
                             }
                             case "containsKey": {
-                                String key = getKeyFromCall(call);
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 boolean containsKey = secureStorage.containsKey(key);
                                 result.success(containsKey);
                                 break;
                             }
                             case "delete": {
-                                String key = getKeyFromCall(call);
+                                String key = getKeyFromCall(secureStorage, call);
 
                                 secureStorage.delete(key);
                                 result.success(null);

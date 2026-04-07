@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Build;
 
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+import com.it_nomads.fluttersecurestorage.NamespacedConfigSource;
 
 import javax.crypto.Cipher;
 
@@ -21,7 +22,7 @@ public class StorageCipherFactory {
     private final StorageCipherAlgorithm currentStorageAlgorithm;
     private final FlutterSecureStorageConfig config;
 
-    public StorageCipherFactory(SharedPreferences configSource, String keyCipherAlgorithm, String storageCipherAlgorithm, FlutterSecureStorageConfig config) {
+    public StorageCipherFactory(NamespacedConfigSource configSource, String keyCipherAlgorithm, String storageCipherAlgorithm, FlutterSecureStorageConfig config) {
         this.config = config;
         final String savedKeyCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
         final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
@@ -48,9 +49,13 @@ public class StorageCipherFactory {
         currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
-            final SharedPreferences.Editor source = configSource.edit();
-            storeCurrentAlgorithms(source);
-            source.apply();
+            // Don't write algorithm markers during migrateWithBackup
+            // (the migration flow writes them at step 7 after success).
+            if (!config.shouldMigrateWithBackup()) {
+                final SharedPreferences.Editor source = configSource.edit();
+                storeCurrentAlgorithms(source);
+                source.apply();
+            }
         }
     }
 
@@ -76,16 +81,16 @@ public class StorageCipherFactory {
      * Dynamically selects the appropriate StorageCipher implementation based on
      * the KeyCipher type and StorageCipherAlgorithm.
      */
-    private StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
+    /* package */ StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
                                                Cipher cipher, StorageCipherAlgorithm algorithm) throws Exception {
         // For AES_GCM_NoPadding, choose implementation based on KeyCipher type
         if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {
             if (isKeyStoreKeyCipher(keyCipher)) {
                 // Use KeyStore-based implementation (biometric/PIN auth capable)
-                return new StorageCipherImplementationAES23(context, keyCipher, cipher);
+                return new StorageCipherImplementationAES23(context, keyCipher, cipher, config);
             } else {
                 // Use RSA-wrapped implementation (standard secure storage)
-                return new StorageCipherImplementationGCM(context, keyCipher, cipher);
+                return new StorageCipherImplementationGCM(context, keyCipher, cipher, config);
             }
         }
 
@@ -93,7 +98,7 @@ public class StorageCipherFactory {
         if (algorithm.storageCipher == null) {
             throw new Exception("No implementation available for algorithm: " + algorithm.name());
         }
-        return algorithm.storageCipher.apply(context, keyCipher, cipher);
+        return algorithm.storageCipher.apply(context, keyCipher, cipher, config);
     }
 
     /**
