@@ -1,3 +1,6 @@
+## 4.1.1
+Fix DPAPI FFI calls for compatibility with `win32` 6.0.0.
+
 ## 4.1.0
 Upgrades deprecated member usage of win32.
 

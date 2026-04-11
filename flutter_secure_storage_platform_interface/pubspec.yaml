@@ -10,10 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  plugin_platform_interface: ^2.0.1
+  plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  mockito: ^5.0.12
-  very_good_analysis: ^7.0.0
+  mockito: ^5.6.4
+  very_good_analysis: ^10.2.0
