@@ -283,6 +283,39 @@ If you have set your application up to use App Groups then you will need to add 
 
 If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
 
+#### Troubleshooting: Key lookup returns null after hot restart on iOS
+
+If your app returns `null` when reading keys after a hot restart on a physical iOS device, this is typically caused by missing or incorrectly configured Keychain Sharing entitlements across all build modes.
+
+**Step 1 — Add Keychain Sharing capability in Xcode**
+
+Open your project in Xcode. Click on **Runner** in the left bar, then click **Runner** under Targets. Go to **Signing and Capabilities**, click **+ Capability**, search for **Keychain Sharing** and add it. Click on each sub-tab (**Debug**, **Profile**, **Release**) and make sure the capability is present. If it is not, press **+** in **Keychain Groups** and a prompt will appear to create the entitlements file.
+
+This generates the following entitlement files:
+- `Runner/Runner.entitlements`
+- `Runner/RunnerDebug.entitlements`
+- `Runner/RunnerProfile.entitlements`
+
+**Step 2 — Set Code Signing Entitlements paths in Build Settings**
+
+In Xcode, click **Runner** in the left bar, then click **Runner** under **Project** (not Targets). Go to **Build Settings** and search for **Code Signing Entitlements**. Manually enter the relative path for all three build modes:
+
+- Debug: `Runner/RunnerDebug.entitlements`
+- Profile: `Runner/RunnerProfile.entitlements`
+- Release: `Runner/Runner.entitlements`
+
+**Step 3 — Clean and rebuild**
+
+```bash
+flutter clean
+rm -Rf ios/Pods
+flutter pub get
+cd ios && pod install && cd ..
+flutter run
+```
+
+After completing these steps, key lookups should work correctly after hot restart on physical iOS devices.
+
 ### Web
 
 Flutter Secure Storage uses an experimental implementation using WebCrypto. Use at your own risk at this time. Feedback welcome to improve it. The intent is that the browser is creating the private key, and as a result, the encrypted strings in local_storage are not portable to other browsers or other machines and will only work on the same domain.
