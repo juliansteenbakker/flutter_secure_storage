@@ -132,6 +132,8 @@ class FlutterSecureStorage {
     
     /// Creates an access control object based on the provided parameters.
     private func createAccessControl(params: KeychainQueryParameters) -> SecAccessControl? {
+        // Without flags, skip SecAccessControl so kSecAttrSynchronizable is not silently dropped by the Security framework.
+        guard let flagString = params.accessControlFlags, !flagString.isEmpty else { return nil }
         guard let accessibilityLevel = params.accessibilityLevel else { return nil }
         let protection = parseAccessibleAttr(accessibilityLevel)
         let flags = parseAccessControlFlags(params.accessControlFlags)
