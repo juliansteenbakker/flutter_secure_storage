@@ -19,7 +19,7 @@ public class FlutterSecureStorageConfig {
     private static final String DEFAULT_BIOMETRIC_PROMPT_TITLE = "Authenticate to access";
     private static final String DEFAULT_BIOMETRIC_PROMPT_SUBTITLE = "Use biometrics or device credentials";
     private static final String DEFAULT_STORAGE_CIPHER_ALGORITHM = "AES_GCM_NoPadding";
-    private static final String DEFAULT_KEY_CIPHER_ALGORITHM = "RSA_ECB_PKCS1Padding";
+    private static final String DEFAULT_KEY_CIPHER_ALGORITHM = "RSA_ECB_OAEPwithSHA_256andMGF1Padding";
 
     public static final String PREF_OPTION_NAME = "sharedPreferencesName";
     public static final String PREF_OPTION_PREFIX = "preferencesKeyPrefix";
