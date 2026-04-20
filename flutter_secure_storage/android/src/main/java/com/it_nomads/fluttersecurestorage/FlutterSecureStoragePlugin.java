@@ -144,11 +144,28 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
         @SuppressWarnings("unchecked")
         @Override
         public void run() {
-            Map<String, Object> options = (Map<String, Object>) ((Map<String, Object>) call.arguments).get("options");
-            FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
-            FlutterSecureStorage secureStorage = getOrCreateStorage(config);
+            // Guard MethodChannel payload before initialize(); funnel unexpected exceptions to result.error.
+            try {
+                if (call == null || call.arguments == null) {
+                    handleException(new IllegalArgumentException("Method call arguments are null"));
+                    return;
+                }
+                if (!(call.arguments instanceof Map)) {
+                    handleException(new IllegalArgumentException("Method call arguments must be a Map"));
+                    return;
+                }
+                Map<String, Object> args = (Map<String, Object>) call.arguments;
+                Object rawOptions = args.get("options");
+                Map<String, Object> options;
+                if (rawOptions instanceof Map) {
+                    options = (Map<String, Object>) rawOptions;
+                } else {
+                    options = new HashMap<>();
+                }
+                FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+                FlutterSecureStorage secureStorage = getOrCreateStorage(config);
 
-            secureStorage.initialize(config, new SecurePreferencesCallback<>() {
+                secureStorage.initialize(config, new SecurePreferencesCallback<>() {
                 @Override
                 public void onSuccess(Void unused) {
                     try {
@@ -232,6 +249,9 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     handleException(e);
                 }
             });
+            } catch (Exception e) {
+                handleException(e);
+            }
         }
 
 
