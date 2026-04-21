@@ -1,4 +1,4 @@
-## 4.1.1
+## 4.2.0
 Fix DPAPI FFI calls for compatibility with `win32` 6.0.0.
 
 ## 4.1.0
