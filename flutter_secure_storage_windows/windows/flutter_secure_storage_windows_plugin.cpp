@@ -52,7 +52,7 @@ namespace
         const flutter::EncodableMap *args);
 
     // Derive the key for a value given a method argument map.
-    std::optional<std::string> FlutterSecureStorageWindowsPlugin::GetValueKey(const flutter::EncodableMap *args);
+    std::optional<std::string> GetValueKey(const flutter::EncodableMap *args);
 
     // Removes prefix of the given storage key.
     // 
@@ -776,7 +776,7 @@ namespace
     for (DWORD i = 0; i < cred_count; i++)
     {
       auto pcred = pcreds[i];
-      std::string target_name = CW2A(pcred->TargetName);
+      std::string target_name(CW2A(pcred->TargetName));
       auto val = std::string((char*)pcred->CredentialBlob);
       auto key = this->RemoveKeyPrefix(target_name);
       //If the key exists then data was already read from a file, which implies that the data read from the credential system is outdated
