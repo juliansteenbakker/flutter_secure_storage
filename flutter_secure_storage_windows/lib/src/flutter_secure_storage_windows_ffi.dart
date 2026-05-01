@@ -297,25 +297,24 @@ class DpapiJsonFileMapStorage extends MapStorage {
         // Specify size of the struct explicitly.
         final plainTextBlob =
             alloc.allocate<CRYPT_INTEGER_BLOB>(sizeOf<CRYPT_INTEGER_BLOB>());
-        if (CryptUnprotectData(
-              encryptedTextBlob,
-              nullptr,
-              nullptr,
-              nullptr,
-              nullptr,
-              0,
-              plainTextBlob,
-            ) ==
-            0) {
+        final decryptResult = CryptUnprotectData(
+          encryptedTextBlob,
+          null,
+          null,
+          null,
+          0,
+          plainTextBlob,
+        );
+        if (!decryptResult.value) {
           throw WindowsException(
-            GetLastError(),
+            decryptResult.error.toHRESULT(),
             message: 'Failure on CryptUnprotectData()',
           );
         }
 
         if (plainTextBlob.ref.pbData.address == NULL) {
           throw WindowsException(
-            ERROR_OUTOFMEMORY,
+            ERROR_OUTOFMEMORY.toHRESULT(),
             message: 'Failure on CryptUnprotectData()',
           );
         }
@@ -326,10 +325,11 @@ class DpapiJsonFileMapStorage extends MapStorage {
           );
         } finally {
           if (plainTextBlob.ref.pbData.address != NULL) {
-            if (LocalFree(plainTextBlob.ref.pbData).address != NULL) {
+            final freeResult = LocalFree(HLOCAL(plainTextBlob.ref.pbData));
+            if (freeResult.error.isError) {
               debugPrint(
                 'load: Failed to LocalFree with: '
-                '0x${GetLastError().toHexString(32)}',
+                '${freeResult.error.toHRESULT().toHexString(32)}',
               );
             }
           }
@@ -401,25 +401,24 @@ class DpapiJsonFileMapStorage extends MapStorage {
       // Specify size of the struct explicitly.
       final encryptedTextBlob =
           alloc.allocate<CRYPT_INTEGER_BLOB>(sizeOf<CRYPT_INTEGER_BLOB>());
-      if (CryptProtectData(
-            plainTextBlob,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr,
-            0,
-            encryptedTextBlob,
-          ) ==
-          0) {
+      final encryptResult = CryptProtectData(
+        plainTextBlob,
+        null,
+        null,
+        null,
+        0,
+        encryptedTextBlob,
+      );
+      if (!encryptResult.value) {
         throw WindowsException(
-          GetLastError(),
+          encryptResult.error.toHRESULT(),
           message: 'Failure on CryptProtectData()',
         );
       }
 
       if (encryptedTextBlob.ref.pbData.address == NULL) {
         throw WindowsException(
-          ERROR_OUTOFMEMORY,
+          ERROR_OUTOFMEMORY.toHRESULT(),
           message: 'Failure on CryptProtectData()',
         );
       }
@@ -446,10 +445,11 @@ class DpapiJsonFileMapStorage extends MapStorage {
         }
       } finally {
         if (encryptedTextBlob.ref.pbData.address != NULL) {
-          if (LocalFree(encryptedTextBlob.ref.pbData).address != NULL) {
+          final freeResult = LocalFree(HLOCAL(encryptedTextBlob.ref.pbData));
+          if (freeResult.error.isError) {
             debugPrint(
               'save: Failed to LocalFree with: '
-              '0x${GetLastError().toHexString(32)}',
+              '${freeResult.error.toHRESULT().toHexString(32)}',
             );
           }
         }
