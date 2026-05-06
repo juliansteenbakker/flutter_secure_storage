@@ -1,5 +1,5 @@
-group 'com.it_nomads.fluttersecurestorage'
-version '1.0-SNAPSHOT'
+group = 'com.it_nomads.fluttersecurestorage'
+version = '1.0-SNAPSHOT'
 
 buildscript {
     repositories {
@@ -23,14 +23,14 @@ apply plugin: 'com.android.library'
 
 android {
     if (project.android.hasProperty("namespace")) {
-        namespace("com.it_nomads.fluttersecurestorage")
+        namespace = "com.it_nomads.fluttersecurestorage"
     }
 
     buildFeatures {
         buildConfig = true
     }
 
-    compileSdk 36
+    compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion 24
+        minSdkVersion = 24
     }
     
 }
