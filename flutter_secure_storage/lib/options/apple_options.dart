@@ -84,7 +84,7 @@ abstract class AppleOptions extends Options {
     this.accessControlFlags = const [],
     this.useSecureEnclave = false,
     this.resetOnError = false,
-    this.migrateToSecureEnclave = true,
+    this.migrateToSecureEnclave = false,
   });
 
   /// The default account name associated with the keychain items.
@@ -202,25 +202,24 @@ abstract class AppleOptions extends Options {
   ///   since keys are device-bound.
   final bool useSecureEnclave;
 
-  /// When an error is detected, automatically reset all data. This will prevent
-  /// fatal errors regarding corrupted data however keep in mind that it will
-  /// PERMANENTLY erase the data when an error occurs.
+  /// When migration to or from Secure Enclave fails, automatically delete all
+  /// data and start fresh. This prevents the app from being stuck in an
+  /// unrecoverable state, but will PERMANENTLY erase data if migration fails.
   ///
-  /// Applies to:
-  /// - Read/write/readAll operations that fail due to corrupted data
-  /// - Migration failures when changing encryption modes
+  /// Only applies to migration failures — it does not affect normal read/write
+  /// errors.
   ///
   /// Defaults to false.
   final bool resetOnError;
 
-  /// When the encryption mode changes (e.g., enabling/disabling Secure Enclave),
-  /// automatically migrate existing data to the new encryption mode. This
-  /// preserves data across encryption changes.
+  /// When [useSecureEnclave] is changed, automatically migrate existing data to
+  /// the new encryption mode so data is not lost. Migration runs once on the
+  /// first operation after the mode change is detected.
   ///
-  /// If false, data will be lost when encryption mode changes unless
-  /// resetOnError is true.
+  /// Requires iOS 11.3+ or macOS 10.15+. On unsupported OS versions the flag
+  /// is ignored and storage falls back to standard Keychain.
   ///
-  /// Defaults to true.
+  /// Defaults to false. Enable explicitly when you are ready to migrate.
   final bool migrateToSecureEnclave;
 
   @override

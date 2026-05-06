@@ -376,140 +376,98 @@ class FlutterSecureStorage {
 
     // MARK: - Migration Helpers
 
-    /// Encryption modes for tracking migration state
+    /// Detects the current encryption mode by inspecting keychain contents.
+    ///
+    /// Returns `.secureEnclave` if any `fss.wrapped.*` companion key exists for this
+    /// service (proof that SE-backed items were written), `.standard` if plain items
+    /// exist without companions, or `.notSet` when the keychain is empty.
+    ///
+    /// This avoids relying on UserDefaults, which can be cleared by the OS or missing
+    /// after a reinstall while keychain data persists.
+    private func detectCurrentEncryptionMode(params: KeychainQueryParameters) -> EncryptionMode {
+        var scanParams = params
+        scanParams.useSecureEnclave = false
+        scanParams.migrateToSecureEnclave = false
+        scanParams.shouldReturnData = false
+
+        var query = baseQuery(from: scanParams)
+        query[kSecMatchLimit] = kSecMatchLimitAll
+        query[kSecReturnAttributes] = true
+
+        var ref: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &ref)
+
+        guard status == errSecSuccess, let items = ref as? [[CFString: Any]] else {
+            return .notSet
+        }
+
+        var hasData = false
+        for item in items {
+            guard let key = item[kSecAttrAccount] as? String else { continue }
+            if key.hasPrefix("fss.wrapped.") {
+                return .secureEnclave
+            }
+            hasData = true
+        }
+
+        return hasData ? .standard : .notSet
+    }
+
+    /// Encryption modes for tracking migration state.
     enum EncryptionMode: String {
         case standard = "standard"
         case secureEnclave = "secure_enclave"
         case notSet = "not_set"
     }
 
-    /// Generates a unique UserDefaults key for the encryption mode based on service name.
-    private func encryptionModeKey(for service: String?) -> String {
-        let serviceLabel = service ?? "flutter_secure_storage_service"
-        return "fss.encryption_mode.\(serviceLabel)"
-    }
-
-    /// Gets the current stored encryption mode.
-    private func getStoredEncryptionMode(service: String?) -> EncryptionMode {
-        let key = encryptionModeKey(for: service)
-        if let modeString = UserDefaults.standard.string(forKey: key),
-           let mode = EncryptionMode(rawValue: modeString) {
-            return mode
-        }
-        return .notSet
-    }
-
-    /// Sets the current encryption mode.
-    private func setStoredEncryptionMode(service: String?, mode: EncryptionMode) {
-        let key = encryptionModeKey(for: service)
-        UserDefaults.standard.set(mode.rawValue, forKey: key)
-    }
-
-    /// Gets the requested encryption mode from parameters.
-    private func getRequestedEncryptionMode(params: KeychainQueryParameters) -> EncryptionMode {
-        return (params.useSecureEnclave ?? false) ? .secureEnclave : .standard
-    }
-
-    /// Checks if migration is needed by comparing stored vs requested modes.
-    private func requiresMigration(params: KeychainQueryParameters) -> (needed: Bool, from: EncryptionMode, to: EncryptionMode) {
-        let storedMode = getStoredEncryptionMode(service: params.service)
-        let requestedMode = getRequestedEncryptionMode(params: params)
-
-        // Migration needed if modes differ and migration is enabled
-        if storedMode != requestedMode && (params.migrateToSecureEnclave ?? false) {
-            // Special case: if mode is not set and we have no data, consider it already migrated
-            if storedMode == .notSet {
-                // Check if there's any existing data (without triggering migration)
-                var checkParams = params
-                checkParams.useSecureEnclave = false
-                checkParams.migrateToSecureEnclave = false // Prevent recursion
-                let response = readAllInternal(params: checkParams)
-                if let items = response.value as? [String: String], items.isEmpty {
-                    // No data exists, just set mode and skip migration
-                    return (needed: false, from: storedMode, to: requestedMode)
-                }
-            }
-            return (needed: true, from: storedMode, to: requestedMode)
-        }
-
-        return (needed: false, from: storedMode, to: requestedMode)
-    }
-
-    /// Handles storage operation errors by optionally deleting corrupted data and retrying.
-    /// Returns true if data was deleted and operation should be retried.
-    private func handleStorageError(operation: String, key: String?, params: KeychainQueryParameters, error: Error) -> Bool {
-        let deleteOnFailure = params.resetOnError ?? false
-        let target = key != nil ? "key '\(key!)'" : "all data"
-
-        print("[FlutterSecureStorage] Storage operation '\(operation)' failed for \(target): \(error.localizedDescription)")
-
-        if !deleteOnFailure {
-            print("[FlutterSecureStorage] Set resetOnError=true to automatically delete corrupted data")
-            return false
-        }
-
-        print("[FlutterSecureStorage] resetOnError enabled. Attempting to delete corrupted data and retry...")
-
-        // Delete the corrupted data
-        if let key = key {
-            var deleteParams = params
-            deleteParams.key = key
-            let response = delete(params: deleteParams)
-            if response.status == errSecSuccess {
-                print("[FlutterSecureStorage] Data for key has been deleted. Retrying operation...")
-                return true
-            } else {
-                print("[FlutterSecureStorage] Failed to delete data for key during error handling")
-                return false
-            }
-        } else {
-            let response = deleteAll(params: params)
-            if response.status == errSecSuccess {
-                print("[FlutterSecureStorage] All data has been deleted. Retrying operation...")
-                return true
-            } else {
-                print("[FlutterSecureStorage] Failed to delete all data during error handling")
-                return false
-            }
-        }
-    }
-
     /// Checks if Secure Enclave is available on this device.
     @available(iOS 11.3, macOS 10.15, *)
     private func isSecureEnclaveAvailable() -> Bool {
-        let tag = "fss.enclave.availability.test".data(using: .utf8)!
+        // Try to look up an existing enclave key first (free check, no key creation).
+        let tag = enclaveKeyTag(for: nil) as CFData
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassKey,
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrApplicationTag: tag,
+            kSecReturnRef: true
+        ]
+        var item: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess {
+            return true
+        }
+        // No key found yet — probe by attempting a non-permanent key creation.
+        let testTag = "fss.enclave.availability.test".data(using: .utf8)!
         let attributes: [CFString: Any] = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
             kSecAttrKeySizeInBits: 256,
             kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
             kSecPrivateKeyAttrs: [
                 kSecAttrIsPermanent: false,
-                kSecAttrApplicationTag: tag
+                kSecAttrApplicationTag: testTag
             ]
         ]
         var error: Unmanaged<CFError>?
-        guard let _ = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
-            return false
-        }
-        return true
+        return SecKeyCreateRandomKey(attributes as CFDictionary, &error) != nil
     }
 
-    /// Migrates all existing keychain data to Secure Enclave-backed encryption.
-    /// Returns true on success, false on failure.
+    /// Migrates all existing standard-keychain data to Secure Enclave-backed encryption.
+    ///
+    /// Safety invariant: the old plaintext item is only removed after the SE-backed
+    /// item has been written AND verified readable. A per-key failure leaves the
+    /// original item intact and is reported in the returned failure count.
     @available(iOS 11.3, macOS 10.15, *)
     private func migrateToSecureEnclave(params: KeychainQueryParameters) -> Bool {
         print("[FlutterSecureStorage] Starting migration to Secure Enclave...")
 
-        // Check if Secure Enclave is available
         guard isSecureEnclaveAvailable() else {
             print("[FlutterSecureStorage] Secure Enclave not available on this device")
             return false
         }
 
-        // Step 1: Read all existing data (non-SE path)
+        // Read all existing plaintext items.
         var readParams = params
         readParams.useSecureEnclave = false
-        readParams.shouldReturnData = true
+        readParams.migrateToSecureEnclave = false
 
         let readResponse = readAllInternal(params: readParams)
         guard readResponse.status == errSecSuccess else {
@@ -517,21 +475,14 @@ class FlutterSecureStorage {
             return false
         }
 
-        guard let allItems = readResponse.value as? [String: String] else {
-            print("[FlutterSecureStorage] No data to migrate or invalid format")
-            return true // Nothing to migrate is success
-        }
-
-        if allItems.isEmpty {
+        guard let allItems = readResponse.value as? [String: String], !allItems.isEmpty else {
             print("[FlutterSecureStorage] No data to migrate")
             return true
         }
 
         print("[FlutterSecureStorage] Found \(allItems.count) items to migrate")
 
-        // Step 2: Prepare Secure Enclave encryption
-        let ac = createAccessControl(params: params)
-        guard let privateKey = try? ensureEnclavePrivateKey(service: params.service, accessControl: ac),
+        guard let privateKey = try? ensureEnclavePrivateKey(service: params.service),
               let publicKey = SecKeyCopyPublicKey(privateKey) else {
             print("[FlutterSecureStorage] Failed to create or access Secure Enclave key")
             return false
@@ -540,103 +491,104 @@ class FlutterSecureStorage {
         var successCount = 0
         var failureCount = 0
 
-        // Step 3: Re-encrypt each item with Secure Enclave
         for (key, value) in allItems {
-            // Skip wrapped key entries (they're companions, not data)
-            if key.hasPrefix("fss.wrapped.") {
-                continue
-            }
+            if key.hasPrefix("fss.wrapped.") { continue }
 
             do {
-                // Generate random AES key and encrypt value
+                // Encrypt with a fresh AES key wrapped by the Enclave public key.
                 let aesKey = SymmetricKey(size: .bits256)
                 let nonce = AES.GCM.Nonce()
                 let sealed = try AES.GCM.seal(Data(value.utf8), using: aesKey, nonce: nonce)
-                let nonceBytes = Data(nonce)
-                let blob = nonceBytes + sealed.ciphertext + sealed.tag
-
-                // Wrap AES key with Enclave public key
+                let blob = Data(nonce) + sealed.ciphertext + sealed.tag
                 let wrappedKey = try wrapSymmetricKey(Data(aesKey.withUnsafeBytes { Data($0) }), using: publicKey)
 
-                // Store wrapped key under companion account
+                // Write the wrapped AES key companion item.
                 var keyParams = params
                 keyParams.key = wrappedKeyName(for: key)
                 keyParams.shouldReturnData = false
                 keyParams.isSynchronizable = false
                 keyParams.useSecureEnclave = true
+                keyParams.migrateToSecureEnclave = false
                 var keyQuery = baseQuery(from: keyParams)
                 keyQuery[kSecValueData] = wrappedKey
-
-                // Delete old wrapped key if it exists
-                _ = SecItemDelete(keyQuery as CFDictionary)
-
-                // Add new wrapped key
-                var keyStatus = SecItemAdd(keyQuery as CFDictionary, nil)
-                guard keyStatus == errSecSuccess else {
-                    print("[FlutterSecureStorage] Failed to store wrapped key for '\(key)': \(keyStatus)")
+                _ = SecItemDelete(keyQuery as CFDictionary) // remove stale companion if present
+                guard SecItemAdd(keyQuery as CFDictionary, nil) == errSecSuccess else {
+                    print("[FlutterSecureStorage] Failed to store wrapped key for '\(key)'")
                     failureCount += 1
                     continue
                 }
 
-                // Store encrypted payload under original account (preserving all attributes)
+                // Write the encrypted data item.
                 var dataParams = params
                 dataParams.key = key
                 dataParams.shouldReturnData = false
                 dataParams.useSecureEnclave = true
+                dataParams.migrateToSecureEnclave = false
                 var dataQuery = baseQuery(from: dataParams)
-
-                // Delete old entry
                 _ = SecItemDelete(dataQuery as CFDictionary)
-
-                // Add new encrypted entry
                 dataQuery[kSecValueData] = blob
-                let dataStatus = SecItemAdd(dataQuery as CFDictionary, nil)
-
-                if dataStatus == errSecSuccess {
-                    successCount += 1
-                    print("[FlutterSecureStorage] Migrated key: '\(key)'")
-                } else {
-                    print("[FlutterSecureStorage] Failed to store encrypted data for '\(key)': \(dataStatus)")
+                guard SecItemAdd(dataQuery as CFDictionary, nil) == errSecSuccess else {
+                    print("[FlutterSecureStorage] Failed to store encrypted data for '\(key)'")
+                    // Roll back: remove the companion key we just wrote.
+                    _ = SecItemDelete(baseQuery(from: keyParams) as CFDictionary)
                     failureCount += 1
+                    continue
                 }
+
+                // Verify the SE-backed item is actually readable before removing the plaintext copy.
+                var verifyParams = params
+                verifyParams.key = key
+                verifyParams.useSecureEnclave = true
+                verifyParams.migrateToSecureEnclave = false
+                let verifyResult = readInternal(params: verifyParams)
+                guard verifyResult.status == errSecSuccess, verifyResult.value as? String == value else {
+                    print("[FlutterSecureStorage] Verification failed for '\(key)' — keeping original")
+                    // Roll back both items just written.
+                    _ = SecItemDelete(baseQuery(from: dataParams) as CFDictionary)
+                    _ = SecItemDelete(baseQuery(from: keyParams) as CFDictionary)
+                    failureCount += 1
+                    continue
+                }
+
+                // Safe to remove the now-redundant plaintext item.
+                var plainParams = params
+                plainParams.key = key
+                plainParams.useSecureEnclave = false
+                plainParams.migrateToSecureEnclave = false
+                _ = performDelete(params: plainParams, clearKey: false)
+
+                successCount += 1
+                print("[FlutterSecureStorage] Migrated '\(key)'")
             } catch {
-                print("[FlutterSecureStorage] Error migrating key '\(key)': \(error.localizedDescription)")
+                print("[FlutterSecureStorage] Error migrating '\(key)': \(error.localizedDescription)")
                 failureCount += 1
             }
         }
 
-        print("[FlutterSecureStorage] Migration completed: \(successCount) succeeded, \(failureCount) failed")
-
-        // Consider migration successful if no failures occurred
-        // (empty data is also considered a successful migration)
+        print("[FlutterSecureStorage] Migration to SE completed: \(successCount) succeeded, \(failureCount) failed")
         return failureCount == 0
     }
 
     /// Migrates all existing Secure Enclave-encrypted data back to standard keychain storage.
-    /// Returns true on success, false on failure.
+    ///
+    /// Safety invariant: the SE-backed item is only removed after the plain item has been
+    /// written AND verified readable. A per-key failure leaves the SE item intact.
     @available(iOS 11.3, macOS 10.15, *)
     private func migrateFromSecureEnclave(params: KeychainQueryParameters) -> Bool {
         print("[FlutterSecureStorage] Starting migration from Secure Enclave to standard keychain...")
 
-        // Step 1: Read all existing SE-encrypted data
         var readParams = params
         readParams.useSecureEnclave = true
-        readParams.shouldReturnData = true
+        readParams.migrateToSecureEnclave = false
 
-        // Get all items (this will decrypt them via SE)
         let readResponse = readAllInternal(params: readParams)
         guard readResponse.status == errSecSuccess else {
-            print("[FlutterSecureStorage] Failed to read existing SE data for migration: \(readResponse.status)")
+            print("[FlutterSecureStorage] Failed to read SE data for migration: \(readResponse.status)")
             return false
         }
 
-        guard let allItems = readResponse.value as? [String: String] else {
-            print("[FlutterSecureStorage] No data to migrate or invalid format")
-            return true // Nothing to migrate is success
-        }
-
-        if allItems.isEmpty {
-            print("[FlutterSecureStorage] No data to migrate")
+        guard let allItems = readResponse.value as? [String: String], !allItems.isEmpty else {
+            print("[FlutterSecureStorage] No SE data to migrate")
             return true
         }
 
@@ -645,141 +597,98 @@ class FlutterSecureStorage {
         var successCount = 0
         var failureCount = 0
 
-        // Step 2: Re-write each item using standard keychain (no SE)
         for (key, value) in allItems {
-            // Skip wrapped key entries (they're companions, not data)
-            if key.hasPrefix("fss.wrapped.") {
-                continue
-            }
+            if key.hasPrefix("fss.wrapped.") { continue }
 
-            // Write with standard keychain
+            // Write the plaintext item first.
             var writeParams = params
             writeParams.key = key
             writeParams.useSecureEnclave = false
-
-            // Delete old SE-encrypted entry and its wrapped key
-            var deleteParams = params
-            deleteParams.key = key
-            deleteParams.useSecureEnclave = true
-            _ = delete(params: deleteParams)
-
-            // Write as standard keychain item
-            let keyExists = (containsKey(params: writeParams).getOrElse(false))
+            writeParams.migrateToSecureEnclave = false
             var query = baseQuery(from: writeParams)
-            var status: OSStatus
-
+            let keyExists = containsKey(params: writeParams).getOrElse(false)
+            let writeStatus: OSStatus
             if keyExists {
-                let update: [CFString: Any] = [kSecValueData: value.data(using: .utf8) as Any]
-                status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+                writeStatus = SecItemUpdate(query as CFDictionary, [kSecValueData: value.data(using: .utf8) as Any] as CFDictionary)
             } else {
                 query[kSecValueData] = value.data(using: .utf8)
-                status = SecItemAdd(query as CFDictionary, nil)
+                writeStatus = SecItemAdd(query as CFDictionary, nil)
             }
-
-            if status == errSecSuccess {
-                successCount += 1
-                print("[FlutterSecureStorage] Migrated key from SE: '\(key)'")
-            } else {
-                print("[FlutterSecureStorage] Failed to store standard keychain data for '\(key)': \(status)")
+            guard writeStatus == errSecSuccess else {
+                print("[FlutterSecureStorage] Failed to write standard item for '\(key)': \(writeStatus)")
                 failureCount += 1
+                continue
             }
-        }
 
-        // Step 3: Clean up any remaining wrapped keys
-        var wrappedKeyParams = params
-        wrappedKeyParams.useSecureEnclave = false
-        let allKeysResponse = readAllInternal(params: wrappedKeyParams)
-        if let allKeys = allKeysResponse.value as? [String: String] {
-            for key in allKeys.keys where key.hasPrefix("fss.wrapped.") {
-                var deleteParams = params
-                deleteParams.key = key
-                deleteParams.useSecureEnclave = false
-                _ = delete(params: deleteParams)
+            // Verify the plain item reads back correctly before removing the SE copy.
+            var verifyParams = writeParams
+            let verifyResult = readInternal(params: verifyParams)
+            guard verifyResult.status == errSecSuccess, verifyResult.value as? String == value else {
+                print("[FlutterSecureStorage] Verification failed for '\(key)' — keeping SE copy")
+                // Roll back the plain item we just wrote.
+                _ = performDelete(params: writeParams, clearKey: false)
+                failureCount += 1
+                continue
             }
+
+            // Safe to remove the SE-backed item and its companion.
+            var seParams = params
+            seParams.key = key
+            seParams.useSecureEnclave = true
+            seParams.migrateToSecureEnclave = false
+            _ = delete(params: seParams)
+
+            successCount += 1
+            print("[FlutterSecureStorage] Migrated '\(key)' from SE")
         }
 
         print("[FlutterSecureStorage] Migration from SE completed: \(successCount) succeeded, \(failureCount) failed")
-
-        // Consider migration successful if no failures occurred
         return failureCount == 0
     }
 
     /// Checks if migration is needed and performs it if necessary.
     /// Returns true if storage is ready to use (either migration succeeded or not needed).
     internal func ensureMigrationIfNeeded(params: KeychainQueryParameters) -> Bool {
-        // Check if migration is enabled
         guard (params.migrateToSecureEnclave ?? false) else {
-            return true // Migration disabled
+            return true
         }
 
-        // Check if migration is needed
-        let migrationCheck = requiresMigration(params: params)
-        guard migrationCheck.needed else {
-            return true // No migration needed
+        let requestedMode: EncryptionMode = (params.useSecureEnclave ?? false) ? .secureEnclave : .standard
+        let currentMode = detectCurrentEncryptionMode(params: params)
+
+        guard currentMode != .notSet, currentMode != requestedMode else {
+            return true
         }
 
-        let fromMode = migrationCheck.from
-        let toMode = migrationCheck.to
+        print("[FlutterSecureStorage] Migration required: \(currentMode.rawValue) → \(requestedMode.rawValue)")
 
-        print("[FlutterSecureStorage] Migration required: \(fromMode.rawValue) → \(toMode.rawValue)")
-
-        // Check OS version support for SE migrations
-        if toMode == .secureEnclave || fromMode == .secureEnclave {
-            guard #available(iOS 11.3, macOS 10.15, *) else {
-                print("[FlutterSecureStorage] Secure Enclave requires iOS 11.3+ or macOS 10.15+")
-                print("[FlutterSecureStorage] Falling back to standard keychain")
-                setStoredEncryptionMode(service: params.service, mode: .standard)
-                return false // Indicate fallback needed
-            }
+        guard #available(iOS 11.3, macOS 10.15, *) else {
+            print("[FlutterSecureStorage] Secure Enclave requires iOS 11.3+ or macOS 10.15+; skipping migration")
+            return requestedMode == .standard
         }
 
-        // Perform migration based on direction
-        var migrationSuccess = false
-
-        if #available(iOS 11.3, macOS 10.15, *) {
-            switch (fromMode, toMode) {
-            case (.notSet, .secureEnclave), (.standard, .secureEnclave):
-                // Forward migration: standard → SE
-                print("[FlutterSecureStorage] Migrating to Secure Enclave...")
-                migrationSuccess = migrateToSecureEnclave(params: params)
-
-            case (.secureEnclave, .standard):
-                // Reverse migration: SE → standard
-                print("[FlutterSecureStorage] Migrating from Secure Enclave to standard keychain...")
-                migrationSuccess = migrateFromSecureEnclave(params: params)
-
-            case (.notSet, .standard):
-                // Just starting with standard, no migration needed
-                print("[FlutterSecureStorage] Initializing with standard keychain (no migration needed)")
-                setStoredEncryptionMode(service: params.service, mode: .standard)
-                return true
-
-            default:
-                print("[FlutterSecureStorage] Unexpected migration path: \(fromMode.rawValue) → \(toMode.rawValue)")
-                return true
-            }
+        let migrationSuccess: Bool
+        switch (currentMode, requestedMode) {
+        case (.standard, .secureEnclave):
+            migrationSuccess = migrateToSecureEnclave(params: params)
+        case (.secureEnclave, .standard):
+            migrationSuccess = migrateFromSecureEnclave(params: params)
+        default:
+            return true
         }
 
         if migrationSuccess {
             print("[FlutterSecureStorage] Migration succeeded")
-            setStoredEncryptionMode(service: params.service, mode: toMode)
             return true
-        } else {
-            print("[FlutterSecureStorage] Migration failed")
-
-            // Handle migration failure based on resetOnError flag
-            if params.resetOnError ?? false {
-                print("[FlutterSecureStorage] resetOnError enabled. Deleting all data and starting fresh...")
-                _ = deleteAll(params: params)
-                setStoredEncryptionMode(service: params.service, mode: toMode)
-                return true
-            } else {
-                print("[FlutterSecureStorage] Migration failed and resetOnError is disabled")
-                print("[FlutterSecureStorage] Keeping current encryption mode: \(fromMode.rawValue)")
-                // Don't change the stored mode, keep using the old one
-                return false // Indicate fallback needed
-            }
         }
+
+        print("[FlutterSecureStorage] Migration failed")
+        if params.resetOnError ?? false {
+            print("[FlutterSecureStorage] resetOnError enabled — deleting all data and starting fresh")
+            _ = deleteAll(params: params)
+            return true
+        }
+        return false
     }
 
     /// Checks if a key exists in the keychain.
@@ -870,28 +779,13 @@ class FlutterSecureStorage {
         return FlutterSecureStorageResponse(status: status, value: results)
     }
 
-    /// Reads all items from the keychain matching the query parameters with error handling and retry.
+    /// Reads all items from the keychain, running migration first if needed.
     internal func readAll(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        // Check if migration is needed before reading all
         var effectiveParams = params
         if !ensureMigrationIfNeeded(params: params) {
-            // Migration failed or SE unavailable, fall back to non-SE
             effectiveParams.useSecureEnclave = false
         }
-
-        // Attempt readAll with error handling
-        let response = readAllInternal(params: effectiveParams)
-
-        // If readAll failed and resetOnError is enabled, try to recover
-        if response.status != errSecSuccess && response.status != errSecItemNotFound {
-            let error = NSError(domain: NSOSStatusErrorDomain, code: Int(response.status))
-            if handleStorageError(operation: "readAll", key: nil, params: effectiveParams, error: error) {
-                // Retry after deleting all corrupted data
-                return readAllInternal(params: effectiveParams)
-            }
-        }
-
-        return response
+        return readAllInternal(params: effectiveParams)
     }
 
     /// Internal method to read a single item without migration checks (to prevent recursion).
@@ -990,28 +884,13 @@ class FlutterSecureStorage {
         }
     }
 
-    /// Reads a single item from the keychain with error handling and retry.
+    /// Reads a single item from the keychain, running migration first if needed.
     internal func read(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        // Check if migration is needed before reading
         var effectiveParams = params
         if !ensureMigrationIfNeeded(params: params) {
-            // Migration failed or SE unavailable, fall back to non-SE
             effectiveParams.useSecureEnclave = false
         }
-
-        // Attempt read with error handling
-        let response = readInternal(params: effectiveParams)
-
-        // If read failed and resetOnError is enabled, try to recover
-        if response.status != errSecSuccess && response.status != errSecItemNotFound {
-            let error = NSError(domain: NSOSStatusErrorDomain, code: Int(response.status))
-            if handleStorageError(operation: "read", key: effectiveParams.key, params: effectiveParams, error: error) {
-                // Retry after deleting corrupted data
-                return readInternal(params: effectiveParams)
-            }
-        }
-
-        return response
+        return readInternal(params: effectiveParams)
     }
 
     /// Internal method to write an item without error handling (to prevent recursion).
@@ -1112,28 +991,13 @@ class FlutterSecureStorage {
         }
     }
 
-    /// Writes an item to the keychain with error handling and retry.
+    /// Writes an item to the keychain, running migration first if needed.
     internal func write(params: KeychainQueryParameters, value: String) -> FlutterSecureStorageResponse {
-        // Check if migration is needed before writing
         var effectiveParams = params
         if !ensureMigrationIfNeeded(params: params) {
-            // Migration failed or SE unavailable, fall back to non-SE
             effectiveParams.useSecureEnclave = false
         }
-
-        // Attempt write with error handling
-        let response = writeInternal(params: effectiveParams, value: value)
-
-        // If write failed and resetOnError is enabled, try to recover
-        if response.status != errSecSuccess {
-            let error = NSError(domain: NSOSStatusErrorDomain, code: Int(response.status))
-            if handleStorageError(operation: "write", key: effectiveParams.key, params: effectiveParams, error: error) {
-                // Retry after deleting corrupted data
-                return writeInternal(params: effectiveParams, value: value)
-            }
-        }
-
-        return response
+        return writeInternal(params: effectiveParams, value: value)
     }
 
     /// Deletes an item from the keychain.
