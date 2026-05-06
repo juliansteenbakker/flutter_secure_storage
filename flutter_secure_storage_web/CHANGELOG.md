@@ -1,3 +1,6 @@
+## 2.1.1
+- Fix potential key skipping in `readAll` when storage is modified concurrently during async decryption by collecting keys synchronously before awaiting.
+
 ## 2.1.0
 - Updated code style
 - Add check for secure context, since operations are only allowed with secure context.

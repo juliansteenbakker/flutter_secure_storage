@@ -29,7 +29,6 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
     private static final String TAG = "AESCipher23";
     private static final String KEYSTORE_PROVIDER_ANDROID = "AndroidKeyStore";
-    private static final String SHARED_PREFERENCES_NAME = "FlutterSecureKeyStorage";
     private static final String SHARED_PREFERENCES_KEY = "KeyStoreIV1";
     private static final int IV_SIZE = 16;
     private static final int KEY_SIZE = 256;
@@ -61,7 +60,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
     }
 
     protected String createKeyAlias(Context context) {
-        return context.getPackageName() + ".FlutterSecureStoragePluginKey";
+        return context.getPackageName() + ".FlutterSecureStoragePluginKey" + config.getKeyAliasSuffix();
     }
 
     @Override
@@ -70,7 +69,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
         ks.load(null);
         ks.deleteEntry(keyAlias);
 
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
         preferences.edit().remove(SHARED_PREFERENCES_KEY).apply();
     }
 
@@ -90,7 +89,7 @@ class KeyCipherImplementationAES23 implements KeyCipher {
 
     public Cipher getEncryptionCipher(Context context, Key key) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        SharedPreferences preferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
         String ivBase64 = preferences.getString(SHARED_PREFERENCES_KEY, null);
 
         if (ivBase64 != null) {

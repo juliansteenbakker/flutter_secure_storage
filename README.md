@@ -2,7 +2,7 @@
 
 [![Pub Version](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![Pub Version Prerelease](https://img.shields.io/pub/v/flutter_secure_storage.svg?include_prereleases)](https://pub.dev/packages/flutter_secure_storage)
-[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-integration.yml)
+[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-quality.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-quality.yml)
 [![Code Quality: Very Good Analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Codecov](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage/graph/badge.svg?token=UUVTJ6MS4A)](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
@@ -235,6 +235,47 @@ final storage = FlutterSecureStorage(
 ```
 
 ### macOS & iOS
+#### Secure Enclave (iOS/macOS)
+
+You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, each stored value is encrypted with a randomly generated AES key. That AES key is then wrapped (encrypted) using an Elliptic Curve private key that lives exclusively inside the device's Secure Enclave — it can never be extracted from the hardware. Decryption therefore requires the physical device, and access can be gated behind Face ID, Touch ID, or the device passcode via `accessControlFlags`.
+
+Example:
+
+```dart
+final storage = FlutterSecureStorage();
+
+await storage.write(
+  key: 'token',
+  value: 'secret',
+  iOptions: IOSOptions(
+    useSecureEnclave: true,
+    accessControlFlags: const [
+      AccessControlFlag.userPresence, // require Face ID/Touch ID or passcode
+    ],
+  ),
+  mOptions: MacOsOptions(
+    useSecureEnclave: true,
+    accessControlFlags: const [AccessControlFlag.userPresence],
+  ),
+);
+```
+
+**Enabling Secure Enclave on an existing app**
+
+`useSecureEnclave` is a per-operation option, not a global flag. Existing items written without `useSecureEnclave` are stored as standard Keychain entries and are **not** automatically re-encrypted.
+
+If you read a key with `useSecureEnclave: true` that was previously written without it, the plugin looks for the Secure Enclave–wrapped key companion entry. Because none exists, it returns `null` — the original Keychain item is still there but is invisible via the SE path. To avoid data loss when adopting Secure Enclave in an existing app:
+
+1. Read each existing value with `useSecureEnclave: false` (or `IOSOptions.defaultOptions`).
+2. Write it back with `useSecureEnclave: true`.
+3. Delete the old entry with `useSecureEnclave: false`.
+
+A first-class migration helper (`migrateToSecureEnclave`) is planned for a future release.
+
+**Notes:**
+- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured `accessControlFlags`.
+- `synchronizable` is ignored for Enclave-backed items — they are device-bound by design.
+- On macOS, `kSecUseDataProtectionKeychain` remains enabled when available.
 
 You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` for macOS or for iOS `ios/Runner/DebugProfile.entitlements` *and* `ios/Runner/Release.entitlements`.
 
@@ -253,6 +294,39 @@ If you have set your application up to use App Groups then you will need to add 
 ```
 
 If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
+
+#### Troubleshooting: Key lookup returns null after hot restart on iOS
+
+If your app returns `null` when reading keys after a hot restart on a physical iOS device, this is typically caused by missing or incorrectly configured Keychain Sharing entitlements across all build modes.
+
+**Step 1 — Add Keychain Sharing capability in Xcode**
+
+Open your project in Xcode. Click on **Runner** in the left bar, then click **Runner** under Targets. Go to **Signing and Capabilities**, click **+ Capability**, search for **Keychain Sharing** and add it. Click on each sub-tab (**Debug**, **Profile**, **Release**) and make sure the capability is present. If it is not, press **+** in **Keychain Groups** and a prompt will appear to create the entitlements file.
+
+This generates the following entitlement files:
+- `Runner/Runner.entitlements`
+- `Runner/RunnerDebug.entitlements`
+- `Runner/RunnerProfile.entitlements`
+
+**Step 2 — Set Code Signing Entitlements paths in Build Settings**
+
+In Xcode, click **Runner** in the left bar, then click **Runner** under **Project** (not Targets). Go to **Build Settings** and search for **Code Signing Entitlements**. Manually enter the relative path for all three build modes:
+
+- Debug: `Runner/RunnerDebug.entitlements`
+- Profile: `Runner/RunnerProfile.entitlements`
+- Release: `Runner/Runner.entitlements`
+
+**Step 3 — Clean and rebuild**
+
+```bash
+flutter clean
+rm -Rf ios/Pods
+flutter pub get
+cd ios && pod install && cd ..
+flutter run
+```
+
+After completing these steps, key lookups should work correctly after hot restart on physical iOS devices.
 
 ### Web
 

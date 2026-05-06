@@ -1,3 +1,24 @@
+## 10.1.0
+
+### Android
+- Added `storageNamespace` option to `AndroidOptions` for full namespace isolation across storage instances (SharedPreferences, KeyStore aliases, config/key storage). Use this instead of `sharedPreferencesName` when running multiple `FlutterSecureStorage` instances with different cipher configurations.
+- Deprecated `sharedPreferencesName` in favor of `storageNamespace`, which provides complete isolation rather than data-only isolation.
+- Added `migrateWithBackup` option to `AndroidOptions` for crash-resistant migration. When enabled, backup copies of encrypted data are created before migration starts, allowing recovery if migration fails or the app crashes mid-migration. Works in conjunction with `migrateOnAlgorithmChange`.
+- Made `KeyCipherAlgorithm` and `StorageCipherAlgorithm` public enums.
+
+**Fixes:**
+- Fixed crash on biometric failure (not error).
+- Fixed null safety issue in `MethodRunner` that could cause a crash on Android.
+- Fixed config being overwritten on initialization.
+- Fixed default Android key cipher not aligning with the Flutter default.
+
+### iOS / macOS
+- Added `useSecureEnclave` option to `IOSOptions` and `MacOsOptions` to store keys in the device's Secure Enclave for hardware-backed security.
+
+**Fixes:**
+- Fixed `kSecAttrSynchronizable` being silently dropped when no access control flags are set.
+- Fixed `readAll` not returning Secure Enclave items correctly.
+
 ## 10.0.0
 This major release brings significant security improvements, platform updates, and modernization across all supported platforms.
 
