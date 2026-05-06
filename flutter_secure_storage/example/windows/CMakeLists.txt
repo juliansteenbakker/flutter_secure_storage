@@ -48,6 +48,9 @@ add_subdirectory("runner")
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
+# Enable native unit tests for the Windows plugin.
+set(include_flutter_secure_storage_windows_tests TRUE)
+
 include(flutter/generated_plugins.cmake)
 
 

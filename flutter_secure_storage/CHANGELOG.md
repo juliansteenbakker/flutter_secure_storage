@@ -1,3 +1,112 @@
+## 10.1.0
+
+### Android
+- Added `storageNamespace` option to `AndroidOptions` for full namespace isolation across storage instances (SharedPreferences, KeyStore aliases, config/key storage). Use this instead of `sharedPreferencesName` when running multiple `FlutterSecureStorage` instances with different cipher configurations.
+- Deprecated `sharedPreferencesName` in favor of `storageNamespace`, which provides complete isolation rather than data-only isolation.
+- Added `migrateWithBackup` option to `AndroidOptions` for crash-resistant migration. When enabled, backup copies of encrypted data are created before migration starts, allowing recovery if migration fails or the app crashes mid-migration. Works in conjunction with `migrateOnAlgorithmChange`.
+- Made `KeyCipherAlgorithm` and `StorageCipherAlgorithm` public enums.
+
+**Fixes:**
+- Fixed crash on biometric failure (not error).
+- Fixed null safety issue in `MethodRunner` that could cause a crash on Android.
+- Fixed config being overwritten on initialization.
+- Fixed default Android key cipher not aligning with the Flutter default.
+
+### iOS / macOS
+- Added `useSecureEnclave` option to `IOSOptions` and `MacOsOptions` to store keys in the device's Secure Enclave for hardware-backed security.
+
+**Fixes:**
+- Fixed `kSecAttrSynchronizable` being silently dropped when no access control flags are set.
+- Fixed `readAll` not returning Secure Enclave items correctly.
+
+## 10.0.0
+This major release brings significant security improvements, platform updates, and modernization across all supported platforms.
+
+### Android
+Due to the deprecation of Jetpack Security library, the Android implementation has been largely rewritten with custom secure ciphers, enhanced biometrics support, and migration tools.
+
+**Breaking Changes:**
+- `AndroidOptions().encryptedSharedPreferences` is now deprecated due to Jetpack Crypto package deprecation
+  - Migration will automatically happen due to `migrateOnAlgorithmChange: true`, which can also be set to false if not wanted.
+- ResetOnError will now automatically be true, because most errors are unrecoverable due to key storage problems. It can still be disabled with `resetOnError: false`
+- Default key cipher changed to `RSA_ECB_OAEPwithSHA_256andMGF1Padding`
+- Default storage cipher changed to `AES_GCM_NoPadding`
+- Minimum Android SDK changed from 19 to 23
+- Target SDK updated to 36
+- Migrated from deprecated Jetpack Crypto library to custom cipher implementation (Tink doesn't support biometrics)
+- Migrated to Java Version 17
+
+**New Features:**
+- New named constructors: `AndroidOptions()`, `AndroidOptions.biometric()`
+- `AndroidOptions().migrateOnAlgorithmChange` automatically migrates data to new ciphers when enabled
+- Improved biometric authentication with graceful degradation when device has no security setup
+- Migration tools for transitioning from deprecated encryptedSharedPreferences
+- Enhanced error handling with proper exception messages for biometric unavailability
+
+**Fixes:**
+- Fixed biometric authentication on devices without security (PIN/pattern/password) - now gracefully degrades when `enforceBiometrics=false`
+- Fixed storage cipher and key cipher pairing validation
+- Fixed migration checks for encrypted shared preferences
+- Fixed biometric permission handling
+- Fixed exception when reading data after boot
+
+**Other Changes:**
+- Updated Gradle, Kotlin, and Tink dependencies
+- Refactored custom cipher implementations for better maintainability
+- Added delete key functions for proper reset handling
+- Migrated to new analyzer and code cleanup
+
+### iOS / macOS (darwin)
+- Merged iOS and macOS implementations into unified `flutter_secure_storage_darwin` package
+- Added support for Swift Package Manager
+- Remove keys regardless of synchronizable state or accessibility constraints
+- Change minimum iOS version from 9 to 12
+- Change minimum macOS version to 10.14
+- Use serial queue for execution of keychain operations
+- Added privacy manifest
+- Refactored code and added missing options to IOSOptions and MacOSOptions
+- Fixed warnings with Privacy Manifest
+- Fixed delete and deleteAll when synchronizable is set
+- Fixed migration when value is saved while key already exists with different accessibility option
+- Use accessibility option for all operations
+- Migrated to new analyzer and code cleanup
+
+### Web
+- Web is now compatible with WASM
+- Updated code style and migrated to very_good_analysis
+- Add check for secure context (operations only allowed with secure context)
+- Remove dart:io to support WASM build
+- Migrated away from `html` to `web` package
+- Removed `js` in favor of using js-interop
+- Added `useSessionStorage` parameter to WebOptions for saving in session storage instead of local storage
+- Updated web dependency support to <2.0.0
+- Migrated to new analyzer and code cleanup
+
+### Windows
+- Upgrades deprecated member usage of win32
+- Migrated to `win32` version 5.5.4 to support Dart 3.4 / Flutter 3.22.0
+- Migrated to new analyzer and code cleanup
+- Write encrypted data to files instead of the Windows credential system
+
+### Linux
+- Fixed whitespace deprecation warning
+- Reverted json.dump with indentations due to problems
+- Fixed search with schemas fails in cold keyrings
+- Fixed erase called on null
+- Fixed memory management issue
+- Remove and replace libjsoncpp1 dependency
+- Migrated to new analyzer and code cleanup
+
+### Platform Interface
+- Remove dart:io to support WASM build of web
+- Migrated to new analyzer and code cleanup
+
+### General Improvements
+- Listener functionality via `FlutterSecureStorage().registerListener()`
+- All platforms updated to support Dart SDK <4.0.0
+- Comprehensive test coverage improvements
+- Documentation updates across all platforms
+
 ## 10.0.0-beta.5
 Due to security issues regarding the handling of biometrics in v10.0.0-beta.4, together with the deprecation
 of Jetpack Security library, it took me some time to find a secure alternative. My apologies for the delay.

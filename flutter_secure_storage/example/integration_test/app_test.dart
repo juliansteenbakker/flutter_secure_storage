@@ -10,6 +10,123 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('Secure Storage Tests', () {
+    testWidgets(
+      'Android: deleteAll() must not clear other '
+      'sharedPreferencesName namespace (regression #1023)',
+      (WidgetTester tester) async {
+        // This is a plugin-level regression test for:
+        // https://github.com/juliansteenbakker/flutter_secure_storage/issues/1023
+        //
+        // The Android implementation must isolate namespaces created via
+        // AndroidOptions.sharedPreferencesName. A deleteAll() issued against
+        // one
+        // namespace must not delete keys stored in another namespace.
+        final pageObject = await _setupHomePage(tester);
+
+        // Use the app's popup menu path to ensure the plugin is initialized and
+        // stable before we run the direct namespace assertions below.
+        await pageObject.deleteAll();
+
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_a'),
+        );
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_b'),
+        );
+
+        const key = 'it_android_namespace_key';
+        const valueA = 'value_a';
+        const valueB = 'value_b';
+
+        // Arrange
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Act
+        await storageB.deleteAll();
+
+        // Assert
+        final readA = await storageA.read(key: key);
+        expect(
+          readA,
+          equals(valueA),
+          reason: 'Deleting keys from namespace_b must not affect namespace_a',
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
+
+    testWidgets(
+      'Android: namespaces with different cipher algorithms must not interfere '
+      '(full storageNamespace isolation)',
+      (WidgetTester tester) async {
+        // This test verifies that storageNamespace provides full isolation:
+        // data prefs, config markers, KeyStore aliases, and key storage.
+        // Different namespaces can safely use different cipher algorithms
+        // without conflicting KeyStore entries or wrapped keys.
+        final pageObject = await _setupHomePage(tester);
+        await pageObject.deleteAll();
+
+        // Use different algorithms per namespace to test full isolation
+        const storageA = FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            storageNamespace: 'namespace_alg_a',
+            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+            storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          ),
+        );
+        // storageB uses default algorithms (OAEP/GCM) — distinct from storageA
+        const storageB = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'namespace_alg_b'),
+        );
+
+        const key = 'it_android_algorithm_isolation_key';
+        const valueA = 'value_algorithm_a';
+        const valueB = 'value_algorithm_b';
+
+        // Arrange: Write values to both namespaces with different algorithms
+        await storageA.write(key: key, value: valueA);
+        await storageB.write(key: key, value: valueB);
+
+        // Verify both can read their own values
+        expect(await storageA.read(key: key), equals(valueA));
+        expect(await storageB.read(key: key), equals(valueB));
+
+        // Act: Force re-initialization by reading again (triggers config
+        // marker checks). This simulates what happens when switching between
+        // namespaces.
+        final readA2 = await storageA.read(key: key);
+        final readB2 = await storageB.read(key: key);
+
+        // Assert: Both namespaces should still read their correct values.
+        // With full storageNamespace isolation, each namespace has its own
+        // KeyStore aliases and key storage, so different algorithms cannot
+        // interfere.
+        expect(
+          readA2,
+          equals(valueA),
+          reason: 'Namespace A must read its value correctly even after '
+              'namespace B initializes with different algorithms',
+        );
+        expect(
+          readB2,
+          equals(valueB),
+          reason: 'Namespace B must read its value correctly even after '
+              'namespace A initializes with different algorithms',
+        );
+
+        // Additional verification: Write new values and read back
+        const newValueA = 'updated_value_a';
+        const newValueB = 'updated_value_b';
+        await storageA.write(key: key, value: newValueA);
+        await storageB.write(key: key, value: newValueB);
+
+        expect(await storageA.read(key: key), equals(newValueA));
+        expect(await storageB.read(key: key), equals(newValueB));
+      },
+      skip: !Platform.isAndroid,
+    );
+
     testWidgets('Add a Random Row', (WidgetTester tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
@@ -196,6 +313,347 @@ void main() {
       );
       expect(afterDelete, isNull);
     });
+
+    // Note: On real devices, Secure Enclave will prompt for device
+    // passcode/biometrics. Enter your device passcode when prompted - it should
+    // only prompt once per test run due to LAContext reuse (30 second window).
+    testWidgets('iOS device: readAll with Secure Enclave items',
+        skip: !(Platform.isIOS &&
+            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        (WidgetTester tester) async {
+      const storage = FlutterSecureStorage();
+      // Use default userPresence (no applicationPassword) - should work with
+      // device passcode
+      const enclaveOptions = IOSOptions(
+        useSecureEnclave: true,
+        // accessControlFlags defaults to userPresence which works with device
+        // passcode
+      );
+
+      // Write multiple Secure Enclave items
+      await storage.write(
+        key: 'enclave_key1',
+        value: 'enclave_value1',
+        iOptions: enclaveOptions,
+      );
+      await storage.write(
+        key: 'enclave_key2',
+        value: 'enclave_value2',
+        iOptions: enclaveOptions,
+      );
+      await storage.write(
+        key: 'enclave_key3',
+        value: 'enclave_value3',
+        iOptions: enclaveOptions,
+      );
+
+      // Read all items
+      final allItems = await storage.readAll(iOptions: enclaveOptions);
+
+      // Verify all items are returned
+      expect(allItems, isNotNull);
+      final items = allItems;
+      expect(items.length, greaterThanOrEqualTo(3));
+      expect(items['enclave_key1'], 'enclave_value1');
+      expect(items['enclave_key2'], 'enclave_value2');
+      expect(items['enclave_key3'], 'enclave_value3');
+
+      // Cleanup
+      await storage.delete(key: 'enclave_key1', iOptions: enclaveOptions);
+      await storage.delete(key: 'enclave_key2', iOptions: enclaveOptions);
+      await storage.delete(key: 'enclave_key3', iOptions: enclaveOptions);
+    });
+
+    testWidgets(
+        'iOS device: readAll with mixed Secure Enclave and standard items',
+        skip: !(Platform.isIOS &&
+            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        (WidgetTester tester) async {
+      const storage = FlutterSecureStorage();
+      // Use default userPresence - should work with device passcode
+      const enclaveOptions = IOSOptions(
+        useSecureEnclave: true,
+      );
+      const standardOptions = IOSOptions.defaultOptions;
+
+      // Write Secure Enclave item
+      await storage.write(
+        key: 'mixed_enclave_key',
+        value: 'enclave_value',
+        iOptions: enclaveOptions,
+      );
+
+      // Write standard item
+      await storage.write(
+        key: 'mixed_standard_key',
+        value: 'standard_value',
+        iOptions: standardOptions,
+      );
+
+      // Read all with Secure Enclave enabled - should return both
+      final allItems = await storage.readAll(iOptions: enclaveOptions);
+
+      // Verify both items are returned
+      expect(allItems, isNotNull);
+      final items = allItems;
+      expect(items.containsKey('mixed_enclave_key'), isTrue);
+      expect(items['mixed_enclave_key'], 'enclave_value');
+      expect(items.containsKey('mixed_standard_key'), isTrue);
+      expect(items['mixed_standard_key'], 'standard_value');
+
+      // Cleanup
+      await storage.delete(key: 'mixed_enclave_key', iOptions: enclaveOptions);
+      await storage.delete(
+        key: 'mixed_standard_key',
+        iOptions: standardOptions,
+      );
+    });
+
+    // Android Algorithm Migration Tests
+    testWidgets(
+      'Android: migrates single value from RSA_PKCS1/AES_CBC to OAEP/GCM',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        const legacyOptions = AndroidOptions(
+          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          migrateOnAlgorithmChange: false,
+        );
+
+        // newOptions uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
+        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
+        const newStorage = FlutterSecureStorage();
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+        await legacyStorage.write(
+          key: 'migrate_single_key',
+          value: 'migrate_single_value',
+          aOptions: legacyOptions,
+        );
+
+        final value = await newStorage.read(key: 'migrate_single_key');
+        expect(value, 'migrate_single_value');
+
+        await newStorage.deleteAll();
+      },
+    );
+
+    testWidgets(
+      'Android: migrates multiple values from RSA_PKCS1/AES_CBC to OAEP/GCM',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        const legacyOptions = AndroidOptions(
+          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          migrateOnAlgorithmChange: false,
+        );
+
+        // newStorage uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
+        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
+        const newStorage = FlutterSecureStorage();
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+
+        final entries = {
+          'migrate_key_1': 'migrate_value_1',
+          'migrate_key_2': 'migrate_value_2',
+          'migrate_key_3': 'migrate_value_3',
+        };
+
+        for (final entry in entries.entries) {
+          await legacyStorage.write(
+            key: entry.key,
+            value: entry.value,
+            aOptions: legacyOptions,
+          );
+        }
+
+        for (final entry in entries.entries) {
+          final value = await newStorage.read(key: entry.key);
+          expect(
+            value,
+            entry.value,
+            reason: 'Key ${entry.key} was not migrated correctly',
+          );
+        }
+
+        await newStorage.deleteAll();
+      },
+    );
+
+    testWidgets(
+      'Android: data remains readable without migration when algorithms '
+      'unchanged',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        // Uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
+        const storage = FlutterSecureStorage();
+
+        await storage.deleteAll();
+        await storage.write(
+          key: 'no_migration_key',
+          value: 'no_migration_value',
+        );
+
+        // Read back with same options — no migration should occur
+        final value = await storage.read(key: 'no_migration_key');
+        expect(value, 'no_migration_value');
+
+        await storage.deleteAll();
+      },
+    );
+
+    testWidgets(
+      'Android: migrateOnAlgorithmChange false skips migration',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        const legacyOptions = AndroidOptions(
+          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          migrateOnAlgorithmChange: false,
+          resetOnError: false,
+        );
+        // OAEP/GCM (defaults) but explicitly no migration, no reset
+        const newOptionsNoMigrate = AndroidOptions(
+          migrateOnAlgorithmChange: false,
+          resetOnError: false,
+        );
+
+        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+        await legacyStorage.write(
+          key: 'no_migrate_key',
+          value: 'no_migrate_value',
+          aOptions: legacyOptions,
+        );
+
+        // Reading with a different algorithm and no migration should throw or
+        // return null — either is acceptable, the key point is it does NOT
+        // silently return the correct plaintext.
+        try {
+          final value = await const FlutterSecureStorage().read(
+            key: 'no_migrate_key',
+            aOptions: newOptionsNoMigrate,
+          );
+          expect(value, isNot('no_migrate_value'));
+        } on Object catch (_) {
+          // Throwing is also acceptable — data is unreadable without migration
+        }
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+      },
+    );
+
+    testWidgets(
+      'Android: migrateWithBackup migrates data from RSA_PKCS1/AES_CBC to '
+      'OAEP/GCM',
+      skip: !Platform.isAndroid,
+      (WidgetTester tester) async {
+        const legacyOptions = AndroidOptions(
+          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+          migrateOnAlgorithmChange: false,
+        );
+        // Default algorithms (OAEP/GCM) with backup-protected migration
+        const backupStorage = FlutterSecureStorage(
+          aOptions: AndroidOptions(migrateWithBackup: true),
+        );
+        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
+
+        await legacyStorage.deleteAll(aOptions: legacyOptions);
+        await legacyStorage.write(
+          key: 'backup_migrate_key',
+          value: 'backup_migrate_value',
+          aOptions: legacyOptions,
+        );
+
+        final value = await backupStorage.read(key: 'backup_migrate_key');
+        expect(value, 'backup_migrate_value');
+
+        await backupStorage.deleteAll();
+      },
+    );
+
+    testWidgets(
+        'iOS device: item written without SE returns null when read with SE',
+        skip: !(Platform.isIOS &&
+            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        (WidgetTester tester) async {
+      const storage = FlutterSecureStorage();
+      const key = 'it_se_existing_data_key';
+      const value = 'existing_value';
+
+      // Write without Secure Enclave (standard Keychain).
+      await storage.write(
+        key: key,
+        value: value,
+        iOptions: IOSOptions.defaultOptions,
+      );
+
+      // Reading the same key with useSecureEnclave=true should return null
+      // because no SE-wrapped companion key exists for this item.
+      final readWithSE = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+      expect(readWithSE, isNull);
+
+      // The original item is still accessible via the standard path.
+      final readWithoutSE = await storage.read(
+        key: key,
+        iOptions: IOSOptions.defaultOptions,
+      );
+      expect(readWithoutSE, value);
+
+      // Cleanup.
+      await storage.delete(key: key, iOptions: IOSOptions.defaultOptions);
+    });
+
+    testWidgets('iOS device: deleteAll with Secure Enclave items',
+        skip: !(Platform.isIOS &&
+            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        (WidgetTester tester) async {
+      const storage = FlutterSecureStorage();
+      // Use default userPresence - should work with device passcode
+      const enclaveOptions = IOSOptions(
+        useSecureEnclave: true,
+      );
+
+      // Write multiple Secure Enclave items
+      await storage.write(
+        key: 'delete_all_key1',
+        value: 'value1',
+        iOptions: enclaveOptions,
+      );
+      await storage.write(
+        key: 'delete_all_key2',
+        value: 'value2',
+        iOptions: enclaveOptions,
+      );
+
+      // Verify items exist
+      final beforeDelete = await storage.readAll(iOptions: enclaveOptions);
+      expect(beforeDelete, isNotNull);
+      final beforeItems = beforeDelete;
+      expect(beforeItems.containsKey('delete_all_key1'), isTrue);
+      expect(beforeItems.containsKey('delete_all_key2'), isTrue);
+
+      // Delete all items
+      await storage.deleteAll(iOptions: enclaveOptions);
+
+      // Verify all items are deleted (including wrapped keys)
+      final afterDelete = await storage.readAll(iOptions: enclaveOptions);
+      expect(afterDelete.isEmpty, isTrue);
+      expect(
+        await storage.read(key: 'delete_all_key1', iOptions: enclaveOptions),
+        isNull,
+      );
+      expect(
+        await storage.read(key: 'delete_all_key2', iOptions: enclaveOptions),
+        isNull,
+      );
+    });
   });
 }
 
@@ -238,6 +696,9 @@ class HomePageObject {
     await tester.pumpAndSettle(duration);
 
     await _tap(find.byKey(const Key('save')));
+
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await tester.pumpAndSettle(duration);
   }
 
   Future<void> deleteRow(int index) async {

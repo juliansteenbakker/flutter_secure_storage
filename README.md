@@ -2,7 +2,7 @@
 
 [![Pub Version](https://img.shields.io/pub/v/flutter_secure_storage.svg)](https://pub.dev/packages/flutter_secure_storage)
 [![Pub Version Prerelease](https://img.shields.io/pub/v/flutter_secure_storage.svg?include_prereleases)](https://pub.dev/packages/flutter_secure_storage)
-[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-integration.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-integration.yml)
+[![Build Status](https://github.com/mogol/flutter_secure_storage/actions/workflows/code-quality.yml/badge.svg)](https://github.com/juliansteenbakker/flutter_secure_storage/actions/workflows/code-quality.yml)
 [![Code Quality: Very Good Analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Codecov](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage/graph/badge.svg?token=UUVTJ6MS4A)](https://codecov.io/gh/juliansteenbakker/flutter_secure_storage)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
@@ -11,17 +11,21 @@ A Flutter plugin to securely store sensitive data in a key-value pair format usi
 
 ## Features
 
-- **Secure Data Storage**: Uses Keychain for iOS, Encrypted Shared Preferences via Tink for Android, and secure mechanisms on other supported platforms.
-- **Encryption**: Encrypts data before storing it in the underlying storage system.
-- **Cross-Platform**: Works seamlessly across multiple platforms.
-- **Customizable Options**: Set accessibility attributes, key expiration, and more.
+- **Secure Data Storage**: Uses Keychain for iOS/macOS, custom secure ciphers with optional biometric authentication for Android, and platform-specific secure mechanisms for Windows, Linux, and Web.
+- **Encryption**: Encrypts data before storing it using platform-specific encryption (RSA OAEP + AES-GCM on Android by default).
+- **Cross-Platform**: Works seamlessly across Android, iOS, macOS, Windows, Linux, and Web.
+- **Biometric Authentication**: Optional biometric authentication support on Android (API 23+) and iOS/macOS.
+- **Customizable Options**: Configure encryption algorithms, accessibility attributes, biometric requirements, and more.
 
 ## Important notice for Android
-Beginning with version 10, all data will be transitioned to encryptedSharedPreferences. As a result, the useEncryptedSharedPreferences option will be deprecated.
+Version 10.0.0 introduces a major security update with custom cipher implementations. The deprecated Jetpack Security library's `encryptedSharedPreferences` is no longer recommended.
 
-In version 11, the migration tool will no longer be available. To ensure users retain their data, it is essential to first upgrade to version 10 before proceeding to version 11.
-
-Due to this update, the minimum required Android SDK will be 23.
+**Key Changes:**
+- New default ciphers: RSA OAEP (key cipher) + AES-GCM (storage cipher)
+- New `AndroidOptions()` and `AndroidOptions.biometric()` constructors
+- Automatic migration from old ciphers via `migrateOnAlgorithmChange` (enabled by default)
+- Minimum Android SDK is now 23 (Android 6.0+)
+- Enhanced biometric authentication with graceful degradation
 
 ## Important notice for Web
 flutter_secure_storage only works on HTTPS or localhost environments. [Please see this issue for more information.](https://github.com/juliansteenbakker/flutter_secure_storage/issues/320#issuecomment-976308930)
@@ -50,7 +54,31 @@ Then run:
 
 ### Create an Instance
 
-`final storage = FlutterSecureStorage();`
+```dart
+// Default secure storage - Uses RSA OAEP + AES-GCM (recommended)
+final storage = FlutterSecureStorage();
+
+// Or with explicit Android options
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(),
+);
+
+// Biometric storage with graceful degradation
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: false, // Works without biometrics
+    biometricPromptTitle: 'Authenticate to access data',
+  ),
+);
+
+// Strict biometric enforcement (requires device security)
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    enforceBiometrics: true, // Requires biometric/PIN/pattern
+    biometricPromptTitle: 'Authentication Required',
+  ),
+);
+```
 
 ### Write Data
 
@@ -95,20 +123,50 @@ By setting `accessibility`, you can control when secure values are accessible, e
 
 #### Disabling Auto Backup
 
-_Note_ By default Android backups data on Google Drive. It can cause exception java.security.InvalidKeyException:Failed to unwrap key.
-You need to
+_Note_ By default Android backups data on Google Drive. It can cause exception `java.security.InvalidKeyException: Failed to unwrap key`.
+You need to:
 
-- [disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/13#issuecomment-421083742)
-- [exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) `FlutterSecureStorage` used by the plugin, [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/43#issuecomment-471642126)
+- [Disable autobackup](https://developer.android.com/guide/topics/data/autobackup#EnablingAutoBackup), [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/13#issuecomment-421083742)
+- [Exclude sharedprefs](https://developer.android.com/guide/topics/data/autobackup#IncludingFiles) used by `FlutterSecureStorage`, [details](https://github.com/juliansteenbakker/flutter_secure_storage/issues/43#issuecomment-471642126)
 
 Add the following to your `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <application
-android:allowBackup="false"
-...>
+  android:allowBackup="false"
+  ...>
 </application>
 ```
+
+#### Encryption Options (Version 10.0.0+)
+
+Version 10 introduces new cipher options and biometric support. Choose the configuration that fits your security requirements:
+
+| Constructor                                          | Key Cipher                            | Storage Cipher    | Biometric Support | Description                                                                                                                                          |
+|------------------------------------------------------|---------------------------------------|-------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AndroidOptions()`                                   | RSA/ECB/OAEPWithSHA-256AndMGF1Padding | AES/GCM/NoPadding | No                | **Default.** Standard secure storage with RSA OAEP key wrapping. Strong authenticated encryption without biometrics. Recommended for most use cases. |
+| `AndroidOptions.biometric(enforceBiometrics: false)` | AES/GCM/NoPadding                     | AES/GCM/NoPadding | Optional          | KeyStore-based with optional biometric authentication. Gracefully degrades if biometrics unavailable.                                                |
+| `AndroidOptions.biometric(enforceBiometrics: true)`  | AES/GCM/NoPadding                     | AES/GCM/NoPadding | Required          | KeyStore-based requiring biometric/PIN authentication. Throws error if device security not available. Requires API 28+ for biometric enforcement.    |
+
+#### Custom Cipher Combinations (Advanced)
+
+For advanced users, all combinations below are supported using the `AndroidOptions()` constructor with custom parameters:
+
+| Key Cipher Algorithm                    | Storage Cipher Algorithm | Implementation  | Biometric Support                  |
+|-----------------------------------------|--------------------------|-----------------|------------------------------------|
+| `RSA_ECB_PKCS1Padding`                  | `AES_CBC_PKCS7Padding`   | RSA-wrapped AES | No                                 |
+| `RSA_ECB_PKCS1Padding`                  | `AES_GCM_NoPadding`      | RSA-wrapped AES | No                                 |
+| `RSA_ECB_OAEPwithSHA_256andMGF1Padding` | `AES_CBC_PKCS7Padding`   | RSA-wrapped AES | No                                 |
+| `RSA_ECB_OAEPwithSHA_256andMGF1Padding` | `AES_GCM_NoPadding`      | RSA-wrapped AES | No                                 |
+| `AES_GCM_NoPadding`                     | `AES_CBC_PKCS7Padding`   | KeyStore AES    | Optional (via `enforceBiometrics`) |
+| `AES_GCM_NoPadding`                     | `AES_GCM_NoPadding`      | KeyStore AES    | Optional (via `enforceBiometrics`) |
+
+**Notes:**
+- **RSA key ciphers** wrap the AES encryption key with RSA. No biometric support.
+- **AES key cipher** stores the key directly in Android KeyStore. Supports optional biometric authentication.
+- **`enforceBiometrics` parameter** (default: `false`):
+  - `false`: Gracefully degrades if biometrics unavailable
+  - `true`: Strictly requires device security (PIN/pattern/biometric), throws exception if unavailable
 
 #### Biometric Authentication
 
@@ -135,22 +193,19 @@ For backward compatibility with devices running Android 6.0 - 8.1 (API 23-27), y
 You can enable biometric authentication using the `AndroidOptions.biometric()` constructor:
 
 ```dart
+// Optional biometric authentication (graceful degradation)
 final storage = FlutterSecureStorage(
   aOptions: AndroidOptions.biometric(
+    enforceBiometrics: false, // Default - works without biometrics
     biometricPromptTitle: 'Unlock to access your data',
     biometricPromptSubtitle: 'Use fingerprint or face unlock',
   ),
 );
-```
 
-##### Enforcing Biometric Authentication
-
-By default, biometric authentication is optional and will gracefully degrade if the device doesn't have biometrics enrolled. To enforce biometric authentication and throw an error if unavailable:
-
-```dart
+// Strict biometric enforcement (requires device security)
 final storage = FlutterSecureStorage(
   aOptions: AndroidOptions.biometric(
-    enforceBiometrics: true,  // Throw error if biometrics unavailable
+    enforceBiometrics: true, // Requires biometric/PIN/pattern
     biometricPromptTitle: 'Biometric authentication required',
   ),
 );
@@ -161,14 +216,28 @@ final storage = FlutterSecureStorage(
 ##### Requirements
 
 - **API Level**: Android 6.0 (API 23) minimum for basic encryption
-- **API Level**: Android 9.0 (API 28) minimum for biometric authentication
+- **API Level**: Android 9.0 (API 28) minimum for enforced biometric authentication
 - **Device Security**: Device must have a PIN, pattern, password, or biometric enrolled (when using `enforceBiometrics: true`)
 - **Permissions**: `USE_BIOMETRIC` permission in AndroidManifest.xml
+
+#### Migration from Version 9.x
+
+Version 10 automatically migrates data from older cipher algorithms when `migrateOnAlgorithmChange: true` (enabled by default). If you were using `encryptedSharedPreferences` in version 9, the data will be automatically migrated to the new cipher implementation.
+
+To disable automatic migration:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(
+    migrateOnAlgorithmChange: false,
+  ),
+);
+```
 
 ### macOS & iOS
 #### Secure Enclave (iOS/macOS)
 
-You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, values are encrypted with a per-item AES key that is wrapped by an Enclave-backed private key. Access control prompts (Face ID/Touch ID/passcode) are enforced according to your `accessControlFlags`.
+You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, each stored value is encrypted with a randomly generated AES key. That AES key is then wrapped (encrypted) using an Elliptic Curve private key that lives exclusively inside the device's Secure Enclave — it can never be extracted from the hardware. Decryption therefore requires the physical device, and access can be gated behind Face ID, Touch ID, or the device passcode via `accessControlFlags`.
 
 Example:
 
@@ -191,9 +260,21 @@ await storage.write(
 );
 ```
 
-Notes:
-- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured access control flags.
-- `synchronizable` is ignored for Enclave-backed flows (items are device-bound).
+**Enabling Secure Enclave on an existing app**
+
+`useSecureEnclave` is a per-operation option, not a global flag. Existing items written without `useSecureEnclave` are stored as standard Keychain entries and are **not** automatically re-encrypted.
+
+If you read a key with `useSecureEnclave: true` that was previously written without it, the plugin looks for the Secure Enclave–wrapped key companion entry. Because none exists, it returns `null` — the original Keychain item is still there but is invisible via the SE path. To avoid data loss when adopting Secure Enclave in an existing app:
+
+1. Read each existing value with `useSecureEnclave: false` (or `IOSOptions.defaultOptions`).
+2. Write it back with `useSecureEnclave: true`.
+3. Delete the old entry with `useSecureEnclave: false`.
+
+A first-class migration helper (`migrateToSecureEnclave`) is planned for a future release.
+
+**Notes:**
+- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured `accessControlFlags`.
+- `synchronizable` is ignored for Enclave-backed items — they are device-bound by design.
 - On macOS, `kSecUseDataProtectionKeychain` remains enabled when available.
 
 You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` for macOS or for iOS `ios/Runner/DebugProfile.entitlements` *and* `ios/Runner/Release.entitlements`.
@@ -213,6 +294,39 @@ If you have set your application up to use App Groups then you will need to add 
 ```
 
 If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
+
+#### Troubleshooting: Key lookup returns null after hot restart on iOS
+
+If your app returns `null` when reading keys after a hot restart on a physical iOS device, this is typically caused by missing or incorrectly configured Keychain Sharing entitlements across all build modes.
+
+**Step 1 — Add Keychain Sharing capability in Xcode**
+
+Open your project in Xcode. Click on **Runner** in the left bar, then click **Runner** under Targets. Go to **Signing and Capabilities**, click **+ Capability**, search for **Keychain Sharing** and add it. Click on each sub-tab (**Debug**, **Profile**, **Release**) and make sure the capability is present. If it is not, press **+** in **Keychain Groups** and a prompt will appear to create the entitlements file.
+
+This generates the following entitlement files:
+- `Runner/Runner.entitlements`
+- `Runner/RunnerDebug.entitlements`
+- `Runner/RunnerProfile.entitlements`
+
+**Step 2 — Set Code Signing Entitlements paths in Build Settings**
+
+In Xcode, click **Runner** in the left bar, then click **Runner** under **Project** (not Targets). Go to **Build Settings** and search for **Code Signing Entitlements**. Manually enter the relative path for all three build modes:
+
+- Debug: `Runner/RunnerDebug.entitlements`
+- Profile: `Runner/RunnerProfile.entitlements`
+- Release: `Runner/Runner.entitlements`
+
+**Step 3 — Clean and rebuild**
+
+```bash
+flutter clean
+rm -Rf ios/Pods
+flutter pub get
+cd ios && pod install && cd ..
+flutter run
+```
+
+After completing these steps, key lookups should work correctly after hot restart on physical iOS devices.
 
 ### Web
 

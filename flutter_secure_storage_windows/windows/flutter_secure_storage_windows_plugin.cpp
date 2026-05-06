@@ -1,4 +1,4 @@
-#include "include/flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h"
+#include "flutter_secure_storage_windows_plugin.h"
 
 // This must be included before many other Windows headers.
 #include <windows.h>
@@ -28,66 +28,8 @@
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "bcrypt.lib")
 
-namespace
+namespace flutter_secure_storage_windows
 {
-
-  class FlutterSecureStorageWindowsPlugin : public flutter::Plugin
-  {
-  public:
-    static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
-
-    FlutterSecureStorageWindowsPlugin();
-
-    virtual ~FlutterSecureStorageWindowsPlugin();
-
-  private:
-    // Called when a method is called on this plugin's channel from Dart.
-    void HandleMethodCall(
-        const flutter::MethodCall<flutter::EncodableValue> &method_call,
-        std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
-
-    // Retrieves the value passed to the given param.
-    std::optional<std::string> GetStringArg(
-        const std::string &param,
-        const flutter::EncodableMap *args);
-
-    // Derive the key for a value given a method argument map.
-    std::optional<std::string> FlutterSecureStorageWindowsPlugin::GetValueKey(const flutter::EncodableMap *args);
-
-    // Removes prefix of the given storage key.
-    // 
-    // The prefix (defined by ELEMENT_PREFERENCES_KEY_PREFIX) is added automatically when writing to storage,
-    // to distinguish values that are written by this plugin from values that are not.
-    std::string RemoveKeyPrefix(const std::string &key);
-
-    // Gets the string name for the given int error code
-    std::string GetErrorString(const DWORD &error_code);
-    // Get string name of ntstatus
-    std::string NtStatusToString(const CHAR* operation, NTSTATUS status);
-
-    DWORD GetApplicationSupportPath(std::wstring& path);
-
-    std::wstring SanitizeDirString(std::wstring string);
-
-    bool PathExists(const std::wstring& path);
-
-    bool MakePath(const std::wstring& path);
-
-    PBYTE GetEncryptionKey();
-
-    // Stores the given value under the given key.
-    void Write(const std::string &key, const std::string &val);
-
-    std::optional<std::string> Read(const std::string &key);
-
-    flutter::EncodableMap ReadAll();
-
-    void Delete(const std::string &key);
-
-    void DeleteAll();
-
-    bool ContainsKey(const std::string &key);
-  };
 
   const std::string ELEMENT_PREFERENCES_KEY_PREFIX = SECURE_STORAGE_KEY_PREFIX;
   const int ELEMENT_PREFERENCES_KEY_PREFIX_LENGTH = (sizeof SECURE_STORAGE_KEY_PREFIX) - 1;
@@ -259,7 +201,10 @@ namespace
           path = stream.str();
       }
       else {
-          return GetLastError();
+          // No version info in the binary (e.g. unit test executables).
+          // Fall back to placeholder names so the path is still valid.
+          stream << appdataPath << "\\" << L"placeholder_company" << "\\" << L"placeholder_product";
+          path = stream.str();
       }
       return ERROR_SUCCESS;
 
@@ -776,7 +721,7 @@ namespace
     for (DWORD i = 0; i < cred_count; i++)
     {
       auto pcred = pcreds[i];
-      std::string target_name = CW2A(pcred->TargetName);
+      std::string target_name(CW2A(pcred->TargetName));
       auto val = std::string((char*)pcred->CredentialBlob);
       auto key = this->RemoveKeyPrefix(target_name);
       //If the key exists then data was already read from a file, which implies that the data read from the credential system is outdated
@@ -892,12 +837,13 @@ namespace
       }
       return true;
   }
-} // namespace
+}  // namespace flutter_secure_storage_windows
 
-void FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
+extern "C" __declspec(dllexport) void FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
     FlutterDesktopPluginRegistrarRef registrar)
 {
-  FlutterSecureStorageWindowsPlugin::RegisterWithRegistrar(
-      flutter::PluginRegistrarManager::GetInstance()
-          ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
+  flutter_secure_storage_windows::FlutterSecureStorageWindowsPlugin::
+      RegisterWithRegistrar(
+          flutter::PluginRegistrarManager::GetInstance()
+              ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
 }

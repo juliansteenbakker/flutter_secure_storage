@@ -6,11 +6,11 @@ on:
       days-before-issue-stale:
         description: "Days before marking an issue as stale"
         required: false
-        default: "60"
+        default: "120"
       days-before-issue-close:
         description: "Days before closing a stale issue"
         required: false
-        default: "60"
+        default: "120"
   schedule:
     - cron: "30 1 * * *"  # Runs daily at 1:30 AM UTC
 

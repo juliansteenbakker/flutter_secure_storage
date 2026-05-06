@@ -8,6 +8,7 @@
 import Foundation
 import Security
 import CryptoKit
+import LocalAuthentication
 
 /// Represents the parameters for keychain queries.
 struct KeychainQueryParameters {
@@ -61,7 +62,10 @@ struct KeychainQueryParameters {
     
     /// `kSecUseAuthenticationUI` (iOS/macOS): Controls how authentication UI is presented during secure operations.
     var authenticationUIBehavior: String?
-    
+
+    /// Reusable authentication context to allow biometric reuse within one operation.
+    var authenticationContext: LAContext?
+
     /// `accessControlFlags` (iOS/macOS): Specifies access control settings (e.g., biometrics, passcode).
     var accessControlFlags: String?
 
@@ -134,6 +138,8 @@ class FlutterSecureStorage {
     
     /// Creates an access control object based on the provided parameters.
     private func createAccessControl(params: KeychainQueryParameters) -> SecAccessControl? {
+        // Without flags, skip SecAccessControl so kSecAttrSynchronizable is not silently dropped by the Security framework.
+        guard let flagString = params.accessControlFlags, !flagString.isEmpty else { return nil }
         guard let accessibilityLevel = params.accessibilityLevel else { return nil }
         let protection = parseAccessibleAttr(accessibilityLevel)
         let flags = parseAccessControlFlags(params.accessControlFlags)
@@ -201,6 +207,10 @@ class FlutterSecureStorage {
             query[kSecUseAuthenticationUI] = authenticationUIBehavior
         }
 
+        if let authenticationContext = params.authenticationContext {
+            query[kSecUseAuthenticationContext] = authenticationContext
+        }
+
         // If Secure Enclave style gating requested but no flags provided,
         // default to requiring user presence (biometry or passcode).
         var effectiveParams = params
@@ -244,8 +254,10 @@ class FlutterSecureStorage {
     }
 
     /// Ensures a Secure Enclave EC private key exists for the provided service, creating it if needed.
+    /// The private key uses hardcoded access control with .privateKeyUsage to allow crypto operations
+    /// without requiring user authentication (authentication is handled at the data item level).
     @available(iOS 11.3, macOS 10.15, *)
-    private func ensureEnclavePrivateKey(service: String?, accessControl: SecAccessControl?) throws -> SecKey {
+    private func ensureEnclavePrivateKey(service: String?) throws -> SecKey {
         let tag = enclaveKeyTag(for: service) as CFData
 
         let query: [CFString: Any] = [
@@ -269,7 +281,16 @@ class FlutterSecureStorage {
                 kSecAttrApplicationTag: tag
             ]
         ]
-        if let ac = accessControl {
+        // Use hardcoded access control with .privateKeyUsage for the SE private key.
+        // This allows crypto operations without user authentication prompts.
+        // User authentication is handled at the data item level via accessControlFlags.
+        let keyAccessControl = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .privateKeyUsage,
+            nil
+        )
+        if let ac = keyAccessControl {
             var privateAttrs = attributes[kSecPrivateKeyAttrs] as! [CFString: Any]
             privateAttrs[kSecAttrAccessControl] = ac
             attributes[kSecPrivateKeyAttrs] = privateAttrs
@@ -308,6 +329,18 @@ class FlutterSecureStorage {
             throw OSSecError(status: errSecAuthFailed, message: error?.takeRetainedValue().localizedDescription)
         }
         return decrypted
+    }
+
+    /// Deletes the Secure Enclave private key for the provided service.
+    @available(iOS 11.3, macOS 10.15, *)
+    private func deleteEnclavePrivateKey(service: String?) {
+        let tag = enclaveKeyTag(for: service) as CFData
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassKey,
+            kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrApplicationTag: tag
+        ]
+        _ = SecItemDelete(query as CFDictionary)
     }
 
     /// Composes the companion key name used to store the wrapped AES key for a data item key.
@@ -785,6 +818,7 @@ class FlutterSecureStorage {
         var query = baseQuery(from: params)
         query[kSecMatchLimit] = kSecMatchLimitAll
         query[kSecReturnAttributes] = true
+        query[kSecReturnData] = true
 
         var ref: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &ref)
@@ -801,30 +835,33 @@ class FlutterSecureStorage {
         var results: [String: String] = [:]
         if let items = ref as? [[CFString: Any]] {
             for item in items {
-                if let key = item[kSecAttrAccount] as? String,
-                   let data = item[kSecValueData] as? Data {
+                guard let key = item[kSecAttrAccount] as? String else { continue }
 
-                    // Skip wrapped key entries (they're companions, not data)
-                    if key.hasPrefix("fss.wrapped.") {
-                        continue
-                    }
+                // Skip wrapped key items (they're companion items for Secure Enclave)
+                if key.hasPrefix("fss.wrapped.") {
+                    continue
+                }
 
-                    // If Secure Enclave is enabled, try to decrypt the data
-                    if (params.useSecureEnclave ?? false) {
-                        // Attempt SE decryption by reading individual item
-                        var itemParams = params
-                        itemParams.key = key
-                        itemParams.migrateToSecureEnclave = false // Don't trigger migration for each item
-                        let itemResponse = readInternal(params: itemParams)
-                        if itemResponse.status == errSecSuccess, let decryptedValue = itemResponse.value as? String {
-                            results[key] = decryptedValue
-                        }
-                        // If decryption fails, skip this item
+                // If Secure Enclave is enabled, try to decrypt the item
+                if params.useSecureEnclave == true {
+                    var itemParams = params
+                    itemParams.key = key
+                    itemParams.migrateToSecureEnclave = false // Don't trigger migration per-item
+                    let readResult = readInternal(params: itemParams)
+                    if readResult.status == errSecSuccess, let value = readResult.value as? String {
+                        results[key] = value
                     } else {
-                        // Standard path: data is plaintext
-                        if let value = String(data: data, encoding: .utf8) {
+                        // Fallback: if Secure Enclave read failed (no wrapped key), try plain text
+                        if let data = item[kSecValueData] as? Data,
+                           let value = String(data: data, encoding: .utf8) {
                             results[key] = value
                         }
+                    }
+                } else {
+                    // Standard read: decode as UTF-8
+                    if let data = item[kSecValueData] as? Data,
+                       let value = String(data: data, encoding: .utf8) {
+                        results[key] = value
                     }
                 }
             }
@@ -905,9 +942,8 @@ class FlutterSecureStorage {
 
         // Unwrap AES key via Secure Enclave
         if #available(iOS 11.3, macOS 10.15, *) {
-            let ac = createAccessControl(params: params)
             do {
-                let privateKey = try ensureEnclavePrivateKey(service: params.service, accessControl: ac)
+                let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 let aesKeyData = try unwrapSymmetricKey(wrappedKeyData, using: privateKey)
                 let key = SymmetricKey(data: aesKeyData)
                 // Encrypted blob format: nonce(12) + ciphertext+tag
@@ -1005,11 +1041,10 @@ class FlutterSecureStorage {
             return FlutterSecureStorageResponse(status: errSecParam, value: nil)
         }
 
-        // Ensure enclave private key exists (with provided access control)
+        // Ensure enclave private key exists
         if #available(iOS 11.3, macOS 10.15, *) {
-            let ac = createAccessControl(params: params)
             do {
-                let privateKey = try ensureEnclavePrivateKey(service: params.service, accessControl: ac)
+                let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
                     return FlutterSecureStorageResponse(status: errSecParam, value: nil)
                 }
@@ -1103,35 +1138,83 @@ class FlutterSecureStorage {
 
     /// Deletes an item from the keychain.
     internal func delete(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        // Delete the primary value
-        let query = baseQuery(from: params)
-        let status = SecItemDelete(query as CFDictionary)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            return FlutterSecureStorageResponse(status: status, value: nil)
+        // Delete primary item across sync variants/accessibility permutations.
+        let primaryResult = performDelete(params: params, clearKey: false)
+        if primaryResult.status != errSecSuccess {
+            return primaryResult
         }
 
-        // If Secure Enclave flow is used, also remove the wrapped AES key companion item
+        // If Secure Enclave flow is used, also remove the wrapped AES key companion item.
         if params.useSecureEnclave == true, let account = params.key {
             var keyParams = params
             keyParams.key = wrappedKeyName(for: account)
-            let wrappedQuery = baseQuery(from: keyParams)
-            _ = SecItemDelete(wrappedQuery as CFDictionary)
+            let wrappedResult = performDelete(params: keyParams, clearKey: false)
+            if wrappedResult.status != errSecSuccess {
+                return wrappedResult
+            }
         }
 
         return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
     }
 
     /// Deletes all items matching the query parameters.
+    /// If Secure Enclave is enabled, also deletes the Secure Enclave private key.
     internal func deleteAll(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        let query = baseQuery(from: params)
-        let status = SecItemDelete(query as CFDictionary)
-        // Return nil if nothing is found
-        if (status == errSecItemNotFound) {
+        let result = performDelete(params: params, clearKey: true)
+
+        // If Secure Enclave is enabled, also delete the SE private key
+        if params.useSecureEnclave == true {
+            if #available(iOS 11.3, macOS 10.15, *) {
+                deleteEnclavePrivateKey(service: params.service)
+            }
+        }
+
+        return result
+    }
+
+    /// Private helper method to perform keychain deletion.
+    /// Attempts to delete items with both synchronizable states and without accessibility constraints
+    /// to ensure complete removal regardless of how items were originally stored.
+    ///
+    /// - Parameters:
+    ///   - params: The keychain query parameters
+    ///   - clearKey: If true, removes the key constraint to delete all items; if false, deletes specific key
+    /// - Returns: Response indicating success or failure of the deletion operation
+    private func performDelete(params: KeychainQueryParameters, clearKey: Bool) -> FlutterSecureStorageResponse {
+        func deleteFromKeychain(withSynchronizable synchronizable: Bool?) -> OSStatus {
+            var modifiedParams = params
+
+            if clearKey {
+                modifiedParams.key = nil
+            }
+
+            modifiedParams.isSynchronizable = synchronizable
+            modifiedParams.accessibilityLevel = nil
+            modifiedParams.accessControlFlags = nil
+
+            let query = baseQuery(from: modifiedParams)
+            return SecItemDelete(query as CFDictionary)
+        }
+
+        let statusSync = deleteFromKeychain(withSynchronizable: true)
+        let statusNonSync = deleteFromKeychain(withSynchronizable: false)
+
+        // Return success if both operations report item not found
+        if statusSync == errSecItemNotFound && statusNonSync == errSecItemNotFound {
             return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
         }
+
+        // Return success if either operation succeeded
+        if statusSync == errSecSuccess || statusNonSync == errSecSuccess {
+            return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
+        }
+
+        // Return the first error encountered
+        let status = statusSync != errSecItemNotFound ? statusSync : statusNonSync
+
         return FlutterSecureStorageResponse(status: status, value: nil)
     }
-    
+
     internal func getPersistentReference(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
         var query = baseQuery(from: params)
         query[kSecReturnPersistentRef] = true

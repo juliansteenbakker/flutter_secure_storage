@@ -60,7 +60,7 @@ public:
   bool deleteKeyring() { return this->storeToKeyring(nlohmann::json()); }
 
   bool storeToKeyring(nlohmann::json value) {
-    const std::string output = value.dump(0);
+    const std::string output = value.dump();
     g_autoptr(GError) err = nullptr;
     bool result = secret_password_storev_sync(
         &the_schema, m_attributes.getGHashTable(), nullptr, label.c_str(),
