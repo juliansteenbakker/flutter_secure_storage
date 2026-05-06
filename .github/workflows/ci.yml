@@ -303,6 +303,94 @@ jobs:
         working-directory: flutter_secure_storage/example
         run: flutter test integration_test/windows_test.dart -d windows
 
+  native_tests_linux:
+    name: Linux Native Tests
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libblkid-dev liblzma-dev libsecret-1-dev \
+            gnome-keyring dbus-x11
+
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: Build Linux Example and Native Tests
+        working-directory: flutter_secure_storage/example
+        run: flutter build linux --debug
+
+      - name: Start D-Bus Session and Unlock Keyring
+        run: |
+          eval $(dbus-launch --sh-syntax)
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
+          echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID" >> $GITHUB_ENV
+          echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
+
+      - name: Run Native Linux Tests
+        working-directory: flutter_secure_storage/example/build/linux/x64/debug/plugins/flutter_secure_storage_linux
+        run: ctest --output-on-failure
+
+  integration_tests_linux:
+    name: Linux Integration Tests
+    needs: [unit_tests, native_tests_linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libblkid-dev liblzma-dev libsecret-1-dev \
+            gnome-keyring dbus-x11 xvfb
+
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: Start D-Bus Session and Unlock Keyring
+        run: |
+          eval $(dbus-launch --sh-syntax)
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
+          echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID" >> $GITHUB_ENV
+          echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
+
+      - name: Run Linux Integration Tests
+        working-directory: flutter_secure_storage/example
+        run: xvfb-run flutter test integration_test/linux_test.dart -d linux
+
   integration_tests_android:
     name: Android Tests
     needs: [unit_tests, unit_tests_android]
