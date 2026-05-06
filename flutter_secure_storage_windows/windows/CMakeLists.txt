@@ -27,3 +27,42 @@ if(NOT DEFINED STORAGE_PREFIX)
 else()
   add_compile_definitions(SECURE_STORAGE_KEY_PREFIX="${STORAGE_PREFIX}_VGhpcyBpcyB0aGUgcHJlZml4IGZv_")
 endif()
+
+if(${include_flutter_secure_storage_windows_tests})
+set(TEST_RUNNER "flutter_secure_storage_windows_test")
+enable_testing()
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/b514bdc898e2951020cbdca1304b75f5950d1f59.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of googletest" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+add_executable(${TEST_RUNNER}
+  "test/flutter_secure_storage_windows_plugin_test.cpp"
+  "flutter_secure_storage_windows_plugin.cpp"
+)
+apply_standard_settings(${TEST_RUNNER})
+target_compile_definitions(${TEST_RUNNER} PRIVATE
+  SECURE_STORAGE_KEY_PREFIX="fss_native_test_"
+  FLUTTER_PLUGIN_IMPL
+)
+target_include_directories(${TEST_RUNNER} PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(${TEST_RUNNER} PRIVATE flutter_wrapper_plugin)
+target_link_libraries(${TEST_RUNNER} PRIVATE gtest_main)
+
+# flutter_wrapper_plugin has link dependencies on the Flutter DLL.
+add_custom_command(TARGET ${TEST_RUNNER} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${FLUTTER_LIBRARY}" $<TARGET_FILE_DIR:${TEST_RUNNER}>
+)
+
+include(GoogleTest)
+gtest_discover_tests(${TEST_RUNNER})
+endif()
