@@ -721,7 +721,7 @@ namespace flutter_secure_storage_windows
     for (DWORD i = 0; i < cred_count; i++)
     {
       auto pcred = pcreds[i];
-      std::string target_name = CW2A(pcred->TargetName);
+      std::string target_name(CW2A(pcred->TargetName));
       auto val = std::string((char*)pcred->CredentialBlob);
       auto key = this->RemoveKeyPrefix(target_name);
       //If the key exists then data was already read from a file, which implies that the data read from the credential system is outdated

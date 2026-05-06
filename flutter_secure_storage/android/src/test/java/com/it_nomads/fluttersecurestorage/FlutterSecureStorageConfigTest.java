@@ -79,7 +79,7 @@ public class FlutterSecureStorageConfigTest {
 
     @Test
     public void defaults_keyCipherAlgorithm() {
-        assertEquals("RSA_ECB_PKCS1Padding", emptyConfig().getPrefOptionKeyCipherAlgorithm());
+        assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", emptyConfig().getPrefOptionKeyCipherAlgorithm());
     }
 
     // -------------------------------------------------------------------------
