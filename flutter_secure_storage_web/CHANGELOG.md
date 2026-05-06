@@ -1,4 +1,4 @@
-## NEXT
+## 2.1.1
 - Fix potential key skipping in `readAll` when storage is modified concurrently during async decryption by collecting keys synchronously before awaiting.
 
 ## 2.1.0
