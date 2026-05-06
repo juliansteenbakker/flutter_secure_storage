@@ -1204,6 +1204,29 @@ void main() {
     );
 
     test(
+      'load - throws FormatException for DPAPI-encrypted invalid UTF-8 bytes',
+      () => withFfi(() async {
+        final file = await storageFile();
+        try {
+          await file.create(recursive: true);
+          // Encrypt raw bytes that are not valid UTF-8 — CryptUnprotectData
+          // decrypts them successfully, but utf8.decoder.convert throws.
+          await file.writeAsBytes(
+            _dpApiEncrypt(Uint8List.fromList([0xFF, 0xFE, 0x00])),
+            flush: true,
+          );
+
+          final storage = DpapiJsonFileMapStorage();
+          await expectLater(storage.load({}), throwsFormatException);
+          // load() deletes the corrupt file on FormatException.
+          expect(file.existsSync(), isFalse);
+        } finally {
+          if (file.existsSync()) await file.delete();
+        }
+      }),
+    );
+
+    test(
       'load - throws FormatException for DPAPI-encrypted invalid JSON',
       () => withFfi(() async {
         final file = await storageFile();
