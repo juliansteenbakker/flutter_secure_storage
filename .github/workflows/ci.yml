@@ -258,6 +258,7 @@ jobs:
           Add-Content $env:GITHUB_PATH "$env:PUB_CACHE\bin"
 
       - name: Bootstrap Workspace with Melos
+        shell: pwsh
         run: melos bootstrap
 
       - name: Build Windows Example and Native Tests
@@ -295,6 +296,7 @@ jobs:
           Add-Content $env:GITHUB_PATH "$env:PUB_CACHE\bin"
 
       - name: Bootstrap Workspace with Melos
+        shell: pwsh
         run: melos bootstrap
 
       - name: Run Windows Integration Tests
