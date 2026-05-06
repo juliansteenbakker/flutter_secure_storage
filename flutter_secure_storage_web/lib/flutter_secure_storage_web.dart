@@ -78,7 +78,10 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
       keys.add(key);
     }
 
-    keys.forEach(storage.removeItem);
+    // ignore: prefer_foreach, tearoffs of interop members are disallowed
+    for (final key in keys) {
+      storage.removeItem(key);
+    }
   }
 
   /// Reads and decrypts the value for the given [key].
