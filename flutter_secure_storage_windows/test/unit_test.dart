@@ -12,9 +12,16 @@ import 'package:flutter_secure_storage_windows/src/flutter_secure_storage_window
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:path_provider_windows/path_provider_windows.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Register the Windows path_provider FFI implementation so that
+  // getApplicationSupportDirectory() works in flutter test without a
+  // full app plugin registrant.
+  PathProviderPlatform.instance = PathProviderWindows();
 
   FutureOr<void> cleanUpFiles() async {
     // Clean up current & legacy files.
@@ -450,7 +457,7 @@ void main() {
               readCalled++;
               return deleteAllCalled > 0
                   ? null
-                  : (call.arguments as Map<String, dynamic>)['key'] == oldKey
+                  : (call.arguments as Map<Object?, Object?>)['key'] == oldKey
                       ? oldValue
                       : null;
             case 'readAll':
@@ -742,7 +749,7 @@ void main() {
             case 'containsKey':
               containsKeyCalled++;
               return deleteCalled > 0 &&
-                  (call.arguments as Map<String, dynamic>)['key'] == key;
+                  (call.arguments as Map<Object?, Object?>)['key'] == key;
             case 'delete':
               deleteCalled++;
               return null;
@@ -779,7 +786,7 @@ void main() {
           switch (call.method) {
             case 'containsKey':
               containsKeyCalled++;
-              return (call.arguments as Map<String, dynamic>)['key'] == key;
+              return (call.arguments as Map<Object?, Object?>)['key'] == key;
             default:
               fail('Unexpected method call: ${call.method}');
           }

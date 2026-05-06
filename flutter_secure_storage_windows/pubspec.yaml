@@ -19,6 +19,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  path_provider_windows: ^2.0.0
   very_good_analysis: ^7.0.0
 
 flutter:
