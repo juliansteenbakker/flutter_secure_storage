@@ -201,7 +201,10 @@ namespace flutter_secure_storage_windows
           path = stream.str();
       }
       else {
-          return GetLastError();
+          // No version info in the binary (e.g. unit test executables).
+          // Fall back to placeholder names so the path is still valid.
+          stream << appdataPath << "\\" << L"placeholder_company" << "\\" << L"placeholder_product";
+          path = stream.str();
       }
       return ERROR_SUCCESS;
 
@@ -836,7 +839,7 @@ namespace flutter_secure_storage_windows
   }
 }  // namespace flutter_secure_storage_windows
 
-void FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
+extern "C" __declspec(dllexport) void FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
     FlutterDesktopPluginRegistrarRef registrar)
 {
   flutter_secure_storage_windows::FlutterSecureStorageWindowsPlugin::

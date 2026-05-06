@@ -251,29 +251,17 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage/example
-        run: flutter pub get
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
-      - name: Build Windows Example (generates CMake project)
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
+
+      - name: Build Windows Example and Native Tests
         working-directory: flutter_secure_storage/example
         run: flutter build windows --debug
-
-      - name: Reconfigure CMake with BUILD_TESTING
-        working-directory: flutter_secure_storage/example
-        shell: pwsh
-        run: |
-          cmake -DBUILD_TESTING=ON `
-            -S windows `
-            -B build/windows/x64
-
-      - name: Build Native Test Binary
-        working-directory: flutter_secure_storage/example
-        shell: pwsh
-        run: |
-          cmake --build build/windows/x64 `
-            --target flutter_secure_storage_windows_test `
-            --config Debug
 
       - name: Run Native Windows Tests
         working-directory: flutter_secure_storage/example
@@ -299,9 +287,13 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage/example
-        run: flutter pub get
+      - name: Install Melos
+        run: |
+          flutter pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Bootstrap Workspace with Melos
+        run: melos bootstrap
 
       - name: Run Windows Integration Tests
         working-directory: flutter_secure_storage/example
