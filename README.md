@@ -237,7 +237,7 @@ final storage = FlutterSecureStorage(
 ### macOS & iOS
 #### Secure Enclave (iOS/macOS)
 
-You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, values are encrypted with a per-item AES key that is wrapped by an Enclave-backed private key. Access control prompts (Face ID/Touch ID/passcode) are enforced according to your `accessControlFlags`.
+You can opt-in to hardware-backed protection using the Secure Enclave by enabling `useSecureEnclave` in `AppleOptions` (iOS/macOS). When enabled, each stored value is encrypted with a randomly generated AES key. That AES key is then wrapped (encrypted) using an Elliptic Curve private key that lives exclusively inside the device's Secure Enclave — it can never be extracted from the hardware. Decryption therefore requires the physical device, and access can be gated behind Face ID, Touch ID, or the device passcode via `accessControlFlags`.
 
 Example:
 
@@ -260,9 +260,21 @@ await storage.write(
 );
 ```
 
-Notes:
-- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured access control flags.
-- `synchronizable` is ignored for Enclave-backed flows (items are device-bound).
+**Enabling Secure Enclave on an existing app**
+
+`useSecureEnclave` is a per-operation option, not a global flag. Existing items written without `useSecureEnclave` are stored as standard Keychain entries and are **not** automatically re-encrypted.
+
+If you read a key with `useSecureEnclave: true` that was previously written without it, the plugin looks for the Secure Enclave–wrapped key companion entry. Because none exists, it returns `null` — the original Keychain item is still there but is invisible via the SE path. To avoid data loss when adopting Secure Enclave in an existing app:
+
+1. Read each existing value with `useSecureEnclave: false` (or `IOSOptions.defaultOptions`).
+2. Write it back with `useSecureEnclave: true`.
+3. Delete the old entry with `useSecureEnclave: false`.
+
+A first-class migration helper (`migrateToSecureEnclave`) is planned for a future release.
+
+**Notes:**
+- If Secure Enclave is unavailable (simulator or devices without Enclave), the plugin gracefully falls back to storing the value using standard Keychain with your configured `accessControlFlags`.
+- `synchronizable` is ignored for Enclave-backed items — they are device-bound by design.
 - On macOS, `kSecUseDataProtectionKeychain` remains enabled when available.
 
 You also need to add Keychain Sharing as capability to your macOS runner. To achieve this, please add the following in *both* your `macos/Runner/DebugProfile.entitlements` *and* `macos/Runner/Release.entitlements` for macOS or for iOS `ios/Runner/DebugProfile.entitlements` *and* `ios/Runner/Release.entitlements`.
