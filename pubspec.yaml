@@ -1,8 +1,27 @@
 name: flutter_secure_storage_root
+publish_to: none
 
 environment:
-  sdk: '>=2.15.0 <4.0.0'
+  sdk: '>=3.9.0 <4.0.0'
+
+workspace:
+  - flutter_secure_storage
+  - flutter_secure_storage/example
+  - flutter_secure_storage_linux
+  - flutter_secure_storage_darwin
+  - flutter_secure_storage_platform_interface
+  - flutter_secure_storage_web
+  - flutter_secure_storage_windows
 
 dev_dependencies:
   flutter_lints: ^6.0.0
   melos: ^7.5.1
+
+melos:
+  name: flutter_secure_storage
+  repository: https://github.com/mogol/flutter_secure_storage
+
+  command:
+    version:
+      linkToCommits: true
+      workspaceChangelog: true

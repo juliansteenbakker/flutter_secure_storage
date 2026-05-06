@@ -2,9 +2,10 @@ name: flutter_secure_storage
 description: A Flutter plugin for securely storing sensitive data using encrypted storage.
 version: 10.0.0
 repository: https://github.com/mogol/flutter_secure_storage/tree/develop/flutter_secure_storage
+resolution: workspace
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.5.0 <4.0.0'
   flutter: '>=3.19.0'
 
 flutter:
@@ -43,7 +44,7 @@ dev_dependencies:
     sdk: flutter
   mocktail: ^1.0.5
   plugin_platform_interface: ^2.1.8
-  very_good_analysis: '>=6.0.0 <10.1.0'
+  very_good_analysis: ^10.2.0
 
 # We need to manually declare supported platforms, because pub.dev won't find them.
 platforms:
