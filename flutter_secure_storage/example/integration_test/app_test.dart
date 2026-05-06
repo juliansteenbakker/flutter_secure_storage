@@ -670,7 +670,8 @@ void main() {
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'iOS device: migrateToSecureEnclave=false (default) does not auto-migrate',
+      'iOS device: migrateToSecureEnclave=false (default) '
+      'does not auto-migrate',
       skip: !(Platform.isIOS &&
           !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
       (WidgetTester tester) async {
@@ -868,7 +869,8 @@ void main() {
     );
 
     testWidgets(
-      'iOS device: write with migrateToSecureEnclave=true migrates existing keys',
+      'iOS device: write with migrateToSecureEnclave=true '
+      'migrates existing keys',
       skip: !(Platform.isIOS &&
           !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
       (WidgetTester tester) async {
@@ -909,7 +911,8 @@ void main() {
         expect(
           migratedValue,
           existingValue,
-          reason: 'Pre-existing item must be migrated to SE when write triggers migration',
+          reason: 'Pre-existing item must be migrated to SE '
+              'when write triggers migration',
         );
 
         // The newly written item is also readable via the SE path.
@@ -937,7 +940,6 @@ void main() {
         };
         const se = IOSOptions(useSecureEnclave: true);
         const plainWithMigrate = IOSOptions(
-          useSecureEnclave: false,
           migrateToSecureEnclave: true,
         );
 
@@ -964,7 +966,8 @@ void main() {
           expect(
             result,
             entry.value,
-            reason: '${entry.key} must be readable via plain path after SE→standard migration',
+            reason: '${entry.key} must be readable via plain path '
+                'after SE→standard migration',
           );
         }
 
@@ -984,7 +987,6 @@ void main() {
         const value = 'from_se_cleanup_value';
         const se = IOSOptions(useSecureEnclave: true);
         const plainWithMigrate = IOSOptions(
-          useSecureEnclave: false,
           migrateToSecureEnclave: true,
         );
 
@@ -1000,7 +1002,8 @@ void main() {
         expect(
           readSE,
           isNull,
-          reason: 'SE item must be deleted after successful migration to standard keychain',
+          reason: 'SE item must be deleted after successful '
+              'migration to standard keychain',
         );
 
         await _cleanupMigrationKey(storage, key);
@@ -1041,7 +1044,6 @@ void main() {
         const value = 'detection_value';
         const se = IOSOptions(useSecureEnclave: true);
         const plainWithMigrate = IOSOptions(
-          useSecureEnclave: false,
           migrateToSecureEnclave: true,
         );
 
@@ -1057,7 +1059,8 @@ void main() {
         expect(
           result,
           value,
-          reason: 'Mode must be detected from keychain contents, triggering SE→standard migration',
+          reason: 'Mode must be detected from keychain contents, '
+              'triggering SE→standard migration',
         );
 
         await _cleanupMigrationKey(storage, key);
@@ -1065,7 +1068,8 @@ void main() {
     );
 
     testWidgets(
-      'iOS Simulator: migration to SE falls back gracefully when SE unavailable',
+      'iOS Simulator: migration to SE falls back gracefully '
+      'when SE unavailable',
       skip: !(Platform.isIOS &&
           Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
       (WidgetTester tester) async {
@@ -1111,7 +1115,6 @@ void main() {
         const value = 'reset_on_error_value';
         const se = IOSOptions(useSecureEnclave: true);
         const plainWithMigrateAndReset = IOSOptions(
-          useSecureEnclave: false,
           migrateToSecureEnclave: true,
           resetOnError: true,
         );
@@ -1127,7 +1130,11 @@ void main() {
 
         // Write the item back with raw standard storage so there is something
         // in the keychain, but no SE private key to unwrap with.
-        await storage.write(key: key, value: value, iOptions: IOSOptions.defaultOptions);
+        await storage.write(
+          key: key,
+          value: value,
+          iOptions: IOSOptions.defaultOptions,
+        );
 
         // Re-write as SE without a valid enclave key to create a corrupt state.
         // (On a real device this is hard to trigger reliably, so we verify the
