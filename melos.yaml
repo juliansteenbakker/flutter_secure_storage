@@ -9,7 +9,6 @@ packages:
   - flutter_secure_storage_platform_interface
   - flutter_secure_storage_web
   - flutter_secure_storage_windows
-  - flutter_secure_storage_windows/example
 
 command:
   version:

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_secure_storage_windows/src/flutter_secure_storage_windows_ffi.dart'
@@ -12,9 +14,17 @@ import 'package:flutter_secure_storage_windows/src/flutter_secure_storage_window
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:path_provider_windows/path_provider_windows.dart';
+import 'package:win32/win32.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Register the Windows path_provider FFI implementation so that
+  // getApplicationSupportDirectory() works in flutter test without a
+  // full app plugin registrant.
+  PathProviderPlatform.instance = PathProviderWindows();
 
   FutureOr<void> cleanUpFiles() async {
     // Clean up current & legacy files.
@@ -450,7 +460,7 @@ void main() {
               readCalled++;
               return deleteAllCalled > 0
                   ? null
-                  : (call.arguments as Map<String, dynamic>)['key'] == oldKey
+                  : (call.arguments as Map<Object?, Object?>)['key'] == oldKey
                       ? oldValue
                       : null;
             case 'readAll':
@@ -742,7 +752,7 @@ void main() {
             case 'containsKey':
               containsKeyCalled++;
               return deleteCalled > 0 &&
-                  (call.arguments as Map<String, dynamic>)['key'] == key;
+                  (call.arguments as Map<Object?, Object?>)['key'] == key;
             case 'delete':
               deleteCalled++;
               return null;
@@ -779,7 +789,7 @@ void main() {
           switch (call.method) {
             case 'containsKey':
               containsKeyCalled++;
-              return (call.arguments as Map<String, dynamic>)['key'] == key;
+              return (call.arguments as Map<Object?, Object?>)['key'] == key;
             default:
               fail('Unexpected method call: ${call.method}');
           }
@@ -1019,6 +1029,16 @@ void main() {
         );
       },
     );
+
+    test(
+      'registerWith throws AssertionError',
+      () async {
+        expect(
+          stub.FlutterSecureStorageWindows.registerWith,
+          throwsAssertionError,
+        );
+      },
+    );
   });
 
   group('Special charactors handling', () {
@@ -1136,6 +1156,156 @@ void main() {
       expect(await target.containsKey(key: key1, options: options), isFalse);
       expect(await target.containsKey(key: key2, options: options), isFalse);
     });
+  });
+
+  group('FFI registerWith', () {
+    test(
+      'registerWith sets FlutterSecureStoragePlatform.instance',
+      () => withFfi(() {
+        ffi.FlutterSecureStorageWindows.registerWith();
+        expect(
+          FlutterSecureStoragePlatform.instance,
+          isA<ffi.FlutterSecureStorageWindows>(),
+        );
+      }),
+    );
+  });
+
+  group('DpapiJsonFileMapStorage error paths', () {
+    Future<File> storageFile() async {
+      final dir = await getApplicationSupportDirectory();
+      return File(path.join(dir.path, encryptedJsonFileName));
+    }
+
+    test(
+      'load - throws WindowsException for corrupted (non-DPAPI) file content',
+      () => withFfi(() async {
+        final file = await storageFile();
+        try {
+          await file.create(recursive: true);
+          // Write raw garbage bytes — CryptUnprotectData will fail.
+          await file.writeAsBytes(
+            Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x04]),
+            flush: true,
+          );
+
+          final storage = DpapiJsonFileMapStorage();
+          await expectLater(
+            storage.load({}),
+            throwsA(isA<WindowsException>()),
+          );
+          // load() deletes the corrupt file on WindowsException.
+          expect(file.existsSync(), isFalse);
+        } finally {
+          if (file.existsSync()) await file.delete();
+        }
+      }),
+    );
+
+    test(
+      'load - throws FormatException for DPAPI-encrypted invalid UTF-8 bytes',
+      () => withFfi(() async {
+        final file = await storageFile();
+        try {
+          await file.create(recursive: true);
+          // Encrypt raw bytes that are not valid UTF-8 — CryptUnprotectData
+          // decrypts them successfully, but utf8.decoder.convert throws.
+          await file.writeAsBytes(
+            _dpApiEncrypt(Uint8List.fromList([0xFF, 0xFE, 0x00])),
+            flush: true,
+          );
+
+          final storage = DpapiJsonFileMapStorage();
+          await expectLater(storage.load({}), throwsFormatException);
+          // load() deletes the corrupt file on FormatException.
+          expect(file.existsSync(), isFalse);
+        } finally {
+          if (file.existsSync()) await file.delete();
+        }
+      }),
+    );
+
+    test(
+      'load - throws FormatException for DPAPI-encrypted invalid JSON',
+      () => withFfi(() async {
+        final file = await storageFile();
+        try {
+          await file.create(recursive: true);
+          await file.writeAsBytes(
+            _dpApiEncrypt(utf8.encode('not-valid-json')),
+            flush: true,
+          );
+
+          final storage = DpapiJsonFileMapStorage();
+          await expectLater(storage.load({}), throwsFormatException);
+          // load() deletes the corrupt file on FormatException.
+          expect(file.existsSync(), isFalse);
+        } finally {
+          if (file.existsSync()) await file.delete();
+        }
+      }),
+    );
+
+    test(
+      'load - throws FormatException when JSON root is not a Map',
+      () => withFfi(() async {
+        final file = await storageFile();
+        try {
+          await file.create(recursive: true);
+          // Encrypt a JSON array — decrypts fine but is not a Map.
+          await file.writeAsBytes(
+            _dpApiEncrypt(utf8.encode('[1, 2, 3]')),
+            flush: true,
+          );
+
+          final storage = DpapiJsonFileMapStorage();
+          await expectLater(storage.load({}), throwsFormatException);
+          // load() deletes the corrupt file on the non-Map check.
+          expect(file.existsSync(), isFalse);
+        } finally {
+          if (file.existsSync()) await file.delete();
+        }
+      }),
+    );
+  });
+}
+
+/// Encrypts [data] with Windows DPAPI (CryptProtectData).
+///
+/// Used in tests to create files with controlled encrypted content so that
+/// specific error paths inside [DpapiJsonFileMapStorage.load] can be reached.
+Uint8List _dpApiEncrypt(Uint8List data) {
+  return using((alloc) {
+    final pData = alloc<Uint8>(data.length);
+    pData.asTypedList(data.length).setAll(0, data);
+
+    final plainBlob =
+        alloc.allocate<CRYPT_INTEGER_BLOB>(sizeOf<CRYPT_INTEGER_BLOB>());
+    plainBlob.ref.cbData = data.length;
+    plainBlob.ref.pbData = pData;
+
+    final encBlob =
+        alloc.allocate<CRYPT_INTEGER_BLOB>(sizeOf<CRYPT_INTEGER_BLOB>());
+    final ok = CryptProtectData(
+      plainBlob,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr,
+      0,
+      encBlob,
+    );
+    if (ok == 0) {
+      throw StateError('_dpApiEncrypt: CryptProtectData failed');
+    }
+
+    try {
+      return Uint8List.fromList(
+        encBlob.ref.pbData.asTypedList(encBlob.ref.cbData),
+      );
+    } finally {
+      LocalFree(encBlob.ref.pbData);
+    }
   });
 }
 
