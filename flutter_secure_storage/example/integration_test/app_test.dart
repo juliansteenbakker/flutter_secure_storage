@@ -13,7 +13,7 @@ void main() {
     testWidgets(
       'Android: deleteAll() must not clear other '
       'sharedPreferencesName namespace (regression #1023)',
-      (WidgetTester tester) async {
+      (tester) async {
         // This is a plugin-level regression test for:
         // https://github.com/juliansteenbakker/flutter_secure_storage/issues/1023
         //
@@ -59,7 +59,7 @@ void main() {
     testWidgets(
       'Android: namespaces with different cipher algorithms must not interfere '
       '(full storageNamespace isolation)',
-      (WidgetTester tester) async {
+      (tester) async {
         // This test verifies that storageNamespace provides full isolation:
         // data prefs, config markers, KeyStore aliases, and key storage.
         // Different namespaces can safely use different cipher algorithms
@@ -127,39 +127,38 @@ void main() {
       skip: !Platform.isAndroid,
     );
 
-    testWidgets('Add a Random Row', (WidgetTester tester) async {
+    testWidgets('Add a Random Row', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       pageObject.verifyRowExists(0);
     });
 
-    testWidgets('Edit a Row Value', (WidgetTester tester) async {
+    testWidgets('Edit a Row Value', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.editValue('Updated Row', 0);
       pageObject.verifyValue('Updated Row', 0);
     });
 
-    testWidgets('Delete a Row', (WidgetTester tester) async {
+    testWidgets('Delete a Row', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.deleteRow(0);
       pageObject.verifyRowDoesNotExist(0);
     });
 
-    testWidgets('Check Protected Data Availability',
-        (WidgetTester tester) async {
+    testWidgets('Check Protected Data Availability', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.checkProtectedDataAvailability();
     });
 
-    testWidgets('Contains Key for a Row', (WidgetTester tester) async {
+    testWidgets('Contains Key for a Row', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.containsKeyForRow(0, expectedResult: true);
     });
 
-    testWidgets('Read Value for a Row', (WidgetTester tester) async {
+    testWidgets('Read Value for a Row', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.editValue('Read Test', 0); // Ensure there's a value
@@ -169,7 +168,7 @@ void main() {
       );
     });
 
-    testWidgets('Add Multiple Rows and Verify', (WidgetTester tester) async {
+    testWidgets('Add Multiple Rows and Verify', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.addRandomRow();
@@ -178,7 +177,7 @@ void main() {
         ..verifyRowExists(1);
     });
 
-    testWidgets('Edit Multiple Rows', (WidgetTester tester) async {
+    testWidgets('Edit Multiple Rows', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.addRandomRow();
@@ -189,7 +188,7 @@ void main() {
         ..verifyValue('Second Row', 1);
     });
 
-    testWidgets('Delete All Rows', (WidgetTester tester) async {
+    testWidgets('Delete All Rows', (tester) async {
       final pageObject = await _setupHomePage(tester);
       await pageObject.addRandomRow();
       await pageObject.addRandomRow();
@@ -202,13 +201,12 @@ void main() {
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
         skip: !(Platform.isIOS &&
             Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
       const value = 'sim_fallback_secret';
 
       // Write with enclave requested
-      // ignore: undefined_named_parameter
       await storage.write(
         key: key,
         value: value,
@@ -216,7 +214,6 @@ void main() {
       );
 
       // Read should succeed due to fallback
-      // ignore: undefined_named_parameter
       final readBack = await storage.read(
         key: key,
         iOptions: const IOSOptions(useSecureEnclave: true),
@@ -224,7 +221,6 @@ void main() {
       expect(readBack, value);
 
       // Delete should also succeed
-      // ignore: undefined_named_parameter
       await storage.delete(
         key: key,
         iOptions: const IOSOptions(useSecureEnclave: true),
@@ -240,7 +236,7 @@ void main() {
         'iOS device: baseline (useSecureEnclave=false) write/read/delete',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_baseline_key';
       const value = 'device_baseline_secret';
@@ -272,7 +268,7 @@ void main() {
         'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_enabled_key';
       const value = 'device_enclave_secret';
@@ -281,7 +277,6 @@ void main() {
         key: key,
         value: value,
         // Use a non-prompting flag to make test automation stable.
-        // ignore: undefined_named_parameter
         iOptions: const IOSOptions(
           useSecureEnclave: true,
           accessControlFlags: [AccessControlFlag.applicationPassword],
@@ -320,7 +315,7 @@ void main() {
     testWidgets('iOS device: readAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence (no applicationPassword) - should work with
       // device passcode
@@ -368,7 +363,7 @@ void main() {
         'iOS device: readAll with mixed Secure Enclave and standard items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
@@ -413,7 +408,7 @@ void main() {
     testWidgets(
       'Android: migrates single value from RSA_PKCS1/AES_CBC to OAEP/GCM',
       skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
+      (tester) async {
         const legacyOptions = AndroidOptions(
           keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
           storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
@@ -441,7 +436,7 @@ void main() {
     testWidgets(
       'Android: migrates multiple values from RSA_PKCS1/AES_CBC to OAEP/GCM',
       skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
+      (tester) async {
         const legacyOptions = AndroidOptions(
           keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
           storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
@@ -485,7 +480,7 @@ void main() {
       'Android: data remains readable without migration when algorithms '
       'unchanged',
       skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
+      (tester) async {
         // Uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
         const storage = FlutterSecureStorage();
 
@@ -506,7 +501,7 @@ void main() {
     testWidgets(
       'Android: migrateOnAlgorithmChange false skips migration',
       skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
+      (tester) async {
         const legacyOptions = AndroidOptions(
           keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
           storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
@@ -549,7 +544,7 @@ void main() {
       'Android: migrateWithBackup migrates data from RSA_PKCS1/AES_CBC to '
       'OAEP/GCM',
       skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
+      (tester) async {
         const legacyOptions = AndroidOptions(
           keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
           storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
@@ -578,7 +573,7 @@ void main() {
     testWidgets('iOS device: deleteAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
