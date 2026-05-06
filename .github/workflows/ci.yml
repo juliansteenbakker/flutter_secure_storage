@@ -158,6 +158,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install Workspace Dependencies
+        run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
+
       - name: Build Example App (generates native build files)
         working-directory: flutter_secure_storage/example
         run: flutter build apk --debug
@@ -436,6 +442,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install Workspace Dependencies
+        run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -500,9 +512,11 @@ jobs:
       - name: Start ChromeDriver
         run: chromedriver --port=4444 &
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage/example
+      - name: Install Workspace Dependencies
         run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
 
       - name: Run Web Integration Tests
         working-directory: flutter_secure_storage/example
@@ -543,9 +557,11 @@ jobs:
           erase_before_boot: true
           wait_for_boot: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage/example
+      - name: Install Workspace Dependencies
         run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
 
       - name: Run Integration Tests
         working-directory: flutter_secure_storage/example
