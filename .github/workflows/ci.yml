@@ -90,9 +90,6 @@ jobs:
     needs: formatting
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: flutter_secure_storage
 
     steps:
       - name: Checkout Repository
@@ -114,10 +111,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      - name: Install Dependencies
+      - name: Install Workspace Dependencies
         run: flutter pub get
 
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
+
       - name: Run Unit Tests with Coverage
+        working-directory: flutter_secure_storage
         run: flutter test --coverage
 
       - name: Upload Coverage Report
@@ -190,9 +191,11 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage_web
+      - name: Install Workspace Dependencies
         run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
 
       - name: Run Web Unit Tests
         working-directory: flutter_secure_storage_web
@@ -214,9 +217,11 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage_windows
+      - name: Install Workspace Dependencies
         run: flutter pub get
+
+      - name: Bootstrap Workspace with Melos
+        run: dart run melos bootstrap
 
       - name: Run Windows Unit Tests with Coverage
         working-directory: flutter_secure_storage_windows
