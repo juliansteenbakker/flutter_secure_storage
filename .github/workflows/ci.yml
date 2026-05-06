@@ -252,9 +252,10 @@ jobs:
           cache: true
 
       - name: Install Melos
+        shell: pwsh
         run: |
           flutter pub global activate melos
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          Add-Content $env:GITHUB_PATH "$env:PUB_CACHE\bin"
 
       - name: Bootstrap Workspace with Melos
         run: melos bootstrap
