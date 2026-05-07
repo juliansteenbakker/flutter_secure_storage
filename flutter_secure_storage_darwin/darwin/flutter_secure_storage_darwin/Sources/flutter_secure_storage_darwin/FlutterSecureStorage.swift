@@ -421,7 +421,7 @@ class FlutterSecureStorage {
     }
 
     /// Checks if Secure Enclave is available on this device.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func isSecureEnclaveAvailable() -> Bool {
         // Try to look up an existing enclave key first (free check, no key creation).
         let tag = enclaveKeyTag(for: nil) as CFData
@@ -455,7 +455,7 @@ class FlutterSecureStorage {
     /// Safety invariant: the old plaintext item is only removed after the SE-backed
     /// item has been written AND verified readable. A per-key failure leaves the
     /// original item intact and is reported in the returned failure count.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func migrateToSecureEnclave(params: KeychainQueryParameters) -> Bool {
         print("[FlutterSecureStorage] Starting migration to Secure Enclave...")
 
@@ -573,7 +573,7 @@ class FlutterSecureStorage {
     ///
     /// Safety invariant: the SE-backed item is only removed after the plain item has been
     /// written AND verified readable. A per-key failure leaves the SE item intact.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func migrateFromSecureEnclave(params: KeychainQueryParameters) -> Bool {
         print("[FlutterSecureStorage] Starting migration from Secure Enclave to standard keychain...")
 
@@ -621,7 +621,7 @@ class FlutterSecureStorage {
             }
 
             // Verify the plain item reads back correctly before removing the SE copy.
-            var verifyParams = writeParams
+            let verifyParams = writeParams
             let verifyResult = readInternal(params: verifyParams)
             guard verifyResult.status == errSecSuccess, verifyResult.value as? String == value else {
                 print("[FlutterSecureStorage] Verification failed for '\(key)' — keeping SE copy")
@@ -662,8 +662,8 @@ class FlutterSecureStorage {
 
         print("[FlutterSecureStorage] Migration required: \(currentMode.rawValue) → \(requestedMode.rawValue)")
 
-        guard #available(iOS 11.3, macOS 10.15, *) else {
-            print("[FlutterSecureStorage] Secure Enclave requires iOS 11.3+ or macOS 10.15+; skipping migration")
+        guard #available(iOS 13.0, macOS 10.15, *) else {
+            print("[FlutterSecureStorage] Secure Enclave requires iOS 13.0+ or macOS 10.15+; skipping migration")
             return requestedMode == .standard
         }
 
