@@ -205,9 +205,7 @@ void main() {
     });
 
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
-        skip: !(Platform.isIOS &&
-            _kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && _kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
       const value = 'sim_fallback_secret';
@@ -243,9 +241,7 @@ void main() {
 
     testWidgets(
         'iOS device: baseline (useSecureEnclave=false) write/read/delete',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_baseline_key';
       const value = 'device_baseline_secret';
@@ -275,9 +271,7 @@ void main() {
 
     testWidgets(
         'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_enabled_key';
       const value = 'device_enclave_secret';
@@ -323,9 +317,7 @@ void main() {
     // passcode/biometrics. Enter your device passcode when prompted - it should
     // only prompt once per test run due to LAContext reuse (30 second window).
     testWidgets('iOS device: readAll with Secure Enclave items',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence (no applicationPassword) - should work with
       // device passcode
@@ -371,9 +363,7 @@ void main() {
 
     testWidgets(
         'iOS device: readAll with mixed Secure Enclave and standard items',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
@@ -582,9 +572,7 @@ void main() {
 
     testWidgets(
         'iOS device: item written without SE returns null when read with SE',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_se_existing_data_key';
       const value = 'existing_value';
@@ -616,9 +604,7 @@ void main() {
     });
 
     testWidgets('iOS device: deleteAll with Secure Enclave items',
-        skip: !(Platform.isIOS &&
-            !_kIsSimulator),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
@@ -677,8 +663,7 @@ void main() {
     testWidgets(
       'iOS device: migrateToSecureEnclave=false (default) '
       'does not auto-migrate',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_no_auto_key';
@@ -708,8 +693,7 @@ void main() {
 
     testWidgets(
       'iOS device: standard → SE migration makes data readable via SE path',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = [
@@ -762,8 +746,7 @@ void main() {
 
     testWidgets(
       'iOS device: standard → SE migration removes original plain items',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_to_se_cleanup_key';
@@ -795,8 +778,7 @@ void main() {
 
     testWidgets(
       'iOS device: standard → SE migration is idempotent',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_idempotent_key';
@@ -830,8 +812,7 @@ void main() {
 
     testWidgets(
       'iOS device: readAll with migrateToSecureEnclave=true migrates all keys',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = ['it_migrate_readall_key1', 'it_migrate_readall_key2'];
@@ -876,8 +857,7 @@ void main() {
     testWidgets(
       'iOS device: write with migrateToSecureEnclave=true '
       'migrates existing keys',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const existingKey = 'it_migrate_write_existing_key';
@@ -934,8 +914,7 @@ void main() {
 
     testWidgets(
       'iOS device: SE → standard migration makes data readable via plain path',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = ['it_migrate_from_se_key1', 'it_migrate_from_se_key2'];
@@ -984,8 +963,7 @@ void main() {
 
     testWidgets(
       'iOS device: SE → standard migration removes SE-backed items',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_from_se_cleanup_key';
@@ -1017,8 +995,7 @@ void main() {
 
     testWidgets(
       'iOS device: migration on empty keychain is a no-op',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_empty_key';
@@ -1037,8 +1014,7 @@ void main() {
 
     testWidgets(
       'iOS device: mode detection uses keychain contents, not UserDefaults',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         // This test verifies that the migration system detects the current
         // encryption mode by inspecting keychain contents (presence of
@@ -1075,8 +1051,7 @@ void main() {
     testWidgets(
       'iOS Simulator: migration to SE falls back gracefully '
       'when SE unavailable',
-      skip: !(Platform.isIOS &&
-          _kIsSimulator),
+      skip: !(Platform.isIOS && _kIsSimulator),
       (WidgetTester tester) async {
         // Simulators have no Secure Enclave. When migrateToSecureEnclave=true
         // is set and migration fails (SE unavailable), the operation must fall
@@ -1108,8 +1083,7 @@ void main() {
 
     testWidgets(
       'iOS device: resetOnError=true deletes all data when migration fails',
-      skip: !(Platform.isIOS &&
-          !_kIsSimulator),
+      skip: !(Platform.isIOS && !_kIsSimulator),
       (WidgetTester tester) async {
         // This test simulates a migration failure by attempting to migrate
         // SE data to standard on a device where the SE key has been deleted
