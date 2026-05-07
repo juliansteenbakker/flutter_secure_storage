@@ -256,7 +256,7 @@ class FlutterSecureStorage {
     /// Ensures a Secure Enclave EC private key exists for the provided service, creating it if needed.
     /// The private key uses hardcoded access control with .privateKeyUsage to allow crypto operations
     /// without requiring user authentication (authentication is handled at the data item level).
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func ensureEnclavePrivateKey(service: String?) throws -> SecKey {
         let tag = enclaveKeyTag(for: service) as CFData
 
@@ -304,7 +304,7 @@ class FlutterSecureStorage {
     }
 
     /// Wraps a symmetric key using ECIES with the provided public key.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func wrapSymmetricKey(_ keyData: Data, using publicKey: SecKey) throws -> Data {
         let algorithm = SecKeyAlgorithm.eciesEncryptionCofactorX963SHA256AESGCM
         guard SecKeyIsAlgorithmSupported(publicKey, .encrypt, algorithm) else {
@@ -318,7 +318,7 @@ class FlutterSecureStorage {
     }
 
     /// Unwraps a symmetric key using ECIES with the provided private key.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func unwrapSymmetricKey(_ wrappedData: Data, using privateKey: SecKey) throws -> Data {
         let algorithm = SecKeyAlgorithm.eciesEncryptionCofactorX963SHA256AESGCM
         guard SecKeyIsAlgorithmSupported(privateKey, .decrypt, algorithm) else {
@@ -332,7 +332,7 @@ class FlutterSecureStorage {
     }
 
     /// Deletes the Secure Enclave private key for the provided service.
-    @available(iOS 11.3, macOS 10.15, *)
+    @available(iOS 13.0, macOS 10.15, *)
     private func deleteEnclavePrivateKey(service: String?) {
         let tag = enclaveKeyTag(for: service) as CFData
         let query: [CFString: Any] = [
@@ -810,9 +810,9 @@ class FlutterSecureStorage {
         guard let account = params.key else {
             return FlutterSecureStorageResponse(status: errSecParam, value: nil)
         }
-        var keyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
+        let keyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
         var keyRef: AnyObject?
-        var keyStatus = SecItemCopyMatching(keyQuery as CFDictionary, &keyRef)
+        let keyStatus = SecItemCopyMatching(keyQuery as CFDictionary, &keyRef)
         if keyStatus == errSecItemNotFound {
             // No wrapped key or value
             return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
@@ -824,7 +824,7 @@ class FlutterSecureStorage {
         // Read encrypted data payload
         var dataParams = params
         dataParams.shouldReturnData = true
-        var dataQuery = baseQuery(from: dataParams)
+        let dataQuery = baseQuery(from: dataParams)
         var dataRef: AnyObject?
         let dataStatus = SecItemCopyMatching(dataQuery as CFDictionary, &dataRef)
         if dataStatus == errSecItemNotFound {
@@ -835,7 +835,7 @@ class FlutterSecureStorage {
         }
 
         // Unwrap AES key via Secure Enclave
-        if #available(iOS 11.3, macOS 10.15, *) {
+        if #available(iOS 13.0, macOS 10.15, *) {
             do {
                 let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 let aesKeyData = try unwrapSymmetricKey(wrappedKeyData, using: privateKey)
@@ -921,7 +921,7 @@ class FlutterSecureStorage {
         }
 
         // Ensure enclave private key exists
-        if #available(iOS 11.3, macOS 10.15, *) {
+        if #available(iOS 13.0, macOS 10.15, *) {
             do {
                 let privateKey = try ensureEnclavePrivateKey(service: params.service)
                 guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
@@ -1028,7 +1028,7 @@ class FlutterSecureStorage {
 
         // If Secure Enclave is enabled, also delete the SE private key
         if params.useSecureEnclave == true {
-            if #available(iOS 11.3, macOS 10.15, *) {
+            if #available(iOS 13.0, macOS 10.15, *) {
                 deleteEnclavePrivateKey(service: params.service)
             }
         }
