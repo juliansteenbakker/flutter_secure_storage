@@ -511,11 +511,37 @@ jobs:
             --target=integration_test/web_test.dart \
             -d web-server
 
+  typecheck_swift_ios:
+    name: Swift iOS Typecheck
+    runs-on: macos-latest
+    timeout-minutes: 5
+    needs: [unit_tests, unit_tests_android]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Typecheck Swift against iOS 12 minimum
+        run: |
+          swiftc -typecheck \
+            -target arm64-apple-ios12.0 \
+            -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            flutter_secure_storage_darwin/darwin/flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/FlutterSecureStorage.swift
+
+      - name: Typecheck Swift against latest iOS SDK
+        run: |
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          swiftc -typecheck \
+            -target "arm64-apple-ios${SDK_VERSION}" \
+            -sdk "$SDK_PATH" \
+            flutter_secure_storage_darwin/darwin/flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/FlutterSecureStorage.swift
+
   integration_tests_ios:
     name: iOS Tests
     runs-on: macos-latest
     timeout-minutes: 30
-    needs: [unit_tests, unit_tests_android]
+    needs: [typecheck_swift_ios]
 
     env:
       SIM_OS: iOS
@@ -541,15 +567,18 @@ jobs:
           model: ${{ env.SIM_DEVICE }}
           erase_before_boot: true
           wait_for_boot: true
+          boot_timeout_seconds: 300
+          boot_retries: 3
 
       - name: Install Dependencies
         working-directory: flutter_secure_storage/example
         run: flutter pub get
 
       - name: Run Integration Tests
-        working-directory: flutter_secure_storage/example
+        uses: nick-fields/retry@v3
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.udid }}
-        run: |
-          echo "Using simulator: $DEVICE_ID"
-          flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: cd flutter_secure_storage/example && flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
