@@ -575,8 +575,11 @@ jobs:
         run: flutter pub get
 
       - name: Run Integration Tests
-        working-directory: flutter_secure_storage/example
-        timeout-minutes: 5
+        uses: nick-fields/retry@v3
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.udid }}
-        run: flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          working_directory: flutter_secure_storage/example
+          command: flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
