@@ -6,6 +6,11 @@ import 'package:flutter_secure_storage_example/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+// Passed via --dart-define=IS_SIMULATOR=true when the CI runs tests on an iOS
+// Simulator. Runtime env-var detection (SIMULATOR_DEVICE_NAME) is unreliable
+// because the variable is not always propagated into the app process.
+const bool _kIsSimulator = bool.fromEnvironment('IS_SIMULATOR');
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -201,7 +206,7 @@ void main() {
 
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
         skip: !(Platform.isIOS &&
-            Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            _kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
@@ -239,7 +244,7 @@ void main() {
     testWidgets(
         'iOS device: baseline (useSecureEnclave=false) write/read/delete',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_baseline_key';
@@ -271,7 +276,7 @@ void main() {
     testWidgets(
         'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_enabled_key';
@@ -319,7 +324,7 @@ void main() {
     // only prompt once per test run due to LAContext reuse (30 second window).
     testWidgets('iOS device: readAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence (no applicationPassword) - should work with
@@ -367,7 +372,7 @@ void main() {
     testWidgets(
         'iOS device: readAll with mixed Secure Enclave and standard items',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
@@ -578,7 +583,7 @@ void main() {
     testWidgets(
         'iOS device: item written without SE returns null when read with SE',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_se_existing_data_key';
@@ -612,7 +617,7 @@ void main() {
 
     testWidgets('iOS device: deleteAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+            !_kIsSimulator),
         (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
@@ -673,7 +678,7 @@ void main() {
       'iOS device: migrateToSecureEnclave=false (default) '
       'does not auto-migrate',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_no_auto_key';
@@ -704,7 +709,7 @@ void main() {
     testWidgets(
       'iOS device: standard → SE migration makes data readable via SE path',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = [
@@ -758,7 +763,7 @@ void main() {
     testWidgets(
       'iOS device: standard → SE migration removes original plain items',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_to_se_cleanup_key';
@@ -791,7 +796,7 @@ void main() {
     testWidgets(
       'iOS device: standard → SE migration is idempotent',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_idempotent_key';
@@ -826,7 +831,7 @@ void main() {
     testWidgets(
       'iOS device: readAll with migrateToSecureEnclave=true migrates all keys',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = ['it_migrate_readall_key1', 'it_migrate_readall_key2'];
@@ -872,7 +877,7 @@ void main() {
       'iOS device: write with migrateToSecureEnclave=true '
       'migrates existing keys',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const existingKey = 'it_migrate_write_existing_key';
@@ -930,7 +935,7 @@ void main() {
     testWidgets(
       'iOS device: SE → standard migration makes data readable via plain path',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const keys = ['it_migrate_from_se_key1', 'it_migrate_from_se_key2'];
@@ -980,7 +985,7 @@ void main() {
     testWidgets(
       'iOS device: SE → standard migration removes SE-backed items',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_from_se_cleanup_key';
@@ -1013,7 +1018,7 @@ void main() {
     testWidgets(
       'iOS device: migration on empty keychain is a no-op',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_empty_key';
@@ -1033,7 +1038,7 @@ void main() {
     testWidgets(
       'iOS device: mode detection uses keychain contents, not UserDefaults',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         // This test verifies that the migration system detects the current
         // encryption mode by inspecting keychain contents (presence of
@@ -1071,7 +1076,7 @@ void main() {
       'iOS Simulator: migration to SE falls back gracefully '
       'when SE unavailable',
       skip: !(Platform.isIOS &&
-          Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          _kIsSimulator),
       (WidgetTester tester) async {
         // Simulators have no Secure Enclave. When migrateToSecureEnclave=true
         // is set and migration fails (SE unavailable), the operation must fall
@@ -1104,7 +1109,7 @@ void main() {
     testWidgets(
       'iOS device: resetOnError=true deletes all data when migration fails',
       skip: !(Platform.isIOS &&
-          !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+          !_kIsSimulator),
       (WidgetTester tester) async {
         // This test simulates a migration failure by attempting to migrate
         // SE data to standard on a device where the SE key has been deleted

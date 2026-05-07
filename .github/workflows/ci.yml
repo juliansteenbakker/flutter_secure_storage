@@ -552,4 +552,4 @@ jobs:
           DEVICE_ID: ${{ steps.simulator.outputs.udid }}
         run: |
           echo "Using simulator: $DEVICE_ID"
-          flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose
+          flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
