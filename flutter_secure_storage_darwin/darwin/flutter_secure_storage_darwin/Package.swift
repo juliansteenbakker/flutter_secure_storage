@@ -6,8 +6,8 @@ import PackageDescription
 let package = Package(
     name: "flutter_secure_storage_darwin",
     platforms: [
-        .iOS("12.0"),
-        .macOS("10.14")
+        .iOS("13.0"),
+        .macOS("10.15")
     ],
     products: [
         .library(name: "flutter-secure-storage-darwin", targets: ["flutter_secure_storage_darwin"])
