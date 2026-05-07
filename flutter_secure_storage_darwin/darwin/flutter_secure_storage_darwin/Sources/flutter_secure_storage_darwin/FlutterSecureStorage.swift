@@ -477,9 +477,9 @@ class FlutterSecureStorage {
         guard let account = params.key else {
             return FlutterSecureStorageResponse(status: errSecParam, value: nil)
         }
-        var keyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
+        let keyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
         var keyRef: AnyObject?
-        var keyStatus = SecItemCopyMatching(keyQuery as CFDictionary, &keyRef)
+        let keyStatus = SecItemCopyMatching(keyQuery as CFDictionary, &keyRef)
         if keyStatus == errSecItemNotFound {
             // No wrapped key or value
             return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
@@ -491,7 +491,7 @@ class FlutterSecureStorage {
         // Read encrypted data payload
         var dataParams = params
         dataParams.shouldReturnData = true
-        var dataQuery = baseQuery(from: dataParams)
+        let dataQuery = baseQuery(from: dataParams)
         var dataRef: AnyObject?
         let dataStatus = SecItemCopyMatching(dataQuery as CFDictionary, &dataRef)
         if dataStatus == errSecItemNotFound {
