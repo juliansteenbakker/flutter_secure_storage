@@ -581,5 +581,4 @@ jobs:
         with:
           timeout_minutes: 5
           max_attempts: 3
-          working_directory: flutter_secure_storage/example
-          command: flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
+          command: cd flutter_secure_storage/example && flutter test integration_test/app_test.dart -d "$DEVICE_ID" --verbose --dart-define=IS_SIMULATOR=true
