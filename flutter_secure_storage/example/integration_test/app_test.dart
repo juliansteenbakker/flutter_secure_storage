@@ -1071,8 +1071,7 @@ void main() {
         await storage.write(key: key, value: value, iOptions: plain);
 
         // Verify plain write succeeded before attempting migration.
-        final afterWrite =
-            await storage.read(key: key, iOptions: plain);
+        final afterWrite = await storage.read(key: key, iOptions: plain);
         expect(afterWrite, value, reason: 'plain write must succeed');
 
         final result = await storage.read(key: key, iOptions: seWithMigrate);
