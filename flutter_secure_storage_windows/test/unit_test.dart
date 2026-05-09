@@ -1286,16 +1286,15 @@ Uint8List _dpApiEncrypt(Uint8List data) {
 
     final encBlob =
         alloc.allocate<CRYPT_INTEGER_BLOB>(sizeOf<CRYPT_INTEGER_BLOB>());
-    final ok = CryptProtectData(
+    final Win32Result(value: isProtected) = CryptProtectData(
       plainBlob,
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr,
+      null,
+      null,
+      null,
       0,
       encBlob,
     );
-    if (ok == 0) {
+    if (!isProtected) {
       throw StateError('_dpApiEncrypt: CryptProtectData failed');
     }
 
@@ -1304,7 +1303,7 @@ Uint8List _dpApiEncrypt(Uint8List data) {
         encBlob.ref.pbData.asTypedList(encBlob.ref.cbData),
       );
     } finally {
-      LocalFree(encBlob.ref.pbData);
+      LocalFree(HLOCAL(encBlob.ref.pbData.cast()));
     }
   });
 }
