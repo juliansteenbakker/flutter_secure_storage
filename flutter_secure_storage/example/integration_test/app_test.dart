@@ -1049,13 +1049,14 @@ void main() {
     );
 
     testWidgets(
-      'iOS Simulator: migration to SE falls back gracefully '
-      'when SE unavailable',
+      'iOS Simulator: migrateToSecureEnclave=true on simulator '
+      'returns the value (via migration or fallback)',
       skip: !(Platform.isIOS && _kIsSimulator),
       (WidgetTester tester) async {
-        // Simulators have no Secure Enclave. When migrateToSecureEnclave=true
-        // is set and migration fails (SE unavailable), the operation must fall
-        // back to standard keychain and still return the value.
+        // On older simulators SE is unavailable and migration falls back to
+        // plain keychain. On newer simulators (iOS 26+) the simulator supports
+        // simulated SE keys, so migration may succeed. Either way the value
+        // must be accessible after the read.
         const storage = FlutterSecureStorage();
         const key = 'it_migrate_sim_fallback_key';
         const value = 'sim_fallback_value';
@@ -1065,19 +1066,24 @@ void main() {
           migrateToSecureEnclave: true,
         );
 
-        await storage.delete(key: key, iOptions: plain);
+        await _cleanupMigrationKey(storage, key);
 
         await storage.write(key: key, value: value, iOptions: plain);
 
-        // Migration to SE fails silently; read falls back to plain path.
+        // Verify plain write succeeded before attempting migration.
+        final afterWrite =
+            await storage.read(key: key, iOptions: plain);
+        expect(afterWrite, value, reason: 'plain write must succeed');
+
         final result = await storage.read(key: key, iOptions: seWithMigrate);
         expect(
           result,
           value,
-          reason: 'Should fall back to plain keychain when SE is unavailable',
+          reason: 'Value must be accessible whether migration succeeded '
+              'or fell back to plain keychain',
         );
 
-        await storage.delete(key: key, iOptions: plain);
+        await _cleanupMigrationKey(storage, key);
       },
     );
 

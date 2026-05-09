@@ -211,12 +211,10 @@ class FlutterSecureStorage {
             query[kSecUseAuthenticationContext] = authenticationContext
         }
 
-        // If Secure Enclave style gating requested but no flags provided,
-        // default to requiring user presence (biometry or passcode).
-        var effectiveParams = params
-        if (params.useSecureEnclave ?? false) && (params.accessControlFlags == nil || params.accessControlFlags?.isEmpty == true) {
-            effectiveParams.accessControlFlags = "userPresence"
-        }
+        // SE encryption alone (via the device-bound private key) provides the
+        // security guarantee. userPresence on keychain items is a separate concern
+        // and must be opted into explicitly via accessControlFlags.
+        let effectiveParams = params
 
         if let accessControl = createAccessControl(params: effectiveParams) {
             query[kSecAttrAccessControl] = accessControl
@@ -281,9 +279,9 @@ class FlutterSecureStorage {
                 kSecAttrApplicationTag: tag
             ]
         ]
-        // Use hardcoded access control with .privateKeyUsage for the SE private key.
-        // This allows crypto operations without user authentication prompts.
-        // User authentication is handled at the data item level via accessControlFlags.
+        // .privateKeyUsage allows crypto operations without user authentication prompts.
+        // Callers who want a biometric gate can set accessControlFlags on their options;
+        // that applies to the keychain data items, not to this key.
         let keyAccessControl = SecAccessControlCreateWithFlags(
             nil,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
@@ -372,6 +370,25 @@ class FlutterSecureStorage {
         if params.shouldReturnPersistentReference == true, params.shouldReturnData == true {
             throw OSSecError(status: errSecParam, message: "Cannot use kSecReturnPersistentRef and kSecReturnData together.")
         }
+    }
+
+    // MARK: - Companion Key Helpers
+
+    /// Returns params suitable for reading/writing/deleting the companion wrapped-key item.
+    ///
+    /// Companion keys store AES keys that are already encrypted by the SE private key, so
+    /// they do NOT need `userPresence` access control — the SE encryption provides the
+    /// security. Removing AC makes companions always deletable/readable without biometric
+    /// prompts, which is essential for correct cleanup on simulators and older devices.
+    private func companionParams(from params: KeychainQueryParameters, key: String) -> KeychainQueryParameters {
+        var p = params
+        p.key = wrappedKeyName(for: key)
+        p.useSecureEnclave = false
+        p.accessControlFlags = nil
+        p.isSynchronizable = false
+        p.shouldReturnData = false
+        p.migrateToSecureEnclave = false
+        return p
     }
 
     // MARK: - Migration Helpers
@@ -502,13 +519,8 @@ class FlutterSecureStorage {
                 let blob = Data(nonce) + sealed.ciphertext + sealed.tag
                 let wrappedKey = try wrapSymmetricKey(Data(aesKey.withUnsafeBytes { Data($0) }), using: publicKey)
 
-                // Write the wrapped AES key companion item.
-                var keyParams = params
-                keyParams.key = wrappedKeyName(for: key)
-                keyParams.shouldReturnData = false
-                keyParams.isSynchronizable = false
-                keyParams.useSecureEnclave = true
-                keyParams.migrateToSecureEnclave = false
+                // Write the wrapped AES key companion item (no AC — SE encryption protects it).
+                let keyParams = companionParams(from: params, key: key)
                 var keyQuery = baseQuery(from: keyParams)
                 keyQuery[kSecValueData] = wrappedKey
                 _ = SecItemDelete(keyQuery as CFDictionary) // remove stale companion if present
@@ -519,18 +531,47 @@ class FlutterSecureStorage {
                 }
 
                 // Write the encrypted data item.
+                // Do NOT pre-delete with an SE-access-controlled query: kSecAttrAccessControl
+                // is ignored as a search filter by iOS, so it would delete the plain item.
                 var dataParams = params
                 dataParams.key = key
                 dataParams.shouldReturnData = false
                 dataParams.useSecureEnclave = true
                 dataParams.migrateToSecureEnclave = false
                 var dataQuery = baseQuery(from: dataParams)
-                _ = SecItemDelete(dataQuery as CFDictionary)
                 dataQuery[kSecValueData] = blob
-                guard SecItemAdd(dataQuery as CFDictionary, nil) == errSecSuccess else {
+
+                // Helper: restore the plain item (used in all rollback branches below).
+                func restorePlainItem() {
+                    var restoreParams = params
+                    restoreParams.key = key
+                    restoreParams.useSecureEnclave = false
+                    restoreParams.accessControlFlags = nil
+                    restoreParams.migrateToSecureEnclave = false
+                    restoreParams.shouldReturnData = false
+                    var restoreQuery = baseQuery(from: restoreParams)
+                    restoreQuery[kSecValueData] = value.data(using: .utf8)
+                    _ = SecItemAdd(restoreQuery as CFDictionary, nil)
+                }
+
+                var plainItemAlreadyDeleted = false
+                var addStatus = SecItemAdd(dataQuery as CFDictionary, nil)
+                if addStatus == errSecDuplicateItem {
+                    // The plain item occupies this key — delete it explicitly with a
+                    // plain query (no access control) so only the correct item is removed.
+                    var plainDeleteParams = params
+                    plainDeleteParams.key = key
+                    plainDeleteParams.useSecureEnclave = false
+                    plainDeleteParams.accessControlFlags = nil
+                    plainDeleteParams.migrateToSecureEnclave = false
+                    _ = performDelete(params: plainDeleteParams, clearKey: false)
+                    addStatus = SecItemAdd(dataQuery as CFDictionary, nil)
+                    plainItemAlreadyDeleted = true
+                }
+                guard addStatus == errSecSuccess else {
                     print("[FlutterSecureStorage] Failed to store encrypted data for '\(key)'")
-                    // Roll back: remove the companion key we just wrote.
                     _ = SecItemDelete(baseQuery(from: keyParams) as CFDictionary)
+                    restorePlainItem()
                     failureCount += 1
                     continue
                 }
@@ -543,19 +584,24 @@ class FlutterSecureStorage {
                 let verifyResult = readInternal(params: verifyParams)
                 guard verifyResult.status == errSecSuccess, verifyResult.value as? String == value else {
                     print("[FlutterSecureStorage] Verification failed for '\(key)' — keeping original")
-                    // Roll back both items just written.
                     _ = SecItemDelete(baseQuery(from: dataParams) as CFDictionary)
                     _ = SecItemDelete(baseQuery(from: keyParams) as CFDictionary)
+                    restorePlainItem()
                     failureCount += 1
                     continue
                 }
 
-                // Safe to remove the now-redundant plaintext item.
-                var plainParams = params
-                plainParams.key = key
-                plainParams.useSecureEnclave = false
-                plainParams.migrateToSecureEnclave = false
-                _ = performDelete(params: plainParams, clearKey: false)
+                // Remove the plain item only if it wasn't already deleted in the errSecDuplicateItem
+                // branch above. The SE and plain items share the same keychain primary key
+                // (account + service + synchronizable), so performDelete here would erase the
+                // SE-backed item we just wrote — not the plain item, which is already gone.
+                if !plainItemAlreadyDeleted {
+                    var plainParams = params
+                    plainParams.key = key
+                    plainParams.useSecureEnclave = false
+                    plainParams.migrateToSecureEnclave = false
+                    _ = performDelete(params: plainParams, clearKey: false)
+                }
 
                 successCount += 1
                 print("[FlutterSecureStorage] Migrated '\(key)'")
@@ -810,11 +856,19 @@ class FlutterSecureStorage {
         guard let account = params.key else {
             return FlutterSecureStorageResponse(status: errSecParam, value: nil)
         }
-        let keyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
+
+        // Companions are stored without access control (SE encryption already protects them).
+        // Fall back to the legacy AC-protected query for items written by older versions.
         var keyRef: AnyObject?
-        let keyStatus = SecItemCopyMatching(keyQuery as CFDictionary, &keyRef)
+        let noACQuery = wrappedKeyQuery(
+            from: companionParams(from: params, key: account), account: account, returnData: true)
+        var keyStatus = SecItemCopyMatching(noACQuery as CFDictionary, &keyRef)
         if keyStatus == errSecItemNotFound {
-            // No wrapped key or value
+            let legacyQuery = wrappedKeyQuery(from: params, account: account, returnData: true)
+            keyStatus = SecItemCopyMatching(legacyQuery as CFDictionary, &keyRef)
+        }
+        if keyStatus == errSecItemNotFound {
+            // No wrapped key — item was never migrated to SE.
             return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
         }
         guard keyStatus == errSecSuccess, let wrappedKeyData = keyRef as? Data else {
@@ -938,11 +992,8 @@ class FlutterSecureStorage {
                 // Wrap AES key with Enclave public key
                 let wrappedKey = try wrapSymmetricKey(Data(aesKey.withUnsafeBytes { Data($0) }), using: publicKey)
 
-                // Store wrapped key under companion account
-                var keyParams = params
-                keyParams.key = wrappedKeyName(for: account)
-                keyParams.shouldReturnData = false
-                keyParams.isSynchronizable = false
+                // Store wrapped key under companion account (no AC — SE encryption protects it).
+                let keyParams = companionParams(from: params, key: account)
                 var keyQuery = baseQuery(from: keyParams)
                 keyQuery[kSecValueData] = wrappedKey
                 // Upsert wrapped key item
@@ -1008,13 +1059,19 @@ class FlutterSecureStorage {
             return primaryResult
         }
 
-        // If Secure Enclave flow is used, also remove the wrapped AES key companion item.
+        // Also remove the companion wrapped-key item when SE flow is in use.
+        // Try the new no-AC format first; fall back to the legacy AC-protected format.
         if params.useSecureEnclave == true, let account = params.key {
-            var keyParams = params
-            keyParams.key = wrappedKeyName(for: account)
-            let wrappedResult = performDelete(params: keyParams, clearKey: false)
-            if wrappedResult.status != errSecSuccess {
-                return wrappedResult
+            let noACParams = companionParams(from: params, key: account)
+            var result = performDelete(params: noACParams, clearKey: false)
+            if result.status == errSecItemNotFound {
+                // Legacy companions stored with userPresence access control.
+                var legacyParams = params
+                legacyParams.key = wrappedKeyName(for: account)
+                result = performDelete(params: legacyParams, clearKey: false)
+            }
+            if result.status != errSecSuccess && result.status != errSecItemNotFound {
+                return result
             }
         }
 
