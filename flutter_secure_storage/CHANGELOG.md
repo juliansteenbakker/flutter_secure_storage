@@ -9,7 +9,8 @@
 - Fixed iOS build by updating availability annotation for Secure Enclave methods from `iOS 11.3` to `iOS 13.0`.
 
 ### Windows
-- Fixed compatibility with `win32` 6.0.0.
+- Fixed compatibility with `win32` 6.0.0 in `flutter_secure_storage_windows 4.2.0`.
+  If you are on Dart >=3.10.0, this fix is applied automatically. Otherwise, pin `flutter_secure_storage_windows: ^4.2.0` in your `pubspec.yaml` to opt in and make sure your constraint is set for minimum of Dart >=3.10.0.
 
 ## 10.1.0
 
