@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:math' show Random;
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
@@ -64,7 +65,7 @@ class HomePageState extends State<HomePage> {
     if (_accountNameController.text.isEmpty) return;
 
     _initializeFlutterSecureStorage(_accountNameController.text);
-    _readAll();
+    unawaited(_readAll());
   }
 
   @override
@@ -72,7 +73,7 @@ class HomePageState extends State<HomePage> {
     super.initState();
     _initializeFlutterSecureStorage(AppleOptions.defaultAccountName);
     _accountNameController.addListener(_updateAccountName);
-    _readAll();
+    unawaited(_readAll());
   }
 
   @override
@@ -195,17 +196,19 @@ class HomePageState extends State<HomePage> {
 
   void _showErrorDialog(String title, String message) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
+      unawaited(
+        showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         ),
       );
     });
@@ -227,14 +230,14 @@ class HomePageState extends State<HomePage> {
             onSelected: (action) {
               switch (action) {
                 case _Actions.deleteAll:
-                  _deleteAll();
+                  unawaited(_deleteAll());
                 case _Actions.readALl:
-                  _readAll();
+                  unawaited(_readAll());
                 case _Actions.isProtectedDataAvailable:
-                  _isProtectedDataAvailable();
+                  unawaited(_isProtectedDataAvailable());
               }
             },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<_Actions>>[
+            itemBuilder: (context) => <PopupMenuEntry<_Actions>>[
               const PopupMenuItem(
                 key: Key('delete_all'),
                 value: _Actions.deleteAll,
@@ -304,13 +307,12 @@ class HomePageState extends State<HomePage> {
           Expanded(
             child: ListView.builder(
               itemCount: _items.length,
-              itemBuilder: (BuildContext context, int index) => ListTile(
+              itemBuilder: (context, index) => ListTile(
                 trailing: PopupMenuButton(
                   key: Key('popup_row_$index'),
-                  onSelected: (_ItemActions action) =>
+                  onSelected: (action) =>
                       _performAction(action, _items[index], context),
-                  itemBuilder: (BuildContext context) =>
-                      <PopupMenuEntry<_ItemActions>>[
+                  itemBuilder: (context) => <PopupMenuEntry<_ItemActions>>[
                     PopupMenuItem(
                       value: _ItemActions.delete,
                       child: Text(
@@ -419,7 +421,7 @@ class HomePageState extends State<HomePage> {
     final controller = TextEditingController(text: key);
     await showDialog<dynamic>(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Check if key exists'),
         actions: [
           TextButton(

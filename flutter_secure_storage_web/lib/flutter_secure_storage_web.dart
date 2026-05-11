@@ -78,6 +78,7 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
       keys.add(key);
     }
 
+    // ignore: prefer_foreach, tearoffs of interop members are disallowed
     for (final key in keys) {
       storage.removeItem(key);
     }
