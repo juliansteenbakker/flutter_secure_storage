@@ -1,3 +1,6 @@
+## 0.3.1
+- Fixed iOS build by updating availability annotation for Secure Enclave methods from `iOS 11.3` to `iOS 13.0`.
+
 ## 0.3.0
 - Added `useSecureEnclave` support for iOS and macOS to store encryption keys in the device's Secure Enclave for hardware-backed security.
 - Use shared `LAContext` to reuse biometric authentication across Secure Enclave operations, avoiding double authentication prompts.

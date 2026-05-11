@@ -1,3 +1,7 @@
+// Some tests intentionally construct AndroidOptions with deprecated cipher
+// algorithms to verify migration paths from legacy to current defaults.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';

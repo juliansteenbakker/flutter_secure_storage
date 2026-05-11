@@ -1,3 +1,17 @@
+## 10.2.0
+
+### Android
+- Deprecated `KeyCipherAlgorithm.RSA_ECB_PKCS1Padding`. Existing data is automatically migrated to the default `RSA_ECB_OAEPwithSHA_256andMGF1Padding` when `migrateOnAlgorithmChange` is true.
+- Deprecated `StorageCipherAlgorithm.AES_CBC_PKCS7Padding`. Existing data is automatically migrated to the default `AES_GCM_NoPadding` when `migrateOnAlgorithmChange` is true.
+- Fixed Gradle space-assignment warnings in `build.gradle`.
+
+### iOS / macOS
+- Fixed iOS build by updating availability annotation for Secure Enclave methods from `iOS 11.3` to `iOS 13.0`.
+
+### Windows
+- Fixed compatibility with `win32` 6.0.0 in `flutter_secure_storage_windows 4.2.0`.
+  If you are on Dart >=3.10.0, this fix is applied automatically. Otherwise, pin `flutter_secure_storage_windows: ^4.2.0` in your `pubspec.yaml` to opt in and make sure your constraint is set for minimum of Dart >=3.10.0.
+
 ## 10.1.0
 
 ### Windows
