@@ -579,7 +579,7 @@ jobs:
         run: flutter pub get
 
       - name: Run Integration Tests
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.udid }}
         with:
