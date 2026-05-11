@@ -570,6 +570,41 @@ void main() {
       },
     );
 
+    testWidgets(
+        'iOS device: item written without SE returns null when read with SE',
+        skip: !(Platform.isIOS &&
+            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
+        (WidgetTester tester) async {
+      const storage = FlutterSecureStorage();
+      const key = 'it_se_existing_data_key';
+      const value = 'existing_value';
+
+      // Write without Secure Enclave (standard Keychain).
+      await storage.write(
+        key: key,
+        value: value,
+        iOptions: IOSOptions.defaultOptions,
+      );
+
+      // Reading the same key with useSecureEnclave=true should return null
+      // because no SE-wrapped companion key exists for this item.
+      final readWithSE = await storage.read(
+        key: key,
+        iOptions: const IOSOptions(useSecureEnclave: true),
+      );
+      expect(readWithSE, isNull);
+
+      // The original item is still accessible via the standard path.
+      final readWithoutSE = await storage.read(
+        key: key,
+        iOptions: IOSOptions.defaultOptions,
+      );
+      expect(readWithoutSE, value);
+
+      // Cleanup.
+      await storage.delete(key: key, iOptions: IOSOptions.defaultOptions);
+    });
+
     testWidgets('iOS device: deleteAll with Secure Enclave items',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
