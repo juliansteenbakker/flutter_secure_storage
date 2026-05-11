@@ -104,18 +104,16 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
     final storage = _getStorage(options);
     final map = <String, String>{};
     final prefix = '${options[_publicKey]!}.';
+
+    final keys = <String>[];
     for (var j = 0; j < storage.length; j++) {
       final key = storage.key(j) ?? '';
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
+      if (key.startsWith(prefix)) keys.add(key);
+    }
 
+    for (final key in keys) {
       final value = await _decryptValue(storage.getItem(key), options);
-
-      if (value == null) {
-        continue;
-      }
-
+      if (value == null) continue;
       map[key.substring(prefix.length)] = value;
     }
 

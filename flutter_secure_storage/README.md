@@ -168,6 +168,63 @@ For advanced users, all combinations below are supported using the `AndroidOptio
     - `false`: Gracefully degrades if biometrics unavailable
     - `true`: Strictly requires device security (PIN/pattern/biometric), throws exception if unavailable
 
+#### Migration with Backup Protection
+
+When upgrading between versions that use different encryption algorithms, `flutter_secure_storage` can automatically migrate your data. To protect against data loss during migration (e.g., app crashes), enable backup protection:
+
+```dart
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(
+    migrateWithBackup: true, // Enable crash-resistant migration
+  ),
+);
+```
+
+**How it works:**
+
+1. **Before migration:** Creates backup copies of encrypted data with `_BACKUP` suffix
+2. **During migration:** Tracks progress per-key using `_MIGRATED` markers
+3. **After migration:** Automatically cleans up backup and progress markers
+4. **On crash:** Resumes from last checkpoint without data loss
+
+**When to use:**
+- Recommended for production apps storing critical data (wallet seeds, credentials, etc.)
+- Protects against data loss if migration crashes mid-process
+- Enables safe recovery to pre-migration state if needed
+
+**Default behavior:**
+- `migrateWithBackup: false` (default for backward compatibility)
+- When disabled, automatic migration is turned off to prevent unsafe data loss
+- Enable this option if you want crash-resistant migrations
+
+**Example migration scenarios:**
+```dart
+// Migrating from old to new algorithm with backup protection
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions(
+    migrateWithBackup: true,
+    keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+    storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
+  ),
+);
+
+// Migrating to biometric storage with backup
+final storage = FlutterSecureStorage(
+  aOptions: AndroidOptions.biometric(
+    migrateWithBackup: true,
+    enforceBiometrics: false,
+  ),
+);
+```
+
+**Technical details:**
+- Backup data stored alongside original data in SharedPreferences
+- Per-key progress tracking prevents re-processing already-migrated keys
+- Idempotent: safe to run multiple times
+- Supports all migration paths (non-biometric ↔ biometric, algorithm changes)
+- Automatic cleanup after successful migration
+
+### iOS
 #### Biometric Authentication
 
 Flutter Secure Storage supports biometric authentication (fingerprint, face recognition, etc.) on Android API 23+.

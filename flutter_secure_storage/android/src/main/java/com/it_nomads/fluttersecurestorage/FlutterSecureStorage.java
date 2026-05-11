@@ -34,7 +34,7 @@ import javax.crypto.Cipher;
 public class FlutterSecureStorage {
     private static final String TAG = "FlutterSecureStorage";
     private static final Charset charset = StandardCharsets.UTF_8;
-    
+
     private FlutterSecureStorageConfig config;
     @NonNull
     private final Context context;
@@ -143,12 +143,12 @@ public class FlutterSecureStorage {
         editor.apply();
     }
 
-    protected void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
-        this.config = config;
+    public void initialize(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
         if (preferences != null) {
             callback.onSuccess(null);
             return;
         }
+        this.config = config;
 
         SharedPreferences nonEncryptedPreferences = context.getSharedPreferences(
                 config.getEffectiveDataPrefsName(),
@@ -160,11 +160,9 @@ public class FlutterSecureStorage {
 
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
-        // Always check for EncryptedSharedPreferences data, regardless of current config.
-        // This handles the case where users had encryptedSharedPreferences=true in v9.2.4
-        // but removed it when upgrading (thinking it's deprecated and shouldn't be used).
-        // Without this check, their data would be lost during upgrade.
-        if (!isAlreadyMigrated) {
+        // Skip old ESP migration if migrateWithBackup is enabled - ESP migration is now
+        // handled by step 6 of the backup-protected migration path
+        if (!isAlreadyMigrated && !config.shouldMigrateWithBackup()) {
             try {
                 SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context);
 
@@ -348,7 +346,13 @@ public class FlutterSecureStorage {
                 migrateBiometric(configSource, dataSource, fromBiometric, toBiometric, callback);
             } else {
                 Log.i(TAG, "Detected non-biometric migration: FROM=" + savedStorageAlg + ", TO=" + currentStorageAlg);
-                migrateNonBiometric(configSource, dataSource, callback);
+                // Route to backup-protected migration if flag is enabled
+                if (config.shouldMigrateWithBackup()) {
+                    Log.i(TAG, "Using migration WITH BACKUP protection");
+                    migrateNonBiometricWithBackup(configSource, dataSource, callback);
+                } else {
+                    migrateNonBiometric(configSource, dataSource, callback);
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to start migration", e);
@@ -416,8 +420,63 @@ public class FlutterSecureStorage {
             }
         }
 
-        editor.apply();
-        Log.d(TAG, "Successfully encrypted and saved " + count + " items with current cipher");
+        // Use commit() instead of apply() to guarantee data is written to disk
+        // before returning. This prevents data loss if the app is force-killed
+        // immediately after migration (e.g., on slow eMMC storage devices).
+        boolean success = editor.commit();
+        if (!success) {
+            throw new Exception("Failed to commit encrypted data to disk - storage may be full or unavailable");
+        }
+        Log.d(TAG, "Successfully encrypted and committed " + count + " items with current cipher to disk");
+    }
+
+    /**
+     * Encrypts all entries in cache with the current cipher, tracking per-key progress in configSource.
+     * On retry after a crash mid-step, keys already marked <key>_MIGRATED in configSource are skipped
+     * (they were already written to dataTarget). After each successful key write, a _MIGRATED marker
+     * is stored in configSource so a subsequent retry knows to skip it.
+     *
+     * Markers are stored in configSource (not dataSource) so they don't interfere with real user data.
+     * Step 7 cleans up all _MIGRATED markers after full migration completes.
+     */
+    private void encryptAllWithCurrentCipherTracked(Map<String, String> cache, SharedPreferences dataTarget,
+                                                    NamespacedConfigSource configSource,
+                                                    StorageCipher currentStorageCipher,
+                                                    String keyPrefix) throws Exception {
+        int count = 0;
+        int skipped = 0;
+
+        for (Map.Entry<String, String> entry : cache.entrySet()) {
+            String key = entry.getKey();
+            String migratedMarker = key + "_MIGRATED";
+
+            // Skip keys already successfully written on a previous (crashed) run
+            if (configSource.contains(migratedMarker)) {
+                skipped++;
+                Log.d(TAG, "Skipping already-migrated key: " + key);
+                continue;
+            }
+
+            try {
+                byte[] encryptedData = currentStorageCipher.encrypt(entry.getValue().getBytes(charset));
+                String encodedValue = Base64.encodeToString(encryptedData, 0);
+
+                // Write encrypted value then mark as migrated — both committed atomically
+                SharedPreferences.Editor dataEditor = dataTarget.edit();
+                dataEditor.putString(key, encodedValue);
+                if (!dataEditor.commit()) {
+                    throw new Exception("Failed to commit encrypted data for key: " + key);
+                }
+
+                configSource.edit().putBoolean(migratedMarker, true).commit();
+                count++;
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to encrypt key: " + key, e);
+                throw new Exception("Failed to encrypt data with current cipher for key: " + key, e);
+            }
+        }
+
+        Log.d(TAG, "Encrypted " + count + " items (skipped " + skipped + " already-migrated) with current cipher");
     }
 
     /**
@@ -522,15 +581,33 @@ public class FlutterSecureStorage {
         Log.i(TAG, "Migration direction: FROM biometric=" + fromBiometric + ", TO biometric=" + toBiometric);
 
         try {
+            // Route to backup-protected biometric migrations if flag is enabled
+            boolean useBackup = config.shouldMigrateWithBackup();
+            if (useBackup) {
+                Log.i(TAG, "Using biometric migration WITH BACKUP protection");
+            }
+
             if (fromBiometric && !toBiometric) {
                 Log.i(TAG, "You will be prompted to authenticate with your OLD biometric settings to decrypt existing data.");
-                migrateFromBiometricToNonBiometric(configSource, dataSource, callback);
+                if (useBackup) {
+                    migrateFromBiometricToNonBiometricWithBackup(configSource, dataSource, callback);
+                } else {
+                    migrateFromBiometricToNonBiometric(configSource, dataSource, callback);
+                }
             } else if (!fromBiometric && toBiometric) {
                 Log.i(TAG, "You will be prompted to authenticate with your NEW biometric settings to encrypt data.");
-                migrateFromNonBiometricToBiometric(configSource, dataSource, callback);
+                if (useBackup) {
+                    migrateFromNonBiometricToBiometricWithBackup(configSource, dataSource, callback);
+                } else {
+                    migrateFromNonBiometricToBiometric(configSource, dataSource, callback);
+                }
             } else {
                 Log.i(TAG, "You will be prompted to authenticate twice (once for decrypt, once for encrypt).");
-                migrateBiometricToBiometric(configSource, dataSource, callback);
+                if (useBackup) {
+                    migrateBiometricToBiometricWithBackup(configSource, dataSource, callback);
+                } else {
+                    migrateBiometricToBiometric(configSource, dataSource, callback);
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Biometric migration failed", e);
@@ -882,6 +959,8 @@ public class FlutterSecureStorage {
         }
     }
 
+
+
     /**
      * Deletes all encrypted data, keys, and algorithm markers, then reinitializes.
      * Extracted from handleKeyMismatch for reuse.
@@ -957,6 +1036,15 @@ public class FlutterSecureStorage {
     public boolean isDeviceSecure() {
         KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
         return keyguardManager != null && keyguardManager.isDeviceSecure();
+    }
+
+    /**
+     * Returns the application context.
+     * Used by RecoveryMode to access SharedPreferences and KeyStore.
+     */
+    @NonNull
+    public Context getContext() {
+        return context;
     }
 
     /**
@@ -1076,13 +1164,6 @@ public class FlutterSecureStorage {
             }
 
             @Override
-            public void onAuthenticationFailed() {
-                super.onAuthenticationFailed();
-                Log.w(TAG, "Biometric authentication failed, user not recognized");
-                securePreferencesCallback.onError(new Exception("Biometric authentication failed, user not recognized"));
-            }
-
-            @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
                 Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
@@ -1107,10 +1188,54 @@ public class FlutterSecureStorage {
     }
 
     /**
+     * Migrates data from EncryptedSharedPreferences to custom cipher storage WITH backup protection.
+     * This is a simpler migration since ESP data is already encrypted by Tink.
+     * We just copy ESP keys → custom cipher without creating backups (ESP encryption is the backup).
+     */
+    private void migrateESPWithBackup(SharedPreferences espSource, SharedPreferences target,
+                                      NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
+        Log.i(TAG, "Starting ESP→custom cipher migration WITH backup protection...");
+
+        // Initialize custom cipher for migration target
+        initializeStorageCipher(configSource, new SecurePreferencesCallback<>() {
+            @Override
+            public void onSuccess(Void unused) {
+                try {
+                    // Migrate ESP data to custom cipher
+                    migrateFromEncryptedSharedPreferences(espSource, target);
+                    preferences = target;
+                    Log.i(TAG, "ESP migration completed successfully. Now using custom cipher storage.");
+                    setEncryptedPrefsMigrated(configSource);
+                    callback.onSuccess(null);
+                } catch (Exception e) {
+                    Log.e(TAG, "ESP migration failed. Falling back to ESP.", e);
+                    preferences = espSource;
+                    callback.onSuccess(null);
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Cipher initialization failed during ESP migration. Using ESP.", e);
+                preferences = espSource;
+                callback.onSuccess(null);
+            }
+        });
+    }
+
+    /**
      * Migrates data from EncryptedSharedPreferences to custom cipher storage.
      * Data is read from ESP (plaintext after ESP decryption), then encrypted with custom cipher.
      */
     private void migrateFromEncryptedSharedPreferences(SharedPreferences source, SharedPreferences target) throws Exception {
+        migrateFromEncryptedSharedPreferences(source, target, storageCipher);
+    }
+
+    /**
+     * Migrates data from EncryptedSharedPreferences to custom cipher storage using specified cipher.
+     * Data is read from ESP (plaintext after ESP decryption), then encrypted with custom cipher.
+     */
+    private void migrateFromEncryptedSharedPreferences(SharedPreferences source, SharedPreferences target, StorageCipher cipher) throws Exception {
         int migratedCount = 0;
 
         for (Map.Entry<String, ?> entry : source.getAll().entrySet()) {
@@ -1118,7 +1243,7 @@ public class FlutterSecureStorage {
             String key = entry.getKey();
 
             if (v instanceof String plainValue && key.contains(config.getSharedPreferencesKeyPrefix())) {
-                byte[] encrypted = storageCipher.encrypt(plainValue.getBytes(charset));
+                byte[] encrypted = cipher.encrypt(plainValue.getBytes(charset));
                 String baseEncoded = Base64.encodeToString(encrypted, 0);
                 target.edit().putString(key, baseEncoded).apply();
 
@@ -1205,4 +1330,551 @@ public class FlutterSecureStorage {
 
         return new String(result, charset);
     }
+    // ============================================================================
+    // MIGRATION WITH BACKUP METHODS
+    // ============================================================================
+
+        private void migrateNonBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
+                                                   SecurePreferencesCallback<Void> callback) {
+            Log.i(TAG, "Starting non-biometric migration WITH BACKUP (rename operation)...");
+
+            try {
+                SharedPreferences keyStorage = context.getSharedPreferences(
+                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+
+                // Step 1: Create backup - copies data + wrapped keys to _BACKUP, keeps originals.
+                // createBackup() is idempotent: skips internally if status is already "complete".
+                // On retry after crash, backup is already complete so this is a no-op.
+                Log.d(TAG, "Step 1/8: Creating backup (copy originals to _BACKUP, keep originals)...");
+                if (storageCipherFactory.changedKeyAlgorithm()) {
+                    MigrationBackup.createBackup(
+                        dataSource,
+                        keyStorage,
+                        configSource,
+                        config,
+                        config.getSharedPreferencesKeyPrefix()
+                    );
+                    Log.i(TAG, "Backup step complete - originals preserved alongside _BACKUP copies");
+                } else {
+                    Log.i(TAG, "No algorithm change detected, skipping backup");
+                }
+
+                // Step 2: Restore wrapped keys from _BACKUP, then initialize old cipher.
+                // On first run: originals still exist, restore is a no-op (same value).
+                // On retry after crash at step 4 or earlier: originals were deleted, restore brings them back.
+                // IMPORTANT: If _MIGRATED markers exist, step 6 already ran (at least partially) in a prior
+                // crashed run. The new OAEP-wrapped AES key is already in keyStorage. We still need to
+                // temporarily restore the old _BACKUP key so getSavedStorageCipher can initialize (it reads
+                // from keyStorage using the old RSA key). After savedCipher is initialized, we put the new
+                // key back so step 6's preserved data remains readable with the new cipher.
+                Log.d(TAG, "Step 2/8: Restoring wrapped keys from _BACKUP and initializing saved cipher...");
+                boolean alreadyPartiallyMigrated = MigrationBackup.hasMigratedMarkers(
+                        configSource, config.getSharedPreferencesKeyPrefix());
+                // If step 6 ran previously, save the current (new) keyStorage entries so we can
+                // restore them after initializing savedCipher from the _BACKUP blobs.
+                Map<String, String> newKeyStorageEntries = new HashMap<>();
+                if (alreadyPartiallyMigrated) {
+                    for (Map.Entry<String, ?> entry : keyStorage.getAll().entrySet()) {
+                        String k = entry.getKey();
+                        if (!k.endsWith("_BACKUP") && entry.getValue() instanceof String) {
+                            newKeyStorageEntries.put(k, (String) entry.getValue());
+                        }
+                    }
+                    Log.d(TAG, "Step 2/8: _MIGRATED markers found — saved " + newKeyStorageEntries.size()
+                            + " new key entries; temporarily restoring _BACKUP blobs for savedCipher init");
+                }
+                // Restore _BACKUP key blobs (so savedCipher can unwrap with old RSA key)
+                SharedPreferences.Editor keyRestoreEditor = keyStorage.edit();
+                for (Map.Entry<String, ?> entry : keyStorage.getAll().entrySet()) {
+                    String k = entry.getKey();
+                    if (k.endsWith("_BACKUP") && entry.getValue() instanceof String) {
+                        String originalKey = k.substring(0, k.length() - "_BACKUP".length());
+                        keyRestoreEditor.putString(originalKey, (String) entry.getValue());
+                    }
+                }
+                keyRestoreEditor.commit();
+                StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, null);
+                // After savedCipher init: if step 6 already ran, put the new wrapped key back
+                // so subsequent reads (and step 6 for any remaining keys) use the correct cipher.
+                if (alreadyPartiallyMigrated && !newKeyStorageEntries.isEmpty()) {
+                    SharedPreferences.Editor keyRevertEditor = keyStorage.edit();
+                    for (Map.Entry<String, String> entry : newKeyStorageEntries.entrySet()) {
+                        keyRevertEditor.putString(entry.getKey(), entry.getValue());
+                    }
+                    keyRevertEditor.commit();
+                    Log.d(TAG, "Step 2/8: New wrapped key restored to keyStorage after savedCipher init");
+                }
+
+                // Step 3: Decrypt all data FROM _BACKUP keys (in memory only)
+                // _BACKUP keys always contain the original old ciphertext, regardless of how many
+                // times migration has been retried. Even if step 6 already re-encrypted the
+                // Step 2 restored the wrapped AES key blob to its original name so savedCipher
+                // is initialized correctly. Data is read from _BACKUP keys (not originals) because
+                // originals may already be re-encrypted with the new cipher from a prior partial run.
+                Log.d(TAG, "Step 3/8: Decrypting all data from _BACKUP keys...");
+                Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
+                Log.d(TAG, "Successfully decrypted " + decryptedCache.size() + " items from _BACKUP keys");
+
+                // Step 4: Delete originals from dataSource and keyStorage.
+                // Keys already marked _MIGRATED in configSource are preserved — they were
+                // successfully re-encrypted on a prior (crashed) run and must not be deleted,
+                // as step 6 will skip them (they're already in dataSource with new cipher).
+                Log.d(TAG, "Step 4/8: Deleting original encrypted entries (preserving already-migrated)...");
+                MigrationBackup.deleteOriginalData(dataSource, keyStorage, configSource, config.getSharedPreferencesKeyPrefix());
+
+                if (decryptedCache.isEmpty()) {
+                    Log.i(TAG, "No data found to migrate");
+                } else {
+                    Log.i(TAG, "Found " + decryptedCache.size() + " items to migrate");
+                }
+
+                // Step 5: Create new cipher (NEW algorithm)
+                Log.d(TAG, "Step 5/8: Initializing current cipher with new algorithm...");
+                StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+
+                if (decryptedCache.isEmpty()) {
+                    Log.i(TAG, "Step 6/8: No data to encrypt, skipping...");
+                } else {
+                    // Step 6: Encrypt all data with NEW cipher, tracking per-key progress.
+                    // On retry after a crash mid-step 6, keys already marked _MIGRATED are skipped.
+                    Log.d(TAG, "Step 6/8: Encrypting all data with current cipher (per-key tracking)...");
+                    encryptAllWithCurrentCipherTracked(decryptedCache, dataSource, configSource, currentCipher,
+                                                       config.getSharedPreferencesKeyPrefix());
+                }
+
+                // Step 7: Migrate ESP data if present (after algorithm migration complete)
+                Log.d(TAG, "Step 7/8: Checking for ESP data to migrate...");
+
+                // Check if ESP migration is needed
+                Boolean isESPMigrated = getEncryptedPrefsMigrated(configSource);
+                if (!isESPMigrated) {
+                    try {
+                        SharedPreferences encryptedPreferences = initializeEncryptedSharedPreferencesManager(context);
+                        if (hasDataInEncryptedSharedPreferences(encryptedPreferences)) {
+                            Log.i(TAG, "Found ESP data - migrating to custom cipher storage...");
+                            migrateFromEncryptedSharedPreferences(encryptedPreferences, dataSource, currentCipher);
+                            setEncryptedPrefsMigrated(configSource);
+                            Log.i(TAG, "ESP migration completed successfully");
+                        } else {
+                            Log.d(TAG, "No ESP data found");
+                        }
+                    } catch (Exception espError) {
+                        Log.w(TAG, "ESP migration failed or ESP not available: " + espError.getMessage());
+                    }
+                }
+
+                // Step 8: Cleanup
+                Log.d(TAG, "Step 8/8: Cleaning up - deleting _BACKUP, _MIGRATED markers, updating markers, deleting old keys...");
+
+                // Delete all _BACKUP entries and _MIGRATED markers
+                MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
+                                            config.getSharedPreferencesKeyPrefix());
+                MigrationBackup.deleteMigratedMarkers(configSource, config.getSharedPreferencesKeyPrefix());
+
+                // Update algorithm markers to NEW algorithms
+                updateAlgorithmMarkers(configSource);
+
+                // Delete OLD RSA keys from Android KeyStore
+                if (storageCipherFactory.changedKeyAlgorithm()) {
+                    try {
+                        KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                        savedKeyCipher.deleteKey();
+                        savedCipher.deleteKey(context);
+                        Log.d(TAG, "Old RSA keys deleted from KeyStore");
+                    } catch (Exception deleteError) {
+                        Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                    }
+                }
+
+                // Update storageCipher to current
+                storageCipher = currentCipher;
+
+                Log.i(TAG, "Non-biometric migration WITH BACKUP completed successfully!");
+                Log.i(TAG, "Migrated " + decryptedCache.size() + " data items with new algorithm.");
+
+                callback.onSuccess(null);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Non-biometric migration with backup failed", e);
+                callback.onError(new Exception("Non-biometric migration with backup failed", e));
+            }
+        }
+        private Map<String, String> decryptAllWithSavedCipherFromBackup(SharedPreferences dataSource,
+                                                                         SharedPreferences espSource,
+                                                                         StorageCipher savedStorageCipher) throws Exception {
+            Map<String, String> decryptedCache = new HashMap<>();
+            int encryptedCount = 0;
+            int espCount = 0;
+
+            // Decrypt ESP _BACKUP keys if ESP source provided
+            if (espSource != null) {
+                try {
+                    for (Map.Entry<String, ?> entry : espSource.getAll().entrySet()) {
+                        String key = entry.getKey();
+                        Object value = entry.getValue();
+
+                        // Only process _BACKUP keys
+                        if (value instanceof String && key.contains(config.getSharedPreferencesKeyPrefix())
+                            && key.endsWith("_BACKUP")) {
+                            String stringValue = (String) value;
+                            String originalKey = key.substring(0, key.length() - "_BACKUP".length());
+
+                            // ESP data is already decrypted by ESP (Tink library)
+                            // No need to decrypt again - just use the value directly
+                            decryptedCache.put(originalKey, stringValue);
+                            espCount++;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to read ESP _BACKUP keys: " + e.getMessage());
+                    // Continue with regular backup keys
+                }
+            }
+
+            // Decrypt regular _BACKUP keys from dataSource
+            for (Map.Entry<String, ?> entry : dataSource.getAll().entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                // Only process _BACKUP keys
+                if (value instanceof String && key.contains(config.getSharedPreferencesKeyPrefix())
+                    && key.endsWith("_BACKUP")) {
+                    String stringValue = (String) value;
+                    String originalKey = key.substring(0, key.length() - "_BACKUP".length());
+
+                    try {
+                        // Decode Base64 and decrypt with saved cipher
+                        byte[] encryptedData = Base64.decode(stringValue, 0);
+                        byte[] decryptedData = savedStorageCipher.decrypt(encryptedData);
+                        String plainValue = new String(decryptedData, charset);
+
+                        decryptedCache.put(originalKey, plainValue);
+                        encryptedCount++;
+                    } catch (Exception decryptError) {
+                        Log.e(TAG, "Failed to decrypt _BACKUP key (skipping): " + key, decryptError);
+                    }
+                }
+            }
+
+            Log.d(TAG, "Successfully processed " + (encryptedCount + espCount) + " items from _BACKUP keys (" +
+                  encryptedCount + " encrypted, " + espCount + " ESP)");
+            return decryptedCache;
+        }
+        private void migrateFromBiometricToNonBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
+                                                                   SecurePreferencesCallback<Void> callback) {
+            try {
+                SharedPreferences keyStorage = context.getSharedPreferences(
+                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+
+                // Step 0: Create backup BEFORE any destructive operations
+                String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
+                if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
+                    Log.i(TAG, "Creating backup before biometric→non-biometric migration...");
+                    MigrationBackup.createBackup(
+                        dataSource,
+                        keyStorage,
+                        configSource,
+                        config,
+                        config.getSharedPreferencesKeyPrefix()
+                    );
+                    Log.i(TAG, "Backup created successfully");
+                }
+
+                // Step 1: Get OLD biometric cipher (requires authentication)
+                Log.d(TAG, "Step 1/7: Getting saved biometric cipher...");
+                KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                Cipher oldKeyCipher = savedKeyCipher.getCipher(context);
+
+                if (oldKeyCipher == null) {
+                    throw new Exception("Failed to get saved biometric cipher");
+                }
+
+                Log.i(TAG, "Authenticating with OLD biometric cipher to decrypt data...");
+
+                // Authenticate with OLD cipher
+                authenticateUser(oldKeyCipher, new SecurePreferencesCallback<>() {
+                    @Override
+                    public void onSuccess(BiometricPrompt.AuthenticationResult unused) {
+                        try {
+                            // Step 2: Decrypt with OLD biometric cipher FROM BACKUP
+                            Log.d(TAG, "Step 2/7: Decrypting all data from _BACKUP with saved biometric cipher...");
+                            StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, oldKeyCipher);
+                            Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
+
+                            // Step 3: Get NEW non-biometric cipher (no auth)
+                            Log.d(TAG, "Step 3/7: Initializing current non-biometric cipher...");
+                            StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+
+                            // Step 4: Encrypt all data with NEW cipher
+                            Log.d(TAG, "Step 4/7: Encrypting all data with current cipher...");
+                            encryptAllWithCurrentCipher(decryptedCache, dataSource, currentCipher);
+
+                            // Step 5: Delete backup - data successfully re-encrypted
+                            Log.d(TAG, "Step 5/7: Deleting backup after successful re-encryption...");
+                            MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
+                                                        config.getSharedPreferencesKeyPrefix());
+
+                            // Step 6: Update algorithm markers AFTER successful re-encryption
+                            Log.d(TAG, "Step 6/7: Updating algorithm markers to current...");
+                            updateAlgorithmMarkers(configSource);
+
+                            // Step 7: Delete OLD biometric AES key from Android KeyStore
+                            Log.d(TAG, "Step 7/7: Deleting old biometric AES key from Android KeyStore...");
+                            if (storageCipherFactory.changedKeyAlgorithm()) {
+                                try {
+                                    KeyCipher oldKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                                    oldKeyCipher.deleteKey();
+                                    savedCipher.deleteKey(context);
+                                    Log.d(TAG, "Old key deleted from KeyStore");
+                                } catch (Exception deleteError) {
+                                    Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                                }
+                            }
+
+                            storageCipher = currentCipher;
+
+                            Log.i(TAG, "Biometric→Non-biometric migration WITH BACKUP completed! Data no longer requires biometric authentication.");
+                            callback.onSuccess(null);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to complete migration after authentication", e);
+                            callback.onError(e);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Biometric authentication failed for migration", e);
+                        callback.onError(new Exception("Migration cancelled: Biometric authentication failed", e));
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize biometric migration with backup", e);
+                callback.onError(e);
+            }
+        }
+        private void migrateFromNonBiometricToBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
+                                                                   SecurePreferencesCallback<Void> callback) {
+            try {
+                SharedPreferences keyStorage = context.getSharedPreferences(
+                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+
+                // Step 0: Create backup BEFORE any destructive operations
+                String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
+                if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
+                    Log.i(TAG, "Creating backup before non-biometric→biometric migration...");
+                    MigrationBackup.createBackup(
+                        dataSource,
+                        keyStorage,
+                        configSource,
+                        config,
+                        config.getSharedPreferencesKeyPrefix()
+                    );
+                    Log.i(TAG, "Backup created successfully");
+                }
+
+                // Step 1: Decrypt with OLD non-biometric cipher FROM BACKUP (no auth)
+                Log.d(TAG, "Step 1/7: Decrypting all data from _BACKUP with saved non-biometric cipher...");
+                StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, null);
+                Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
+
+                // Step 2: Get NEW biometric cipher (requires authentication)
+                Log.d(TAG, "Step 2/7: Getting current biometric cipher...");
+                KeyCipher currentKeyCipher = storageCipherFactory.getCurrentKeyCipher(context);
+                Cipher newCipher = currentKeyCipher.getCipher(context);
+
+                if (newCipher == null) {
+                    throw new Exception("Failed to get current biometric cipher");
+                }
+
+                Log.i(TAG, "Authenticating with NEW biometric cipher to encrypt data...");
+
+                // Authenticate with NEW cipher
+                final Map<String, String> cachedData = decryptedCache; // Make final for lambda
+                authenticateUser(newCipher, new SecurePreferencesCallback<>() {
+                    @Override
+                    public void onSuccess(BiometricPrompt.AuthenticationResult unused) {
+                        try {
+                            // Step 3: Initialize current biometric cipher
+                            Log.d(TAG, "Step 3/7: Initializing current biometric cipher...");
+                            StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, newCipher);
+
+                            // Step 4: Encrypt all data with NEW biometric cipher
+                            Log.d(TAG, "Step 4/7: Encrypting all data with current biometric cipher...");
+                            encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
+
+                            // Step 5: Delete backup - data successfully re-encrypted
+                            Log.d(TAG, "Step 5/7: Deleting backup after successful re-encryption...");
+                            MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
+                                                        config.getSharedPreferencesKeyPrefix());
+
+                            // Step 6: Update algorithm markers AFTER successful re-encryption
+                            Log.d(TAG, "Step 6/7: Updating algorithm markers to current...");
+                            updateAlgorithmMarkers(configSource);
+
+                            // Step 7: Delete OLD RSA key from Android KeyStore
+                            Log.d(TAG, "Step 7/7: Deleting old RSA key from Android KeyStore...");
+                            if (storageCipherFactory.changedKeyAlgorithm()) {
+                                try {
+                                    KeyCipher oldKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                                    oldKeyCipher.deleteKey();
+                                    savedCipher.deleteKey(context);
+                                    Log.d(TAG, "Old key deleted from KeyStore");
+                                } catch (Exception deleteError) {
+                                    Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                                }
+                            }
+
+                            storageCipher = currentCipher;
+
+                            Log.i(TAG, "Non-biometric→Biometric migration WITH BACKUP completed! Data now requires biometric authentication.");
+                            callback.onSuccess(null);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to complete migration after authentication", e);
+                            callback.onError(e);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Biometric authentication failed for migration", e);
+                        callback.onError(new Exception("Migration cancelled: Biometric authentication failed", e));
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize biometric migration with backup", e);
+                callback.onError(e);
+            }
+        }
+        private void migrateBiometricToBiometricWithBackup(NamespacedConfigSource configSource, SharedPreferences dataSource,
+                                                            SecurePreferencesCallback<Void> callback) {
+            try {
+                SharedPreferences keyStorage = context.getSharedPreferences(
+                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+
+                // Step 0: Create backup BEFORE any destructive operations
+                String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
+                if (!MigrationBackup.STATUS_COMPLETE.equals(backupStatus)) {
+                    Log.i(TAG, "Creating backup before biometric→biometric migration...");
+                    MigrationBackup.createBackup(
+                        dataSource,
+                        keyStorage,
+                        configSource,
+                        config,
+                        config.getSharedPreferencesKeyPrefix()
+                    );
+                    Log.i(TAG, "Backup created successfully");
+                }
+
+                // Step 1: Get OLD biometric cipher
+                Log.d(TAG, "Step 1/8: Getting saved biometric cipher...");
+                KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                Cipher oldCipher = savedKeyCipher.getCipher(context);
+
+                if (oldCipher == null) {
+                    throw new Exception("Failed to get saved biometric cipher");
+                }
+
+                Log.i(TAG, "Authenticating with OLD biometric cipher to decrypt data...");
+
+                // First authentication: OLD cipher
+                authenticateUser(oldCipher, new SecurePreferencesCallback<>() {
+                    @Override
+                    public void onSuccess(BiometricPrompt.AuthenticationResult unused) {
+                        try {
+                            // Step 2: Decrypt with OLD biometric cipher FROM BACKUP
+                            Log.d(TAG, "Step 2/8: Decrypting all data from _BACKUP with saved biometric cipher...");
+                            StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, oldCipher);
+                            Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
+
+                            if (decryptedCache.isEmpty()) {
+                                Log.i(TAG, "No data found in _BACKUP keys to migrate");
+                            } else {
+                                Log.i(TAG, "Found " + decryptedCache.size() + " items to migrate from _BACKUP keys");
+                            }
+
+                            // Step 3: Get NEW biometric cipher (CONTINUES REGARDLESS)
+                            Log.d(TAG, "Step 3/8: Getting current biometric cipher...");
+                            KeyCipher currentKeyCipher = storageCipherFactory.getCurrentKeyCipher(context);
+                            Cipher newCipher = currentKeyCipher.getCipher(context);
+
+                            if (newCipher == null) {
+                                throw new Exception("Failed to get current biometric cipher");
+                            }
+
+                            Log.i(TAG, "Authenticating with NEW biometric cipher to encrypt data...");
+
+                            // Second authentication: NEW cipher
+                            final Map<String, String> cachedData = decryptedCache;
+                            authenticateUser(newCipher, new SecurePreferencesCallback<>() {
+                                @Override
+                                public void onSuccess(BiometricPrompt.AuthenticationResult unused) {
+                                    try {
+                                        // Step 4: Initialize current biometric cipher
+                                        Log.d(TAG, "Step 4/8: Initializing current biometric cipher...");
+                                        StorageCipher currentCipher = storageCipherFactory.getCurrentStorageCipher(context, newCipher);
+
+                                        // Step 5: Encrypt all data with NEW biometric cipher
+                                        if (cachedData.isEmpty()) {
+                                            Log.i(TAG, "Step 5/8: No data to encrypt, skipping...");
+                                        } else {
+                                            Log.d(TAG, "Step 5/8: Encrypting all data with current biometric cipher...");
+                                            encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
+                                        }
+
+                                        // Step 6: Delete backup - data successfully re-encrypted
+                                        Log.d(TAG, "Step 6/8: Deleting backup after successful re-encryption...");
+                                        MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
+                                                                    config.getSharedPreferencesKeyPrefix());
+
+                                        // Step 7: Update algorithm markers AFTER successful re-encryption
+                                        Log.d(TAG, "Step 7/8: Updating algorithm markers to current...");
+                                        updateAlgorithmMarkers(configSource);
+
+                                        // Step 8: Delete OLD biometric AES key from Android KeyStore
+                                        Log.d(TAG, "Step 8/8: Deleting old biometric AES key from Android KeyStore...");
+                                        if (storageCipherFactory.changedKeyAlgorithm()) {
+                                            try {
+                                                KeyCipher oldKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                                                oldKeyCipher.deleteKey();
+                                                savedCipher.deleteKey(context);
+                                                Log.d(TAG, "Old key deleted from KeyStore");
+                                            } catch (Exception deleteError) {
+                                                Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                                            }
+                                        }
+
+                                        storageCipher = currentCipher;
+
+                                        Log.i(TAG, "Biometric→Biometric migration WITH BACKUP completed! Data now uses new biometric cipher.");
+                                        Log.i(TAG, "Migrated " + cachedData.size() + " data items with new biometric algorithm.");
+                                        callback.onSuccess(null);
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Failed to complete migration after second authentication", e);
+                                        callback.onError(e);
+                                    }
+                                }
+
+                                @Override
+                                public void onError(Exception e) {
+                                    Log.e(TAG, "Second biometric authentication failed for migration", e);
+                                    callback.onError(new Exception("Migration cancelled: Second biometric authentication failed", e));
+                                }
+                            });
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed after first authentication", e);
+                            callback.onError(e);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "First biometric authentication failed for migration", e);
+                        callback.onError(new Exception("Migration cancelled: First biometric authentication failed", e));
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize biometric-to-biometric migration with backup", e);
+                callback.onError(e);
+            }
+        }
 }

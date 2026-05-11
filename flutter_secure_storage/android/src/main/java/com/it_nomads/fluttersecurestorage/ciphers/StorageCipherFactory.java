@@ -49,9 +49,13 @@ public class StorageCipherFactory {
         currentKeyAlgorithm = (currentKeyAlgorithmTmp.minVersionCode <= Build.VERSION.SDK_INT) ? currentKeyAlgorithmTmp : DEFAULT_KEY_ALGORITHM;
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
-            final SharedPreferences.Editor source = configSource.edit();
-            storeCurrentAlgorithms(source);
-            source.apply();
+            // Don't write algorithm markers during migrateWithBackup
+            // (the migration flow writes them at step 7 after success).
+            if (!config.shouldMigrateWithBackup()) {
+                final SharedPreferences.Editor source = configSource.edit();
+                storeCurrentAlgorithms(source);
+                source.apply();
+            }
         }
     }
 
@@ -77,7 +81,7 @@ public class StorageCipherFactory {
      * Dynamically selects the appropriate StorageCipher implementation based on
      * the KeyCipher type and StorageCipherAlgorithm.
      */
-    private StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
+    /* package */ StorageCipher createStorageCipher(Context context, KeyCipher keyCipher,
                                                Cipher cipher, StorageCipherAlgorithm algorithm) throws Exception {
         // For AES_GCM_NoPadding, choose implementation based on KeyCipher type
         if (algorithm == StorageCipherAlgorithm.AES_GCM_NoPadding) {

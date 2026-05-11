@@ -3,6 +3,8 @@ package com.it_nomads.fluttersecurestorage;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.Map;
+
 /**
  * Helper class that provides dual-read fallback for config SharedPreferences.
  * Reads from namespaced config first, falls back to legacy global config if not found.
@@ -67,5 +69,12 @@ public class NamespacedConfigSource {
      */
     public boolean contains(String key) {
         return namespacedConfig.contains(key) || legacyConfig.contains(key);
+    }
+
+    /**
+     * Returns all entries from the namespaced config (writes always go here).
+     */
+    public Map<String, ?> getAll() {
+        return namespacedConfig.getAll();
     }
 }

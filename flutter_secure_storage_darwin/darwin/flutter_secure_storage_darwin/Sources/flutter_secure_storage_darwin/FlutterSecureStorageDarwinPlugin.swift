@@ -157,7 +157,7 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
             service: options["accountName"] as? String,
             isSynchronizable: (options["synchronizable"] as? String).flatMap { Bool($0) },
             accessibilityLevel: options["accessibility"] as? String,
-            usesDataProtectionKeychain: (options["useDataProtectionKeyChain"] as? String).flatMap { Bool($0) } ?? true,
+            usesDataProtectionKeychain: (options["usesDataProtectionKeychain"] as? String).flatMap { Bool($0) } ?? true,
             shouldReturnData: true, // Default behavior for most operations.
             itemLabel: options["label"] as? String,
             itemDescription: options["description"] as? String,
