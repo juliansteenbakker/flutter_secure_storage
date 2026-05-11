@@ -574,7 +574,7 @@ void main() {
         'iOS device: item written without SE returns null when read with SE',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        (tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_se_existing_data_key';
       const value = 'existing_value';
