@@ -1,3 +1,8 @@
+// Some tests intentionally construct AndroidOptions with deprecated cipher
+// algorithms to verify that legacy algorithm options serialise correctly and
+// that migration paths continue to work.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -577,7 +582,6 @@ void main() {
     test('deprecated sharedPreferencesName still maps to its legacy key', () {
       // Intentionally tests the deprecated parameter —
       // remove this test alongside the parameter when it is deleted.
-      // ignore: deprecated_member_use_from_same_package
       const options = AndroidOptions(sharedPreferencesName: 'legacyPrefs');
 
       expect(options.toMap()['sharedPreferencesName'], 'legacyPrefs');
@@ -655,8 +659,6 @@ void main() {
     });
 
     test('Deprecated encryptedSharedPreferences still functions', () {
-      // Ignore for test
-      // ignore: deprecated_member_use_from_same_package
       const options = AndroidOptions(encryptedSharedPreferences: true);
 
       expect(options.toMap()['encryptedSharedPreferences'], 'true');
@@ -665,8 +667,6 @@ void main() {
     test('AndroidOptions.biometric with deprecated encryptedSharedPreferences',
         () {
       const options = AndroidOptions.biometric(
-        // Ignore for test
-        // ignore: deprecated_member_use_from_same_package
         encryptedSharedPreferences: true,
       );
 
