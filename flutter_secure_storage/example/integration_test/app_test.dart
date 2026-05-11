@@ -1,3 +1,7 @@
+// Some tests intentionally construct AndroidOptions with deprecated cipher
+// algorithms to verify migration paths from legacy to current defaults.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -71,12 +75,8 @@ void main() {
         const storageA = FlutterSecureStorage(
           aOptions: AndroidOptions(
             storageNamespace: 'namespace_alg_a',
-            keyCipherAlgorithm:
-                // ignore: deprecated_member_use — intentionally testing legacy algorithms
-                KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-            storageCipherAlgorithm:
-                // ignore: deprecated_member_use — intentionally testing legacy algorithms
-                StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
+            storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
           ),
         );
         // storageB uses default algorithms (OAEP/GCM) — distinct from storageA
