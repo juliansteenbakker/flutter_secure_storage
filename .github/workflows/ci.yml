@@ -299,6 +299,10 @@ jobs:
         shell: pwsh
         run: melos bootstrap
 
+      - name: Build Windows Example App
+        working-directory: flutter_secure_storage/example
+        run: flutter build windows --debug
+
       - name: Run Windows Integration Tests
         working-directory: flutter_secure_storage/example
         run: flutter test integration_test/windows_test.dart -d windows
