@@ -1042,6 +1042,49 @@ void main() {
     );
   });
 
+  group('Lock error isolation', () {
+    test(
+      'failed write does not poison subsequent writes',
+      () => withFfi(() async {
+        final realStorage = ffi.DpapiJsonFileMapStorage();
+
+        // Wraps real storage and throws on the second load call.
+        final faultyStorage = _FaultyMapStorage(
+          realStorage,
+          failOnLoadCall: 2,
+        );
+
+        final target = ffi.createFlutterSecureStorageWindows(
+          MethodChannelFlutterSecureStorage(),
+          faultyStorage,
+        );
+
+        TestWidgetsFlutterBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          (call) async => null,
+        );
+
+        final options = {'useBackwardCompatibility': 'false'};
+
+        await target.write(key: 'KEY1', value: 'VALUE1', options: options);
+
+        await expectLater(
+          target.write(key: 'KEY2', value: 'VALUE2', options: options),
+          throwsA(isA<StateError>()),
+        );
+
+        // Lock must still be functional after the failure.
+        await target.write(key: 'KEY3', value: 'VALUE3', options: options);
+
+        final result = await target.readAll(options: options);
+        expect(result['KEY1'], 'VALUE1');
+        expect(result['KEY3'], 'VALUE3');
+        expect(result.containsKey('KEY2'), isFalse);
+      }),
+    );
+  });
+
   group('Stub does not work at all', () {
     test(
       'constructor',
@@ -1329,6 +1372,32 @@ Uint8List _dpApiEncrypt(Uint8List data) {
       LocalFree(HLOCAL(encBlob.ref.pbData.cast()));
     }
   });
+}
+
+/// Delegates to [_delegate] but throws [StateError] on the [failOnLoadCall]-th
+/// call to [load], to exercise lock error-isolation behaviour.
+class _FaultyMapStorage extends ffi.MapStorage {
+  _FaultyMapStorage(this._delegate, {required this.failOnLoadCall});
+
+  final ffi.MapStorage _delegate;
+  final int failOnLoadCall;
+  var _loadCount = 0;
+
+  @override
+  FutureOr<Map<String, String>> load(Map<String, String> options) {
+    _loadCount++;
+    if (_loadCount == failOnLoadCall) {
+      throw StateError('simulated load failure');
+    }
+    return _delegate.load(options);
+  }
+
+  @override
+  FutureOr<void> save(Map<String, String> data, Map<String, String> options) =>
+      _delegate.save(data, options);
+
+  @override
+  FutureOr<void> clear(Map<String, String> options) => _delegate.clear(options);
 }
 
 bool canTest() {
