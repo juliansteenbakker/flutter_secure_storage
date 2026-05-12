@@ -25,6 +25,21 @@ extension OptionsExtension on Map<String, String> {
       this['useBackwardCompatibility'] != 'false';
 }
 
+/// Serialises async critical sections without external dependencies.
+///
+/// Each [run] call waits for the previous one to finish (including error cases)
+/// before starting the next, preventing concurrent read-modify-write races.
+class _AsyncLock {
+  Future<void> _last = Future.value();
+
+  Future<T> run<T>(Future<T> Function() fn) {
+    final next = _last.then((_) => fn());
+    // Swallow errors so a failed operation does not poison future callers.
+    _last = next.then<void>((_) {}, onError: (_) {});
+    return next;
+  }
+}
+
 /// The `FlutterSecureStorageWindows` class provides a Windows-specific
 /// implementation of the `FlutterSecureStoragePlatform` interface.
 ///
@@ -59,6 +74,8 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   /// The platform-specific storage implementation for Windows, using DPAPI.
   final MapStorage _storage;
 
+  final _lock = _AsyncLock();
+
   /// Registers this plugin.
   static void registerWith() {
     FlutterSecureStoragePlatform.instance = FlutterSecureStorageWindows();
@@ -85,18 +102,19 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   Future<void> delete({
     required String key,
     required Map<String, String> options,
-  }) async {
-    final map = await _storage.load(options);
-    final initialSize = map.length;
-    map.remove(key);
-    if (map.length != initialSize) {
-      await _storage.save(map, options);
-    }
+  }) =>
+      _lock.run(() async {
+        final map = await _storage.load(options);
+        final initialSize = map.length;
+        map.remove(key);
+        if (map.length != initialSize) {
+          await _storage.save(map, options);
+        }
 
-    if (options.useBackwardCompatibility) {
-      await _backwardCompatible.delete(key: key, options: options);
-    }
-  }
+        if (options.useBackwardCompatibility) {
+          await _backwardCompatible.delete(key: key, options: options);
+        }
+      });
 
   @override
   Future<void> deleteAll({required Map<String, String> options}) async {
@@ -111,73 +129,76 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   Future<String?> read({
     required String key,
     required Map<String, String> options,
-  }) async {
-    final map = await _storage.load(options);
+  }) =>
+      _lock.run(() async {
+        final map = await _storage.load(options);
 
-    var result = map[key];
-    if (options.useBackwardCompatibility) {
-      if (result == null) {
-        final compatible =
-            await _backwardCompatible.read(key: key, options: options);
-        if (compatible != null) {
-          // Write back now, so the value should be retrieved from JSON file
-          // next.
-          result = map[key] = compatible;
-          await _storage.save(map, options);
+        var result = map[key];
+        if (options.useBackwardCompatibility) {
+          if (result == null) {
+            final compatible =
+                await _backwardCompatible.read(key: key, options: options);
+            if (compatible != null) {
+              // Write back now, so the value should be retrieved from JSON file
+              // next.
+              result = map[key] = compatible;
+              await _storage.save(map, options);
+            }
+          }
+
+          // Clear old entry.
+          await _backwardCompatible.delete(key: key, options: options);
         }
-      }
 
-      // Clear old entry.
-      await _backwardCompatible.delete(key: key, options: options);
-    }
-
-    return result;
-  }
+        return result;
+      });
 
   @override
   Future<Map<String, String>> readAll({
     required Map<String, String> options,
-  }) async {
-    final map = await _storage.load(options);
-    if (!options.useBackwardCompatibility) {
-      // Just return a map.
-      return map;
-    }
+  }) =>
+      _lock.run(() async {
+        final map = await _storage.load(options);
+        if (!options.useBackwardCompatibility) {
+          // Just return a map.
+          return map;
+        }
 
-    final compatible = await _backwardCompatible.readAll(options: options);
+        final compatible = await _backwardCompatible.readAll(options: options);
 
-    if (compatible.isEmpty) {
-      return map;
-    }
+        if (compatible.isEmpty) {
+          return map;
+        }
 
-    for (final entry in compatible.entries) {
-      map.putIfAbsent(entry.key, () => entry.value);
-    }
+        for (final entry in compatible.entries) {
+          map.putIfAbsent(entry.key, () => entry.value);
+        }
 
-    // Write back now, so the value should be retrieved from JSON file next.
-    await _storage.save(map, options);
+        // Write back now, so the value should be retrieved from JSON file next.
+        await _storage.save(map, options);
 
-    // Clear old entries.
-    await _backwardCompatible.deleteAll(options: options);
+        // Clear old entries.
+        await _backwardCompatible.deleteAll(options: options);
 
-    return map;
-  }
+        return map;
+      });
 
   @override
   Future<void> write({
     required String key,
     required String value,
     required Map<String, String> options,
-  }) async {
-    final map = await _storage.load(options);
-    map[key] = value;
-    await _storage.save(map, options);
+  }) =>
+      _lock.run(() async {
+        final map = await _storage.load(options);
+        map[key] = value;
+        await _storage.save(map, options);
 
-    if (options.useBackwardCompatibility) {
-      // Clear old entry.
-      await _backwardCompatible.delete(key: key, options: options);
-    }
-  }
+        if (options.useBackwardCompatibility) {
+          // Clear old entry.
+          await _backwardCompatible.delete(key: key, options: options);
+        }
+      });
 }
 
 /// Creates a custom instance of `FlutterSecureStorageWindows` for testing.
