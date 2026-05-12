@@ -1,7 +1,7 @@
 name: flutter_secure_storage_windows
 description: Windows implementation of flutter_secure_storage. Please use flutter_secure_storage instead of this package.
 repository: https://github.com/mogol/flutter_secure_storage
-version: 4.2.0
+version: 4.2.1
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

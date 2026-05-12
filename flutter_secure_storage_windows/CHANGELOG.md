@@ -1,3 +1,6 @@
+## 4.2.1
+Fix concurrent read/write operations causing data loss or a `PathAccessException` on Windows (issue #634).
+
 ## 4.2.0
 Fix DPAPI FFI calls for compatibility with `win32` 6.0.0.
 
