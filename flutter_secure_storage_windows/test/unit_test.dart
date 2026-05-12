@@ -309,6 +309,29 @@ void main() {
         );
       }),
     );
+
+    test(
+      'concurrent writes preserve all entries',
+      () => withFfi(() async {
+        // Without a lock the read-modify-write sequences interleave: every
+        // concurrent write loads the same snapshot, sets its key, and saves,
+        // so only the last save survives and all other keys are lost.
+        final target = createTarget();
+        final options = createOptions();
+
+        const count = 10;
+        await Future.wait([
+          for (var i = 0; i < count; i++)
+            target.write(key: 'KEY_$i', value: 'VALUE_$i', options: options),
+        ]);
+
+        final result = await target.readAll(options: options);
+        expect(result.length, count);
+        for (var i = 0; i < count; i++) {
+          expect(result['KEY_$i'], 'VALUE_$i');
+        }
+      }),
+    );
   });
 
   // These cases depend on 'Basic cases' are passed corrrectly.
