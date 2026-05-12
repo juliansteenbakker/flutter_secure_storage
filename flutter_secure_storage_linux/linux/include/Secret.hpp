@@ -57,7 +57,10 @@ public:
     }
   }
 
-  bool deleteKeyring() { return this->storeToKeyring(nlohmann::json()); }
+  bool deleteKeyring() {
+    warmupKeyring();
+    return this->storeToKeyring(nlohmann::json::object());
+  }
 
   bool storeToKeyring(nlohmann::json value) {
     const std::string output = value.dump();
@@ -92,30 +95,48 @@ public:
   }
 
 private:
-  // Search with schemas fails in cold keyrings.
+  // Ensures the default keyring is accessible. Uses the libsecret service API
+  // to detect a locked keyring and throw a distinct "KeyringLocked" sentinel so
+  // callers can surface the right error code to Dart.
+  // Loading all collections also resolves cold-keyring lookup failures:
   // https://gitlab.gnome.org/GNOME/gnome-keyring/-/issues/89
-  //
-  // Note that we're not using the workaround mentioned in the above issue. Instead, we're using
-  // a workaround as implemented in http://crbug.com/660005. Reason being that with the lookup
-  // approach we can't distinguish whether the keyring was actually unlocked or whether the user
-  // cancelled the password prompt.
   void warmupKeyring() {
     g_autoptr(GError) err = nullptr;
 
-    FHashTable attributes;
-    attributes.insert("explanation", "Because of quirks in the gnome libsecret API, "
-            "flutter_secret_storage needs to store a dummy entry to guarantee that "
-            "this keyring was properly unlocked. More details at http://crbug.com/660005.");
+    SecretService *service = secret_service_get_sync(
+        static_cast<SecretServiceFlags>(SECRET_SERVICE_OPEN_SESSION | SECRET_SERVICE_LOAD_COLLECTIONS),
+        nullptr, &err);
 
-    const gchar* dummy_label = "FlutterSecureStorage Control";
+    if (!service) {
+      throw "KeyringLocked";
+    }
 
-    // Store a dummy entry without `the_schema`.
-    bool success = secret_password_storev_sync(
-        NULL, attributes.getGHashTable(), nullptr, dummy_label,
-        "The meaning of life", nullptr, &err);
+    SecretCollection *collection = secret_collection_for_alias_sync(
+        service, SECRET_COLLECTION_DEFAULT, SECRET_COLLECTION_NONE, nullptr, &err);
 
-    if (!success) {
-      throw "Failed to unlock the keyring";
+    if (!collection) {
+      g_object_unref(service);
+      throw "KeyringLocked";
+    }
+
+    if (!secret_collection_get_locked(collection)) {
+      g_object_unref(collection);
+      g_object_unref(service);
+      return;
+    }
+
+    GList *to_unlock = g_list_append(nullptr, collection);
+    GList *unlocked_out = nullptr;
+    gint n = secret_service_unlock_sync(service, to_unlock, nullptr, &unlocked_out, nullptr);
+    g_list_free(to_unlock);
+    if (unlocked_out) {
+      g_list_free_full(unlocked_out, g_object_unref);
+    }
+    g_object_unref(collection);
+    g_object_unref(service);
+
+    if (n == 0) {
+      throw "KeyringLocked";
     }
   }
 };
