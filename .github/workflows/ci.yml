@@ -384,12 +384,19 @@ jobs:
       - name: Bootstrap Workspace with Melos
         run: melos bootstrap
 
-      - name: Start D-Bus Session and Unlock Keyring
+      - name: Start D-Bus Session and Keyring Daemon (locked)
         run: |
           eval $(dbus-launch --sh-syntax)
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
           echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID" >> $GITHUB_ENV
-          echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
+          gnome-keyring-daemon --daemonize --components=secrets
+
+      - name: Run Linux Locked-Keyring Integration Tests
+        working-directory: flutter_secure_storage/example
+        run: xvfb-run flutter test integration_test/linux_locked_keyring_test.dart -d linux
+
+      - name: Unlock Keyring
+        run: echo "" | gnome-keyring-daemon --unlock --replace --components=secrets
 
       - name: Run Linux Integration Tests
         working-directory: flutter_secure_storage/example
