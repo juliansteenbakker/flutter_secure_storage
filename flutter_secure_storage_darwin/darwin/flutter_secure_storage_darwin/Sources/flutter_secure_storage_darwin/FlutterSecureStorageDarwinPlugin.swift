@@ -82,6 +82,26 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
         return nil
     }
 
+    #if os(iOS)
+    public func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {
+        secStoreAvailabilitySink?(true)
+    }
+
+    public func applicationProtectedDataWillBecomeUnavailable(_ application: UIApplication) {
+        secStoreAvailabilitySink?(false)
+    }
+    #else
+    @objc @available(macOS 12.0, *)
+    public func applicationProtectedDataDidBecomeAvailable(_ notification: Notification) {
+        secStoreAvailabilitySink?(true)
+    }
+
+    @objc @available(macOS 12.0, *)
+    public func applicationProtectedDataWillBecomeUnavailable(_ notification: Notification) {
+        secStoreAvailabilitySink?(false)
+    }
+    #endif
+
     private func read(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let (params, _) = parseCall(call)
         guard let _ = params.key else {

@@ -541,6 +541,42 @@ jobs:
             -sdk "$SDK_PATH" \
             flutter_secure_storage_darwin/darwin/flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/FlutterSecureStorage.swift
 
+  native_tests_darwin:
+    name: Darwin Native Tests
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: formatting
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Melos
+        run: flutter pub global activate melos
+
+      - name: Bootstrap Melos
+        run: melos bootstrap
+
+      - name: Configure macOS Project
+        working-directory: flutter_secure_storage/example
+        run: flutter build macos --config-only --no-pub
+
+      - name: Run Darwin Native Tests
+        working-directory: flutter_secure_storage/example/macos
+        run: |
+          xcodebuild test \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -destination 'platform=macOS' \
+            -only-testing RunnerTests \
+            CODE_SIGNING_ALLOWED=NO
+
   integration_tests_ios:
     name: iOS Tests
     runs-on: macos-latest
