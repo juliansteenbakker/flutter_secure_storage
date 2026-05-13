@@ -91,12 +91,12 @@ public class FlutterSecureStorageDarwinPlugin: NSObject, FlutterPlugin, FlutterS
         secStoreAvailabilitySink?(false)
     }
     #else
-    @available(macOS 12.0, *)
+    @objc @available(macOS 12.0, *)
     public func applicationProtectedDataDidBecomeAvailable(_ notification: Notification) {
         secStoreAvailabilitySink?(true)
     }
 
-    @available(macOS 12.0, *)
+    @objc @available(macOS 12.0, *)
     public func applicationProtectedDataWillBecomeUnavailable(_ notification: Notification) {
         secStoreAvailabilitySink?(false)
     }

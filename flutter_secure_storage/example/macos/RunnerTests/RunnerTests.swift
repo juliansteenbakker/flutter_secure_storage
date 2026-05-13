@@ -45,7 +45,7 @@ class RunnerTests: XCTestCase {
         let sel = NSSelectorFromString("applicationProtectedDataDidBecomeAvailable:")
         if plugin.responds(to: sel) {
             plugin.perform(sel, with: NSNotification(
-                name: NSApplication.protectedDataDidBecomeAvailableNotification,
+                name: Notification.Name("applicationProtectedDataDidBecomeAvailable"),
                 object: nil))
         }
 
@@ -64,7 +64,7 @@ class RunnerTests: XCTestCase {
         let sel = NSSelectorFromString("applicationProtectedDataWillBecomeUnavailable:")
         if plugin.responds(to: sel) {
             plugin.perform(sel, with: NSNotification(
-                name: NSApplication.protectedDataWillBecomeUnavailableNotification,
+                name: Notification.Name("applicationProtectedDataWillBecomeUnavailable"),
                 object: nil))
         }
 
@@ -80,7 +80,7 @@ class RunnerTests: XCTestCase {
         let sel = NSSelectorFromString("applicationProtectedDataDidBecomeAvailable:")
         if plugin.responds(to: sel) {
             plugin.perform(sel, with: NSNotification(
-                name: NSApplication.protectedDataDidBecomeAvailableNotification,
+                name: Notification.Name("applicationProtectedDataDidBecomeAvailable"),
                 object: nil))
         }
     }
@@ -97,7 +97,7 @@ class RunnerTests: XCTestCase {
         let sel = NSSelectorFromString("applicationProtectedDataDidBecomeAvailable:")
         if plugin.responds(to: sel) {
             plugin.perform(sel, with: NSNotification(
-                name: NSApplication.protectedDataDidBecomeAvailableNotification,
+                name: Notification.Name("applicationProtectedDataDidBecomeAvailable"),
                 object: nil))
         }
 
