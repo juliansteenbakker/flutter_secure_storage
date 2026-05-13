@@ -11,6 +11,7 @@ Any data saved using deprecated algorithms or features will be unusable after th
 - Removed `StorageCipherAlgorithm.AES_CBC_PKCS7Padding`. Upgrade to v10 first so existing data is migrated to `AES_GCM_NoPadding` before upgrading to v11.
 - Removed `encryptedSharedPreferences` parameter from `AndroidOptions` and `AndroidOptions.biometric`. The Jetpack Security (EncryptedSharedPreferences) backend is no longer supported; any remaining data was automatically migrated to custom cipher storage in v10.
 - Removed `sharedPreferencesName` from `AndroidOptions`. Use `storageNamespace` instead for full namespace isolation.
+- Raised `minSdk` to 23 and `compileSdk` to 37. The legacy AES-CBC cipher path that supported API 21-22 has been removed.
 
 ## 10.2.0
 
