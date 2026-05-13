@@ -1,7 +1,3 @@
-// Some tests intentionally construct AndroidOptions with deprecated cipher
-// algorithms to verify migration paths from legacy to current defaults.
-// ignore_for_file: deprecated_member_use
-
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -71,12 +67,11 @@ void main() {
         final pageObject = await _setupHomePage(tester);
         await pageObject.deleteAll();
 
-        // Use different algorithms per namespace to test full isolation
+        // Use different key cipher algorithms per namespace to test isolation
         const storageA = FlutterSecureStorage(
           aOptions: AndroidOptions(
             storageNamespace: 'namespace_alg_a',
-            keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-            storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
+            keyCipherAlgorithm: KeyCipherAlgorithm.AES_GCM_NoPadding,
           ),
         );
         // storageB uses default algorithms (OAEP/GCM) — distinct from storageA
@@ -415,77 +410,6 @@ void main() {
 
     // Android Algorithm Migration Tests
     testWidgets(
-      'Android: migrates single value from RSA_PKCS1/AES_CBC to OAEP/GCM',
-      skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
-        const legacyOptions = AndroidOptions(
-          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
-          migrateOnAlgorithmChange: false,
-        );
-
-        // newOptions uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
-        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
-        const newStorage = FlutterSecureStorage();
-
-        await legacyStorage.deleteAll(aOptions: legacyOptions);
-        await legacyStorage.write(
-          key: 'migrate_single_key',
-          value: 'migrate_single_value',
-          aOptions: legacyOptions,
-        );
-
-        final value = await newStorage.read(key: 'migrate_single_key');
-        expect(value, 'migrate_single_value');
-
-        await newStorage.deleteAll();
-      },
-    );
-
-    testWidgets(
-      'Android: migrates multiple values from RSA_PKCS1/AES_CBC to OAEP/GCM',
-      skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
-        const legacyOptions = AndroidOptions(
-          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
-          migrateOnAlgorithmChange: false,
-        );
-
-        // newStorage uses all defaults (OAEP/GCM + migrateOnAlgorithmChange: true)
-        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
-        const newStorage = FlutterSecureStorage();
-
-        await legacyStorage.deleteAll(aOptions: legacyOptions);
-
-        final entries = {
-          'migrate_key_1': 'migrate_value_1',
-          'migrate_key_2': 'migrate_value_2',
-          'migrate_key_3': 'migrate_value_3',
-        };
-
-        for (final entry in entries.entries) {
-          await legacyStorage.write(
-            key: entry.key,
-            value: entry.value,
-            aOptions: legacyOptions,
-          );
-        }
-
-        for (final entry in entries.entries) {
-          final value = await newStorage.read(key: entry.key);
-          expect(
-            value,
-            entry.value,
-            reason: 'Key ${entry.key} was not migrated correctly',
-          );
-        }
-
-        await newStorage.deleteAll();
-      },
-    );
-
-    testWidgets(
       'Android: data remains readable without migration when algorithms '
       'unchanged',
       skip: !Platform.isAndroid,
@@ -504,78 +428,6 @@ void main() {
         expect(value, 'no_migration_value');
 
         await storage.deleteAll();
-      },
-    );
-
-    testWidgets(
-      'Android: migrateOnAlgorithmChange false skips migration',
-      skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
-        const legacyOptions = AndroidOptions(
-          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
-          migrateOnAlgorithmChange: false,
-          resetOnError: false,
-        );
-        // OAEP/GCM (defaults) but explicitly no migration, no reset
-        const newOptionsNoMigrate = AndroidOptions(
-          migrateOnAlgorithmChange: false,
-          resetOnError: false,
-        );
-
-        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
-
-        await legacyStorage.deleteAll(aOptions: legacyOptions);
-        await legacyStorage.write(
-          key: 'no_migrate_key',
-          value: 'no_migrate_value',
-          aOptions: legacyOptions,
-        );
-
-        // Reading with a different algorithm and no migration should throw or
-        // return null — either is acceptable, the key point is it does NOT
-        // silently return the correct plaintext.
-        try {
-          final value = await const FlutterSecureStorage().read(
-            key: 'no_migrate_key',
-            aOptions: newOptionsNoMigrate,
-          );
-          expect(value, isNot('no_migrate_value'));
-        } on Object catch (_) {
-          // Throwing is also acceptable — data is unreadable without migration
-        }
-
-        await legacyStorage.deleteAll(aOptions: legacyOptions);
-      },
-    );
-
-    testWidgets(
-      'Android: migrateWithBackup migrates data from RSA_PKCS1/AES_CBC to '
-      'OAEP/GCM',
-      skip: !Platform.isAndroid,
-      (WidgetTester tester) async {
-        const legacyOptions = AndroidOptions(
-          keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-          storageCipherAlgorithm: StorageCipherAlgorithm.AES_CBC_PKCS7Padding,
-          migrateOnAlgorithmChange: false,
-        );
-        // Default algorithms (OAEP/GCM) with backup-protected migration
-        const backupStorage = FlutterSecureStorage(
-          aOptions: AndroidOptions(migrateWithBackup: true),
-        );
-        const legacyStorage = FlutterSecureStorage(aOptions: legacyOptions);
-
-        await legacyStorage.deleteAll(aOptions: legacyOptions);
-        await legacyStorage.write(
-          key: 'backup_migrate_key',
-          value: 'backup_migrate_value',
-          aOptions: legacyOptions,
-        );
-
-        final value = await backupStorage.read(key: 'backup_migrate_key');
-        expect(value, 'backup_migrate_value');
-
-        await backupStorage.deleteAll();
       },
     );
 

@@ -1,6 +1,6 @@
 name: flutter_secure_storage
 description: A Flutter plugin for securely storing sensitive data using encrypted storage.
-version: 10.2.0
+version: 11.0.0
 repository: https://github.com/mogol/flutter_secure_storage/tree/develop/flutter_secure_storage
 
 environment:

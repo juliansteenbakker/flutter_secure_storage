@@ -66,10 +66,10 @@ public class StorageCipherFactoryTest {
     // -------------------------------------------------------------------------
 
     @Test
-    public void noSavedMarkers_savedAlgorithmsDefaultToLegacy() {
-        // With no markers, saved algorithms are the v9.2.4 defaults.
-        // Current is OAEP+GCM, so re-encryption must be required.
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+    public void noSavedMarkers_savedAlgorithmsDefaultToCurrent() {
+        // With no markers, saved algorithms are the v11 defaults (OAEP+GCM).
+        // Current is also OAEP+GCM, so no re-encryption is required.
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
                 .requiresReEncryption());
     }
 
@@ -79,13 +79,6 @@ public class StorageCipherFactoryTest {
 
         assertEquals("RSA_ECB_OAEPwithSHA_256andMGF1Padding", namespacedPrefs.getString(PREF_KEY_ALGORITHM, null));
         assertEquals("AES_GCM_NoPadding",                     namespacedPrefs.getString(PREF_STORAGE_ALGORITHM, null));
-    }
-
-    @Test
-    public void noSavedMarkers_withLegacyCurrentAlgorithms_doesNotRequireReEncryption() {
-        // App never changed defaults — current == saved legacy defaults, nothing to migrate.
-        assertFalse(factory("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding")
-                .requiresReEncryption());
     }
 
     // -------------------------------------------------------------------------
@@ -102,17 +95,9 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void keyAlgorithmChanged_requiresReEncryption() {
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
 
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
-                .requiresReEncryption());
-    }
-
-    @Test
-    public void storageAlgorithmChanged_requiresReEncryption() {
-        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
-
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+        assertTrue(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
                 .requiresReEncryption());
     }
 
@@ -122,20 +107,10 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void changedKeyAlgorithm_trueWhenKeyAlgorithmChanged() {
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
 
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+        assertTrue(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
                 .changedKeyAlgorithm());
-    }
-
-    @Test
-    public void changedKeyAlgorithm_falseWhenOnlyStorageAlgorithmChanged() {
-        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
-
-        StorageCipherFactory f = factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
-
-        assertFalse(f.changedKeyAlgorithm());
-        assertTrue(f.requiresReEncryption()); // storage still changed
     }
 
     @Test
@@ -209,8 +184,8 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void storeCurrentAlgorithms_doesNotWriteSavedAlgorithms() {
-        // Saved = PKCS1/CBC, current = OAEP/GCM — stored values should reflect current, not saved
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding");
+        // Saved = AES_GCM biometric, current = OAEP/GCM — stored values should reflect current, not saved
+        saveAlgorithms("AES_GCM_NoPadding", "AES_GCM_NoPadding");
 
         Context context = RuntimeEnvironment.getApplication();
         SharedPreferences target = context.getSharedPreferences("TargetPrefs2", Context.MODE_PRIVATE);
@@ -251,12 +226,4 @@ public class StorageCipherFactoryTest {
         assertTrue(result instanceof StorageCipherImplementationGCM);
     }
 
-    @Test
-    public void createStorageCipher_cbcAlgorithm_returnsCbcImplementation() throws Exception {
-        Context context = RuntimeEnvironment.getApplication();
-        StorageCipher result = factory("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding")
-                .createStorageCipher(context, new FakeKeyCipher(), null, StorageCipherAlgorithm.AES_CBC_PKCS7Padding);
-        assertNotNull(result);
-        assertTrue(result instanceof StorageCipherImplementationAES18);
-    }
 }

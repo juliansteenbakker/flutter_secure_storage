@@ -3,7 +3,6 @@ package com.it_nomads.fluttersecurestorage.ciphers;
 import android.os.Build;
 
 public enum StorageCipherAlgorithm {
-    AES_CBC_PKCS7Padding(StorageCipherImplementationAES18::new, 1),
     AES_GCM_NoPadding(null, Build.VERSION_CODES.M); // Implementation selected dynamically by factory
 
     final StorageCipherFunction storageCipher;
