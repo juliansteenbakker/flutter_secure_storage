@@ -13,6 +13,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
 import java.security.Key;
@@ -20,10 +22,12 @@ import java.security.Key;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RobolectricTestRunner.class)
@@ -47,6 +51,7 @@ public class StorageCipherFactoryTest {
         namespacedPrefs.edit().clear().commit();
         // Clear legacy global config to ensure test isolation
         context.getSharedPreferences("FlutterSecureStorageConfiguration", Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences("FlutterSecureKeyStorage", Context.MODE_PRIVATE).edit().clear().commit();
         config = new FlutterSecureStorageConfig(new HashMap<>());
     }
 
@@ -212,7 +217,7 @@ public class StorageCipherFactoryTest {
     }
 
     // -------------------------------------------------------------------------
-    // createStorageCipher — exercises the three dispatch branches
+    // createStorageCipher — exercises both AES-GCM implementation dispatch branches
     // -------------------------------------------------------------------------
 
     /**
@@ -228,6 +233,21 @@ public class StorageCipherFactoryTest {
         @Override public void deleteKey() {}
     }
 
+    private static KeyCipher keyStoreKeyCipherStub() throws Exception {
+        Field field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        Object unsafe = field.get(null);
+        return (KeyCipher) unsafe.getClass()
+                .getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, KeyCipherImplementationAES23.class);
+    }
+
+    private static Cipher initializedAesGcmCipher() throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[32], "AES"));
+        return cipher;
+    }
+
     @Test
     public void createStorageCipher_gcmAlgorithm_withNonKeyStoreKeyCipher_returnsGcmImplementation()
             throws Exception {
@@ -236,6 +256,63 @@ public class StorageCipherFactoryTest {
                 .createStorageCipher(context, new FakeKeyCipher(), null, StorageCipherAlgorithm.AES_GCM_NoPadding);
         assertNotNull(result);
         assertTrue(result instanceof StorageCipherImplementationGCM);
+    }
+
+    @Test
+    public void createStorageCipher_gcmAlgorithm_withKeyStoreKeyCipher_returnsAes23Implementation()
+            throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        StorageCipher result = factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .createStorageCipher(
+                        context,
+                        keyStoreKeyCipherStub(),
+                        initializedAesGcmCipher(),
+                        StorageCipherAlgorithm.AES_GCM_NoPadding);
+        assertNotNull(result);
+        assertTrue(result instanceof StorageCipherImplementationAES23);
+    }
+
+    @Test
+    public void createStorageCipher_keyStoreBackedCipher_encryptsDecryptsAndDeletesKey()
+            throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        StorageCipher result = factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .createStorageCipher(
+                        context,
+                        keyStoreKeyCipherStub(),
+                        initializedAesGcmCipher(),
+                        StorageCipherAlgorithm.AES_GCM_NoPadding);
+        byte[] plaintext = "biometric storage payload".getBytes(StandardCharsets.UTF_8);
+
+        byte[] encrypted = result.encrypt(plaintext);
+
+        assertArrayEquals(plaintext, result.decrypt(encrypted));
+        result.deleteKey(context);
+    }
+
+    @Test
+    public void getCurrentKeyCipher_withAndroidKeyStoreUnavailable_throwsAfterDispatch() {
+        Context context = RuntimeEnvironment.getApplication();
+
+        Exception error = assertThrows(
+                Exception.class,
+                () -> factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                        .getCurrentKeyCipher(context));
+
+        assertTrue(error.getMessage().contains("AndroidKeyStore"));
+    }
+
+    @Test
+    public void getSavedKeyCipher_withAndroidKeyStoreUnavailable_throwsAfterDispatch() {
+        Context context = RuntimeEnvironment.getApplication();
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        Exception error = assertThrows(
+                Exception.class,
+                () -> factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                        .getSavedKeyCipher(context));
+
+        assertTrue(error.getMessage().contains("AndroidKeyStore"));
     }
 
 }
