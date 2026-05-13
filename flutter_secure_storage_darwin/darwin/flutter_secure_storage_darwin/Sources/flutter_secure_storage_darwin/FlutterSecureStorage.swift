@@ -225,8 +225,8 @@ class FlutterSecureStorage {
         }
         
         #if os(macOS)
-        if #available(macOS 10.15, *) {
-            query[kSecUseDataProtectionKeychain] = params.usesDataProtectionKeychain
+        if #available(macOS 10.15, *), params.usesDataProtectionKeychain {
+            query[kSecUseDataProtectionKeychain] = true
         }
         #endif
         
