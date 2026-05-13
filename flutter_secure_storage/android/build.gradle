@@ -35,7 +35,7 @@ android {
         buildConfig = true
     }
 
-    compileSdk = 36
+    compileSdk = 37
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -43,7 +43,7 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion = 23
+        minSdk = 23
     }
 
     testOptions {
