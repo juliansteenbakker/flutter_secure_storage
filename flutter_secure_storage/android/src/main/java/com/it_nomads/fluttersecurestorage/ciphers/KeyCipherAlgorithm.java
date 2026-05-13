@@ -13,10 +13,15 @@ public enum KeyCipherAlgorithm {
         this.minVersionCode = minVersionCode;
     }
 
-    // Migration support: Map legacy name to new value
+    // Migration support: Map legacy names to current values
     public static KeyCipherAlgorithm fromString(String name) {
         if ("AES_GCM_NoPadding_BIOMETRIC".equals(name)) {
-            return AES_GCM_NoPadding; // Legacy compatibility
+            return AES_GCM_NoPadding; // Renamed in v10.1
+        }
+        if ("RSA_ECB_PKCS1Padding".equals(name)) {
+            // Removed in v11. Map to OAEP so the plugin can initialise; old
+            // ciphertext is unreadable and will be cleared by resetOnError.
+            return RSA_ECB_OAEPwithSHA_256andMGF1Padding;
         }
         return valueOf(name);
     }

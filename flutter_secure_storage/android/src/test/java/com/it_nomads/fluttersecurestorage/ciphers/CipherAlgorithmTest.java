@@ -44,9 +44,13 @@ public class CipherAlgorithmTest {
     }
 
     @Test
-    public void keyCipher_fromString_removedPKCS1_throwsIllegalArgumentException() {
-        // RSA_ECB_PKCS1Padding was removed in v11
-        assertThrows(IllegalArgumentException.class, () -> KeyCipherAlgorithm.fromString("RSA_ECB_PKCS1Padding"));
+    public void keyCipher_fromString_removedPKCS1_mapsToOAEP() {
+        // RSA_ECB_PKCS1Padding was removed in v11; maps to OAEP so the plugin
+        // can initialise and resetOnError can clear the unreadable ciphertext.
+        assertEquals(
+            KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding,
+            KeyCipherAlgorithm.fromString("RSA_ECB_PKCS1Padding")
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -78,9 +82,13 @@ public class CipherAlgorithmTest {
     }
 
     @Test
-    public void storageCipher_fromString_removedCBC_throwsIllegalArgumentException() {
-        // AES_CBC_PKCS7Padding was removed in v11
-        assertThrows(IllegalArgumentException.class, () -> StorageCipherAlgorithm.fromString("AES_CBC_PKCS7Padding"));
+    public void storageCipher_fromString_removedCBC_mapsToGCM() {
+        // AES_CBC_PKCS7Padding was removed in v11; maps to GCM so the plugin
+        // can initialise and resetOnError can clear the unreadable ciphertext.
+        assertEquals(
+            StorageCipherAlgorithm.AES_GCM_NoPadding,
+            StorageCipherAlgorithm.fromString("AES_CBC_PKCS7Padding")
+        );
     }
 
     // -------------------------------------------------------------------------

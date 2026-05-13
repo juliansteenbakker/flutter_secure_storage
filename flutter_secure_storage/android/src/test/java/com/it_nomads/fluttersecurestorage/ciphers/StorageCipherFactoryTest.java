@@ -81,6 +81,18 @@ public class StorageCipherFactoryTest {
         assertEquals("AES_GCM_NoPadding",                     namespacedPrefs.getString(PREF_STORAGE_ALGORITHM, null));
     }
 
+    @Test
+    public void savedMarkers_legacyPKCS1CBC_treatedAsCurrent_doesNotRequireReEncryption() {
+        // Users who skipped v10: markers say PKCS1/CBC (now removed).
+        // fromString() maps them to OAEP/GCM so saved == current == OAEP/GCM.
+        // No re-encryption is attempted; old ciphertext fails to decrypt and
+        // resetOnError clears individual keys as they are accessed.
+        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding");
+
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .requiresReEncryption());
+    }
+
     // -------------------------------------------------------------------------
     // Saved markers present — algorithm change detection
     // -------------------------------------------------------------------------
