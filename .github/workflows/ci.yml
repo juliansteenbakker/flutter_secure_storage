@@ -561,9 +561,9 @@ jobs:
         working-directory: flutter_secure_storage/example
         run: flutter pub get
 
-      - name: Install CocoaPods Dependencies
-        working-directory: flutter_secure_storage/example/macos
-        run: pod install
+      - name: Configure macOS Project
+        working-directory: flutter_secure_storage/example
+        run: flutter build macos --config-only --no-pub
 
       - name: Run Darwin Native Tests
         working-directory: flutter_secure_storage/example/macos
