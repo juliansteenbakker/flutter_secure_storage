@@ -332,6 +332,55 @@ void main() {
         }
       }),
     );
+
+    test(
+      'concurrent deleteAll and writes do not corrupt storage',
+      () => withFfi(() async {
+        // deleteAll without a lock races with writes: clear() deletes the file
+        // while a concurrent write still has it open, producing
+        // PathAccessException.
+        final target = createTarget();
+        final options = createOptions();
+
+        await Future.wait([
+          target.deleteAll(options: options),
+          for (var i = 0; i < 5; i++)
+            target.write(key: 'KEY_$i', value: 'VALUE_$i', options: options),
+        ]);
+
+        // Storage must be in a consistent, readable state after the race.
+        await expectLater(
+          target.readAll(options: options),
+          completes,
+        );
+      }),
+    );
+
+    test(
+      'concurrent containsKey and writes return consistent results',
+      () => withFfi(() async {
+        // containsKey without a lock loads the file while a concurrent write
+        // is mid-save, potentially reading a partially written file.
+        final target = createTarget();
+        final options = createOptions();
+
+        await target.write(key: 'EXISTING', value: 'v', options: options);
+
+        await Future.wait([
+          for (var i = 0; i < 5; i++)
+            target.write(key: 'KEY_$i', value: 'VALUE_$i', options: options),
+          for (var i = 0; i < 5; i++)
+            target.containsKey(key: 'EXISTING', options: options),
+        ]);
+
+        // All writes must have completed and storage must be readable.
+        final result = await target.readAll(options: options);
+        expect(result['EXISTING'], 'v');
+        for (var i = 0; i < 5; i++) {
+          expect(result['KEY_$i'], 'VALUE_$i');
+        }
+      }),
+    );
   });
 
   // These cases depend on 'Basic cases' are passed corrrectly.

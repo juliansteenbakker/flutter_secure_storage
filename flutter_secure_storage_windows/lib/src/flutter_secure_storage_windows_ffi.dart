@@ -85,18 +85,19 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
   Future<bool> containsKey({
     required String key,
     required Map<String, String> options,
-  }) async {
-    final map = await _storage.load(options);
-    if (map.containsKey(key)) {
-      return true;
-    }
+  }) =>
+      _lock.run(() async {
+        final map = await _storage.load(options);
+        if (map.containsKey(key)) {
+          return true;
+        }
 
-    if (options.useBackwardCompatibility) {
-      return _backwardCompatible.containsKey(key: key, options: options);
-    }
+        if (options.useBackwardCompatibility) {
+          return _backwardCompatible.containsKey(key: key, options: options);
+        }
 
-    return false;
-  }
+        return false;
+      });
 
   @override
   Future<void> delete({
@@ -117,13 +118,14 @@ class FlutterSecureStorageWindows extends FlutterSecureStoragePlatform {
       });
 
   @override
-  Future<void> deleteAll({required Map<String, String> options}) async {
-    await _storage.clear(options);
+  Future<void> deleteAll({required Map<String, String> options}) =>
+      _lock.run(() async {
+        await _storage.clear(options);
 
-    if (options.useBackwardCompatibility) {
-      await _backwardCompatible.deleteAll(options: options);
-    }
-  }
+        if (options.useBackwardCompatibility) {
+          await _backwardCompatible.deleteAll(options: options);
+        }
+      });
 
   @override
   Future<String?> read({
