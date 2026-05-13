@@ -557,9 +557,11 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install Dependencies
-        working-directory: flutter_secure_storage/example
-        run: flutter pub get
+      - name: Install Melos
+        run: flutter pub global activate melos
+
+      - name: Bootstrap Melos
+        run: melos bootstrap
 
       - name: Configure macOS Project
         working-directory: flutter_secure_storage/example
