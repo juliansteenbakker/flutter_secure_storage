@@ -13,6 +13,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
 import java.security.Key;
@@ -20,10 +22,12 @@ import java.security.Key;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RobolectricTestRunner.class)
@@ -47,6 +51,7 @@ public class StorageCipherFactoryTest {
         namespacedPrefs.edit().clear().commit();
         // Clear legacy global config to ensure test isolation
         context.getSharedPreferences("FlutterSecureStorageConfiguration", Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences("FlutterSecureKeyStorage", Context.MODE_PRIVATE).edit().clear().commit();
         config = new FlutterSecureStorageConfig(new HashMap<>());
     }
 
@@ -66,10 +71,10 @@ public class StorageCipherFactoryTest {
     // -------------------------------------------------------------------------
 
     @Test
-    public void noSavedMarkers_savedAlgorithmsDefaultToLegacy() {
-        // With no markers, saved algorithms are the v9.2.4 defaults.
-        // Current is OAEP+GCM, so re-encryption must be required.
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+    public void noSavedMarkers_savedAlgorithmsDefaultToCurrent() {
+        // With no markers, saved algorithms are the v11 defaults (OAEP+GCM).
+        // Current is also OAEP+GCM, so no re-encryption is required.
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
                 .requiresReEncryption());
     }
 
@@ -82,9 +87,14 @@ public class StorageCipherFactoryTest {
     }
 
     @Test
-    public void noSavedMarkers_withLegacyCurrentAlgorithms_doesNotRequireReEncryption() {
-        // App never changed defaults — current == saved legacy defaults, nothing to migrate.
-        assertFalse(factory("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding")
+    public void savedMarkers_legacyPKCS1CBC_treatedAsCurrent_doesNotRequireReEncryption() {
+        // Users who skipped v10: markers say PKCS1/CBC (now removed).
+        // fromString() maps them to OAEP/GCM so saved == current == OAEP/GCM.
+        // No re-encryption is attempted; old ciphertext fails to decrypt and
+        // resetOnError clears individual keys as they are accessed.
+        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding");
+
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
                 .requiresReEncryption());
     }
 
@@ -102,17 +112,9 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void keyAlgorithmChanged_requiresReEncryption() {
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
 
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
-                .requiresReEncryption());
-    }
-
-    @Test
-    public void storageAlgorithmChanged_requiresReEncryption() {
-        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
-
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+        assertTrue(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
                 .requiresReEncryption());
     }
 
@@ -122,20 +124,10 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void changedKeyAlgorithm_trueWhenKeyAlgorithmChanged() {
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding");
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
 
-        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+        assertTrue(factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
                 .changedKeyAlgorithm());
-    }
-
-    @Test
-    public void changedKeyAlgorithm_falseWhenOnlyStorageAlgorithmChanged() {
-        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_CBC_PKCS7Padding");
-
-        StorageCipherFactory f = factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
-
-        assertFalse(f.changedKeyAlgorithm());
-        assertTrue(f.requiresReEncryption()); // storage still changed
     }
 
     @Test
@@ -209,8 +201,8 @@ public class StorageCipherFactoryTest {
 
     @Test
     public void storeCurrentAlgorithms_doesNotWriteSavedAlgorithms() {
-        // Saved = PKCS1/CBC, current = OAEP/GCM — stored values should reflect current, not saved
-        saveAlgorithms("RSA_ECB_PKCS1Padding", "AES_CBC_PKCS7Padding");
+        // Saved = AES_GCM biometric, current = OAEP/GCM — stored values should reflect current, not saved
+        saveAlgorithms("AES_GCM_NoPadding", "AES_GCM_NoPadding");
 
         Context context = RuntimeEnvironment.getApplication();
         SharedPreferences target = context.getSharedPreferences("TargetPrefs2", Context.MODE_PRIVATE);
@@ -225,7 +217,7 @@ public class StorageCipherFactoryTest {
     }
 
     // -------------------------------------------------------------------------
-    // createStorageCipher — exercises the three dispatch branches
+    // createStorageCipher — exercises both AES-GCM implementation dispatch branches
     // -------------------------------------------------------------------------
 
     /**
@@ -241,6 +233,21 @@ public class StorageCipherFactoryTest {
         @Override public void deleteKey() {}
     }
 
+    private static KeyCipher keyStoreKeyCipherStub() throws Exception {
+        Field field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        Object unsafe = field.get(null);
+        return (KeyCipher) unsafe.getClass()
+                .getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, KeyCipherImplementationAES23.class);
+    }
+
+    private static Cipher initializedAesGcmCipher() throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[32], "AES"));
+        return cipher;
+    }
+
     @Test
     public void createStorageCipher_gcmAlgorithm_withNonKeyStoreKeyCipher_returnsGcmImplementation()
             throws Exception {
@@ -252,11 +259,60 @@ public class StorageCipherFactoryTest {
     }
 
     @Test
-    public void createStorageCipher_cbcAlgorithm_returnsCbcImplementation() throws Exception {
+    public void createStorageCipher_gcmAlgorithm_withKeyStoreKeyCipher_returnsAes23Implementation()
+            throws Exception {
         Context context = RuntimeEnvironment.getApplication();
-        StorageCipher result = factory("RSA_ECB_PKCS1Padding", "AES_GCM_NoPadding")
-                .createStorageCipher(context, new FakeKeyCipher(), null, StorageCipherAlgorithm.AES_CBC_PKCS7Padding);
+        StorageCipher result = factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .createStorageCipher(
+                        context,
+                        keyStoreKeyCipherStub(),
+                        initializedAesGcmCipher(),
+                        StorageCipherAlgorithm.AES_GCM_NoPadding);
         assertNotNull(result);
-        assertTrue(result instanceof StorageCipherImplementationAES18);
+        assertTrue(result instanceof StorageCipherImplementationAES23);
     }
+
+    @Test
+    public void createStorageCipher_keyStoreBackedCipher_encryptsDecryptsAndDeletesKey()
+            throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        StorageCipher result = factory("AES_GCM_NoPadding", "AES_GCM_NoPadding")
+                .createStorageCipher(
+                        context,
+                        keyStoreKeyCipherStub(),
+                        initializedAesGcmCipher(),
+                        StorageCipherAlgorithm.AES_GCM_NoPadding);
+        byte[] plaintext = "biometric storage payload".getBytes(StandardCharsets.UTF_8);
+
+        byte[] encrypted = result.encrypt(plaintext);
+
+        assertArrayEquals(plaintext, result.decrypt(encrypted));
+        result.deleteKey(context);
+    }
+
+    @Test
+    public void getCurrentKeyCipher_withAndroidKeyStoreUnavailable_throwsAfterDispatch() {
+        Context context = RuntimeEnvironment.getApplication();
+
+        Exception error = assertThrows(
+                Exception.class,
+                () -> factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                        .getCurrentKeyCipher(context));
+
+        assertTrue(error.getMessage().contains("AndroidKeyStore"));
+    }
+
+    @Test
+    public void getSavedKeyCipher_withAndroidKeyStoreUnavailable_throwsAfterDispatch() {
+        Context context = RuntimeEnvironment.getApplication();
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+
+        Exception error = assertThrows(
+                Exception.class,
+                () -> factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                        .getSavedKeyCipher(context));
+
+        assertTrue(error.getMessage().contains("AndroidKeyStore"));
+    }
+
 }
