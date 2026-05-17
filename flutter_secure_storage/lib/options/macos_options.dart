@@ -23,6 +23,8 @@ class MacOsOptions extends AppleOptions {
     super.accessControlFlags,
     this.usesDataProtectionKeychain = true,
     super.useSecureEnclave = false,
+    super.resetOnError,
+    super.migrateToSecureEnclave,
   });
 
   /// `kSecUseDataProtectionKeychain` (macOS only): **Shared**.

@@ -83,6 +83,8 @@ abstract class AppleOptions extends Options {
     this.authenticationUIBehavior,
     this.accessControlFlags = const [],
     this.useSecureEnclave = false,
+    this.resetOnError = false,
+    this.migrateToSecureEnclave = false,
   });
 
   /// The default account name associated with the keychain items.
@@ -200,6 +202,26 @@ abstract class AppleOptions extends Options {
   ///   since keys are device-bound.
   final bool useSecureEnclave;
 
+  /// When migration to or from Secure Enclave fails, automatically delete all
+  /// data and start fresh. This prevents the app from being stuck in an
+  /// unrecoverable state, but will PERMANENTLY erase data if migration fails.
+  ///
+  /// Only applies to migration failures — it does not affect normal read/write
+  /// errors.
+  ///
+  /// Defaults to false.
+  final bool resetOnError;
+
+  /// When [useSecureEnclave] is changed, automatically migrate existing data to
+  /// the new encryption mode so data is not lost. Migration runs once on the
+  /// first operation after the mode change is detected.
+  ///
+  /// Requires iOS 11.3+ or macOS 10.15+. On unsupported OS versions the flag
+  /// is ignored and storage falls back to standard Keychain.
+  ///
+  /// Defaults to false. Enable explicitly when you are ready to migrate.
+  final bool migrateToSecureEnclave;
+
   @override
   Map<String, String> toMap() => <String, String>{
         if (accountName != null) 'accountName': accountName!,
@@ -224,5 +246,7 @@ abstract class AppleOptions extends Options {
           'accessControlFlags':
               accessControlFlags.map((e) => e.name).toList().toString(),
         'useSecureEnclave': '$useSecureEnclave',
+        'resetOnError': '$resetOnError',
+        'migrateToSecureEnclave': '$migrateToSecureEnclave',
       };
 }

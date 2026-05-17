@@ -311,6 +311,8 @@ If you have set your application up to use App Groups then you will need to add 
 
 If you are configuring this value through XCode then the string you set in the Keychain Sharing section would simply read "aoeu" with XCode appending the `$(AppIdentifierPrefix)` when it saves the configuration.
 
+For Secure Enclave support and migration options (`useSecureEnclave`, `migrateToSecureEnclave`, `resetOnError`), see the [flutter_secure_storage_darwin README](https://pub.dev/packages/flutter_secure_storage_darwin).
+
 ### Web
 
 Flutter Secure Storage uses an experimental implementation using WebCrypto. Use at your own risk at this time. Feedback welcome to improve it. The intent is that the browser is creating the private key, and as a result, the encrypted strings in local_storage are not portable to other browsers or other machines and will only work on the same domain.

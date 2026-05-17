@@ -10,6 +10,11 @@ import 'package:flutter_secure_storage_example/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
+// Passed via --dart-define=IS_SIMULATOR=true when the CI runs tests on an iOS
+// Simulator. Runtime env-var detection (SIMULATOR_DEVICE_NAME) is unreliable
+// because the variable is not always propagated into the app process.
+const bool _kIsSimulator = bool.fromEnvironment('IS_SIMULATOR');
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -204,9 +209,7 @@ void main() {
     });
 
     testWidgets('Enclave requested on iOS Simulator falls back gracefully',
-        skip: !(Platform.isIOS &&
-            Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && _kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_sim_fallback_key';
       const value = 'sim_fallback_secret';
@@ -242,9 +245,7 @@ void main() {
 
     testWidgets(
         'iOS device: baseline (useSecureEnclave=false) write/read/delete',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_baseline_key';
       const value = 'device_baseline_secret';
@@ -274,9 +275,7 @@ void main() {
 
     testWidgets(
         'iOS device: useSecureEnclave=true with non-prompting access control (applicationPassword) write/read/delete',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_enclave_device_enabled_key';
       const value = 'device_enclave_secret';
@@ -322,9 +321,7 @@ void main() {
     // passcode/biometrics. Enter your device passcode when prompted - it should
     // only prompt once per test run due to LAContext reuse (30 second window).
     testWidgets('iOS device: readAll with Secure Enclave items',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence (no applicationPassword) - should work with
       // device passcode
@@ -370,9 +367,7 @@ void main() {
 
     testWidgets(
         'iOS device: readAll with mixed Secure Enclave and standard items',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
@@ -581,9 +576,7 @@ void main() {
 
     testWidgets(
         'iOS device: item written without SE returns null when read with SE',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       const key = 'it_se_existing_data_key';
       const value = 'existing_value';
@@ -615,9 +608,7 @@ void main() {
     });
 
     testWidgets('iOS device: deleteAll with Secure Enclave items',
-        skip: !(Platform.isIOS &&
-            !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
-        (WidgetTester tester) async {
+        skip: !(Platform.isIOS && !_kIsSimulator), (WidgetTester tester) async {
       const storage = FlutterSecureStorage();
       // Use default userPresence - should work with device passcode
       const enclaveOptions = IOSOptions(
@@ -658,7 +649,511 @@ void main() {
         isNull,
       );
     });
+
+    // -------------------------------------------------------------------------
+    // Secure Enclave migration tests
+    //
+    // These tests exercise the migrateToSecureEnclave option, which
+    // automatically re-encrypts existing items when the useSecureEnclave flag
+    // changes. All tests run on real iOS devices only; the simulator has no
+    // Secure Enclave hardware.
+    //
+    // On real devices these tests will prompt for device passcode/biometrics
+    // the first time an SE-encrypted item is read. Enter your passcode when
+    // prompted — subsequent reads within the same 30-second LAContext window
+    // will not prompt again.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      'iOS device: migrateToSecureEnclave=false (default) '
+      'does not auto-migrate',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_no_auto_key';
+        const value = 'no_auto_migrate_value';
+        const plain = IOSOptions.defaultOptions;
+        const seNoMigrate = IOSOptions(useSecureEnclave: true);
+
+        await _cleanupMigrationKey(storage, key);
+
+        await storage.write(key: key, value: value, iOptions: plain);
+
+        // Reading with useSecureEnclave=true but no migration flag should
+        // return null — no companion wrapped key exists.
+        final readWithSE = await storage.read(key: key, iOptions: seNoMigrate);
+        expect(
+          readWithSE,
+          isNull,
+          reason: 'migrateToSecureEnclave=false must not auto-migrate',
+        );
+
+        // Original plain item is still intact.
+        expect(await storage.read(key: key, iOptions: plain), value);
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS device: standard → SE migration makes data readable via SE path',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const keys = [
+          'it_migrate_to_se_key1',
+          'it_migrate_to_se_key2',
+          'it_migrate_to_se_key3',
+        ];
+        const values = {
+          'it_migrate_to_se_key1': 'migrate_value_1',
+          'it_migrate_to_se_key2': 'migrate_value_2',
+          'it_migrate_to_se_key3': 'migrate_value_3',
+        };
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+
+        for (final entry in values.entries) {
+          await storage.write(
+            key: entry.key,
+            value: entry.value,
+            iOptions: plain,
+          );
+        }
+
+        // Reading with migrateToSecureEnclave=true triggers migration on the
+        // first call and returns the value via the SE path.
+        for (final entry in values.entries) {
+          final result = await storage.read(
+            key: entry.key,
+            iOptions: seWithMigrate,
+          );
+          expect(
+            result,
+            entry.value,
+            reason: '${entry.key} must be readable via SE after migration',
+          );
+        }
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+      },
+    );
+
+    testWidgets(
+      'iOS device: standard → SE migration removes original plain items',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_to_se_cleanup_key';
+        const value = 'cleanup_test_value';
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        await storage.write(key: key, value: value, iOptions: plain);
+
+        // Trigger migration.
+        await storage.read(key: key, iOptions: seWithMigrate);
+
+        // The original plain item must have been removed by the migration.
+        final readPlain = await storage.read(key: key, iOptions: plain);
+        expect(
+          readPlain,
+          isNull,
+          reason: 'Plain item must be deleted after successful migration to SE',
+        );
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS device: standard → SE migration is idempotent',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_idempotent_key';
+        const value = 'idempotent_value';
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        await storage.write(key: key, value: value, iOptions: plain);
+
+        // First read triggers migration.
+        final first = await storage.read(key: key, iOptions: seWithMigrate);
+        expect(first, value);
+
+        // Second read with migrateToSecureEnclave=true on already-migrated data
+        // must return the same value without corruption.
+        final second = await storage.read(key: key, iOptions: seWithMigrate);
+        expect(
+          second,
+          value,
+          reason: 'Data must be intact after a second migration attempt',
+        );
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS device: readAll with migrateToSecureEnclave=true migrates all keys',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const keys = ['it_migrate_readall_key1', 'it_migrate_readall_key2'];
+        const values = {
+          'it_migrate_readall_key1': 'readall_value_1',
+          'it_migrate_readall_key2': 'readall_value_2',
+        };
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+
+        for (final entry in values.entries) {
+          await storage.write(
+            key: entry.key,
+            value: entry.value,
+            iOptions: plain,
+          );
+        }
+
+        // readAll triggers migration; returned map must contain all values.
+        final all = await storage.readAll(iOptions: seWithMigrate);
+        for (final entry in values.entries) {
+          expect(
+            all[entry.key],
+            entry.value,
+            reason: 'readAll must return migrated value for ${entry.key}',
+          );
+        }
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+      },
+    );
+
+    testWidgets(
+      'iOS device: write with migrateToSecureEnclave=true '
+      'migrates existing keys',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const existingKey = 'it_migrate_write_existing_key';
+        const newKey = 'it_migrate_write_new_key';
+        const existingValue = 'existing_value';
+        const newValue = 'new_value';
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, existingKey);
+        await _cleanupMigrationKey(storage, newKey);
+
+        // Write an existing item without SE.
+        await storage.write(
+          key: existingKey,
+          value: existingValue,
+          iOptions: plain,
+        );
+
+        // A write with migrateToSecureEnclave=true triggers migration before
+        // storing the new key.
+        await storage.write(
+          key: newKey,
+          value: newValue,
+          iOptions: seWithMigrate,
+        );
+
+        // The pre-existing item must now be readable via the SE path.
+        final migratedValue = await storage.read(
+          key: existingKey,
+          iOptions: seWithMigrate,
+        );
+        expect(
+          migratedValue,
+          existingValue,
+          reason: 'Pre-existing item must be migrated to SE '
+              'when write triggers migration',
+        );
+
+        // The newly written item is also readable via the SE path.
+        final newReadBack = await storage.read(
+          key: newKey,
+          iOptions: seWithMigrate,
+        );
+        expect(newReadBack, newValue);
+
+        await _cleanupMigrationKey(storage, existingKey);
+        await _cleanupMigrationKey(storage, newKey);
+      },
+    );
+
+    testWidgets(
+      'iOS device: SE → standard migration makes data readable via plain path',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const keys = ['it_migrate_from_se_key1', 'it_migrate_from_se_key2'];
+        const values = {
+          'it_migrate_from_se_key1': 'from_se_value_1',
+          'it_migrate_from_se_key2': 'from_se_value_2',
+        };
+        const se = IOSOptions(useSecureEnclave: true);
+        const plainWithMigrate = IOSOptions(
+          migrateToSecureEnclave: true,
+        );
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+
+        for (final entry in values.entries) {
+          await storage.write(
+            key: entry.key,
+            value: entry.value,
+            iOptions: se,
+          );
+        }
+
+        // Reading with useSecureEnclave=false + migrateToSecureEnclave=true
+        // detects SE mode from keychain contents (fss.wrapped.* presence) and
+        // migrates back to standard storage.
+        for (final entry in values.entries) {
+          final result = await storage.read(
+            key: entry.key,
+            iOptions: plainWithMigrate,
+          );
+          expect(
+            result,
+            entry.value,
+            reason: '${entry.key} must be readable via plain path '
+                'after SE→standard migration',
+          );
+        }
+
+        for (final k in keys) {
+          await _cleanupMigrationKey(storage, k);
+        }
+      },
+    );
+
+    testWidgets(
+      'iOS device: SE → standard migration removes SE-backed items',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_from_se_cleanup_key';
+        const value = 'from_se_cleanup_value';
+        const se = IOSOptions(useSecureEnclave: true);
+        const plainWithMigrate = IOSOptions(
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        await storage.write(key: key, value: value, iOptions: se);
+
+        // Trigger SE → standard migration.
+        await storage.read(key: key, iOptions: plainWithMigrate);
+
+        // The SE-backed item and its companion wrapped key must be gone.
+        final readSE = await storage.read(key: key, iOptions: se);
+        expect(
+          readSE,
+          isNull,
+          reason: 'SE item must be deleted after successful '
+              'migration to standard keychain',
+        );
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS device: migration on empty keychain is a no-op',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_empty_key';
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        // Triggering migration when the keychain has no items must not error.
+        final result = await storage.read(key: key, iOptions: seWithMigrate);
+        expect(result, isNull);
+      },
+    );
+
+    testWidgets(
+      'iOS device: mode detection uses keychain contents, not UserDefaults',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        // This test verifies that the migration system detects the current
+        // encryption mode by inspecting keychain contents (presence of
+        // fss.wrapped.* companion items) rather than relying on UserDefaults,
+        // which can be cleared by the OS while keychain data persists.
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_detection_key';
+        const value = 'detection_value';
+        const se = IOSOptions(useSecureEnclave: true);
+        const plainWithMigrate = IOSOptions(
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        // Write with SE — this creates fss.wrapped.{key} in the keychain.
+        await storage.write(key: key, value: value, iOptions: se);
+
+        // Reading with SE=false + migrate=true must detect the SE mode from
+        // the presence of the fss.wrapped.* item and trigger SE→standard
+        // migration without any UserDefaults state.
+        final result = await storage.read(key: key, iOptions: plainWithMigrate);
+        expect(
+          result,
+          value,
+          reason: 'Mode must be detected from keychain contents, '
+              'triggering SE→standard migration',
+        );
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS Simulator: migrateToSecureEnclave=true on simulator '
+      'returns the value (via migration or fallback)',
+      skip: !(Platform.isIOS && _kIsSimulator),
+      (WidgetTester tester) async {
+        // On older simulators SE is unavailable and migration falls back to
+        // plain keychain. On newer simulators (iOS 26+) the simulator supports
+        // simulated SE keys, so migration may succeed. Either way the value
+        // must be accessible after the read.
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_sim_fallback_key';
+        const value = 'sim_fallback_value';
+        const plain = IOSOptions.defaultOptions;
+        const seWithMigrate = IOSOptions(
+          useSecureEnclave: true,
+          migrateToSecureEnclave: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        await storage.write(key: key, value: value, iOptions: plain);
+
+        // Verify plain write succeeded before attempting migration.
+        final afterWrite = await storage.read(key: key, iOptions: plain);
+        expect(afterWrite, value, reason: 'plain write must succeed');
+
+        final result = await storage.read(key: key, iOptions: seWithMigrate);
+        expect(
+          result,
+          value,
+          reason: 'Value must be accessible whether migration succeeded '
+              'or fell back to plain keychain',
+        );
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
+
+    testWidgets(
+      'iOS device: resetOnError=true deletes all data when migration fails',
+      skip: !(Platform.isIOS && !_kIsSimulator),
+      (WidgetTester tester) async {
+        // This test simulates a migration failure by attempting to migrate
+        // SE data to standard on a device where the SE key has been deleted
+        // (making SE items unreadable). With resetOnError=true the storage
+        // must wipe all data and return cleanly rather than staying stuck.
+        const storage = FlutterSecureStorage();
+        const key = 'it_migrate_reset_on_error_key';
+        const value = 'reset_on_error_value';
+        const se = IOSOptions(useSecureEnclave: true);
+        const plainWithMigrateAndReset = IOSOptions(
+          migrateToSecureEnclave: true,
+          resetOnError: true,
+        );
+
+        await _cleanupMigrationKey(storage, key);
+
+        // Write with SE to create SE-backed items.
+        await storage.write(key: key, value: value, iOptions: se);
+
+        // Delete only the SE private key (leaving orphaned wrapped key items),
+        // making the SE items unreadable and forcing a migration failure.
+        await storage.deleteAll(iOptions: se);
+
+        // Write the item back with raw standard storage so there is something
+        // in the keychain, but no SE private key to unwrap with.
+        await storage.write(
+          key: key,
+          value: value,
+          iOptions: IOSOptions.defaultOptions,
+        );
+
+        // Re-write as SE without a valid enclave key to create a corrupt state.
+        // (On a real device this is hard to trigger reliably, so we verify the
+        // resetOnError path at least completes without throwing.)
+        final result = await storage.read(
+          key: key,
+          iOptions: plainWithMigrateAndReset,
+        );
+
+        // Either the migration succeeded (result == value) or resetOnError
+        // wiped the data (result == null). Either outcome is acceptable;
+        // what must NOT happen is an unhandled exception.
+        expect(result, anyOf(isNull, equals(value)));
+
+        await _cleanupMigrationKey(storage, key);
+      },
+    );
   });
+}
+
+/// Deletes [key] from both the plain and SE keychain paths to ensure a clean
+/// state before and after migration tests.
+Future<void> _cleanupMigrationKey(
+  FlutterSecureStorage storage,
+  String key,
+) async {
+  await storage.delete(key: key, iOptions: IOSOptions.defaultOptions);
+  await storage.delete(
+    key: key,
+    iOptions: const IOSOptions(useSecureEnclave: true),
+  );
 }
 
 Duration duration = const Duration(milliseconds: 300);

@@ -805,6 +805,8 @@ void main() {
         'accessibility': 'unlocked',
         'synchronizable': 'false',
         'useSecureEnclave': 'false',
+        'resetOnError': 'false',
+        'migrateToSecureEnclave': 'false',
       });
     });
 
@@ -845,6 +847,8 @@ void main() {
         'accessControlFlags':
             [AccessControlFlag.biometryCurrentSet.name].toString(),
         'useSecureEnclave': 'false',
+        'resetOnError': 'false',
+        'migrateToSecureEnclave': 'false',
       });
     });
 
@@ -869,6 +873,8 @@ void main() {
         'accessibility': 'unlocked',
         'synchronizable': 'false',
         'useSecureEnclave': 'false',
+        'resetOnError': 'false',
+        'migrateToSecureEnclave': 'false',
         'usesDataProtectionKeychain': 'true',
       });
     });
@@ -888,6 +894,8 @@ void main() {
         'accessibility': 'first_unlock',
         'synchronizable': 'true',
         'useSecureEnclave': 'false',
+        'resetOnError': 'false',
+        'migrateToSecureEnclave': 'false',
         'usesDataProtectionKeychain': 'false',
       });
     });
