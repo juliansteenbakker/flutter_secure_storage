@@ -19,6 +19,33 @@ class SecretStorageTest : public ::testing::Test {
   std::unique_ptr<SecretStorage> storage_;
 };
 
+// Validates that a string contains only valid UTF-8 sequences.
+static bool isValidUtf8(const std::string& s) {
+  const unsigned char* bytes = reinterpret_cast<const unsigned char*>(s.data());
+  size_t i = 0;
+  while (i < s.size()) {
+    unsigned char c = bytes[i];
+    int trailing = 0;
+    if (c <= 0x7F) {
+      ++i;
+      continue;
+    } else if ((c & 0xE0) == 0xC0) {
+      trailing = 1;
+    } else if ((c & 0xF0) == 0xE0) {
+      trailing = 2;
+    } else if ((c & 0xF8) == 0xF0) {
+      trailing = 3;
+    } else {
+      return false;
+    }
+    ++i;
+    for (int t = 0; t < trailing; ++t, ++i) {
+      if (i >= s.size() || (bytes[i] & 0xC0) != 0x80) return false;
+    }
+  }
+  return true;
+}
+
 TEST_F(SecretStorageTest, WriteAndReadRoundTrip) {
   ASSERT_TRUE(storage_->addItem("key1", "value1"));
   EXPECT_EQ(storage_->getItem("key1"), "value1");
@@ -71,6 +98,58 @@ TEST_F(SecretStorageTest, ReadAllReturnsAllEntries) {
   nlohmann::json data = storage_->readFromKeyring();
   EXPECT_EQ(data["k1"], "v1");
   EXPECT_EQ(data["k2"], "v2");
+}
+
+// deleteKeyring() must persist "{}" not "null". Storing "null" causes
+// readFromKeyring() to return a null JSON value, which is undefined to
+// iterate and inconsistent across nlohmann versions.
+TEST_F(SecretStorageTest, DeleteKeyringStoresEmptyObjectNotNull) {
+  storage_->addItem("k", "v");
+  storage_->deleteKeyring();
+
+  nlohmann::json data = storage_->readFromKeyring();
+  EXPECT_FALSE(data.is_null()) << "got: " << data.dump();
+  EXPECT_TRUE(data.is_object());
+  EXPECT_EQ(data.size(), 0u);
+}
+
+TEST_F(SecretStorageTest, IteratingItemsAfterDeleteKeyringIsEmptyAndSafe) {
+  storage_->addItem("k", "v");
+  storage_->deleteKeyring();
+
+  nlohmann::json data = storage_->readFromKeyring();
+  int count = 0;
+  ASSERT_NO_THROW({
+    for (const auto& item : data.items()) {
+      (void)item;
+      ++count;
+    }
+  });
+  EXPECT_EQ(count, 0);
+}
+
+TEST_F(SecretStorageTest, WriteAndReadAfterDeleteKeyringIsCorrect) {
+  storage_->addItem("before", "old");
+  storage_->deleteKeyring();
+
+  ASSERT_TRUE(storage_->addItem("after", "new"));
+  EXPECT_EQ(storage_->getItem("after"), "new");
+  EXPECT_EQ(storage_->getItem("before"), "");
+
+  nlohmann::json data = storage_->readFromKeyring();
+  EXPECT_TRUE(data.is_object());
+  EXPECT_EQ(data.size(), 1u) << "got: " << data.dump();
+}
+
+TEST_F(SecretStorageTest, StoredValuesAreValidUtf8) {
+  const std::string key = "utf8_key";
+  const std::string value = "valid-utf8-\xC3\xA9-value";
+  storage_->addItem(key.c_str(), value.c_str());
+
+  const std::string result = storage_->getItem(key.c_str());
+  EXPECT_EQ(result, value);
+  EXPECT_TRUE(isValidUtf8(result));
+  EXPECT_TRUE(isValidUtf8(key));
 }
 
 }  // namespace test

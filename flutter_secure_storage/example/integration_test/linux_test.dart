@@ -88,6 +88,43 @@ void main() {
   );
 
   // ---------------------------------------------------------------------------
+  // deleteAll state recovery
+  // ---------------------------------------------------------------------------
+
+  group(
+    'deleteAll state recovery',
+    () {
+      testWidgets('readAll after deleteAll returns empty map', (_) async {
+        await _storage.write(key: 'a', value: '1');
+        await _storage.write(key: 'b', value: '2');
+        await _storage.deleteAll();
+
+        expect(await _storage.readAll(), isEmpty);
+      });
+
+      testWidgets('operations after deleteAll behave correctly', (_) async {
+        await _storage.write(key: 'before', value: 'old');
+        await _storage.deleteAll();
+
+        await _storage.write(key: 'after', value: 'new');
+        expect(await _storage.read(key: 'after'), 'new');
+        expect(await _storage.read(key: 'before'), isNull);
+        expect(await _storage.containsKey(key: 'after'), isTrue);
+        expect(await _storage.containsKey(key: 'before'), isFalse);
+        expect(await _storage.readAll(), {'after': 'new'});
+      });
+
+      testWidgets('values read from storage are valid UTF-8', (_) async {
+        const key = 'utf8-key';
+        const value = 'café';
+        await _storage.write(key: key, value: value);
+        expect(await _storage.read(key: key), value);
+      });
+    },
+    skip: kIsWeb || !Platform.isLinux ? 'Linux only' : null,
+  );
+
+  // ---------------------------------------------------------------------------
   // Special-character keys
   // ---------------------------------------------------------------------------
 
