@@ -154,10 +154,18 @@ static void flutter_secure_storage_linux_plugin_handle_method_call(
       response = FL_METHOD_RESPONSE(fl_method_error_response_new(
           is_locked ? "KeyringLocked" : "Libsecret error", safe, nullptr));
     }
+    catch (const LibsecretError& e)
+    {
+      g_autofree gchar *safe = g_utf8_make_valid(e.what(), -1);
+      g_warning("libsecret_error: %s", safe);
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+          e.code(), safe, nullptr));
+    }
     catch (const std::exception& e)
     {
+      g_autofree gchar *safe = g_utf8_make_valid(e.what(), -1);
       response = FL_METHOD_RESPONSE(fl_method_error_response_new(
-          "StorageError", e.what(), nullptr));
+          "StorageError", safe, nullptr));
     }
     fl_method_call_respond(method_call, response, nullptr);
   }
