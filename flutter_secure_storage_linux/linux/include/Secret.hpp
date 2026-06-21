@@ -174,24 +174,9 @@ private:
       return;
     }
 
-    GList *to_unlock = g_list_append(nullptr, collection);
-    GList *unlocked_out = nullptr;
-    gint n = secret_service_unlock_sync(service, to_unlock, nullptr,
-                                        &unlocked_out, &err);
-    g_list_free(to_unlock);
-    if (unlocked_out) {
-      g_list_free_full(unlocked_out, g_object_unref);
-    }
     g_object_unref(collection);
     g_object_unref(service);
 
-    if (err) {
-      throw LibsecretError("secret_service_unlock_sync", err);
-    }
-
-    if (n == 0) {
-      throw LibsecretError("KeyringLocked",
-                           "secret_service_unlock_sync: Keyring is locked or unavailable");
-    }
+    throw LibsecretError("KeyringLocked", "Keyring is locked");
   }
 };
