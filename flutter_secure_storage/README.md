@@ -361,78 +361,13 @@ You need the C++ ATL libraries installed along with the rest of Visual Studio Bu
 
 ### Linux
 
-You need to install [Libsecret](https://github.com/GNOME/libsecret) packages:
-
-1. **development package**: on your machine to build the project
-2. **runtime package**: to run the application (add it as a dependency after packaging your app).
-
-<details>
-	<summary>Apt / Dnf / Pacman</summary>
-
-For Ubuntu / Debian-based distros (e.g., Linux Mint, PopOS):
-
-```shell
-sudo apt install libsecret-1-0 libsecret-1-dev
-```
-
-For Fedora / RHEL / CentOS distros:
-
-```shell
-sudo dnf install libsecret libsecret-devel
-```
-
-For Arch based distros (a single package containing both development and runtime modules):
-
-```shell
-sudo pacman -S libsecret
-```
-
-	
-</details>
-
-<details>
-	<summary>Flatpak / Flathub</summary>
-
-[Libsecret supports](https://github.com/GNOME/libsecret#libsecret) both `org.freedesktop.Secret` and `org.freedesktop.portal.Secret` 
-and is compatible with Flatpak or sandboxed apps.
-
-Freedesktop runtime version 25.08 (also GNOME runtime 49, KDE runtime 6.10 and 5.15-25.08) provides libsecret; therefore, it no longer needs to be compiled ([flathub/shared-modules/#424](https://github.com/flathub/shared-modules/issues/424)) in your app manifest:
-
-```yaml
-runtime: org.freedesktop.Platform
-runtime-version: '25.08' # Should be at least 25.08 (or newer)
-```
-
-> However, if you are still using an older runtime, you may use [Flathub Shared Modules](https://docs.flathub.org/docs/for-app-authors/shared-modules)
-and add `shared-modules/libsecret/libsecret.json` (**no longer recommend** and will be removed).
-	
-</details>
-
-<details>
-	<summary>Snapcraft</summary>
-
-If you using snapcraft to build the project, use the following:
-
-```yaml
-parts:
-  your-app:
-    plugin: flutter
-    flutter-target: lib/main.dart
-    build-packages:
-      - libsecret-1-dev
-    stage-packages:
-      - libsecret-1-0
-```
-
-</details>
-
-Apart from `libsecret`, you also need a keyring service. This is typically already installed by the desktop environment:
+You need a keyring service. This is typically already installed by the desktop environment:
 
 - [`gnome-keyring`](https://wiki.gnome.org/Projects/GnomeKeyring) (for Gnome users)
 - [`kwalletmanager`](https://wiki.archlinux.org/title/KDE_Wallet) (for KDE users)
 - Or a light provider such as [`secret-service`](https://github.com/yousefvand/secret-service)
 
-For more details, including known issues and CI setup, see the [`flutter_secure_storage_linux` README](https://pub.dev/packages/flutter_secure_storage_linux).
+For more details, including schema migration and CI setup, see the [`flutter_secure_storage_linux` README](https://pub.dev/packages/flutter_secure_storage_linux).
 
 ## Integration Tests
 

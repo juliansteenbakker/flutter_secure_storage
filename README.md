@@ -378,21 +378,7 @@ You need the C++ ATL libraries installed along with the rest of Visual Studio Bu
 
 ### Linux
 
-You need `libsecret-1-dev` on your machine to build the project, and `libsecret-1-0` to run the application (add it as a dependency after packaging your app). If you using snapcraft to build the project use the following
-
-```yaml
-parts:
-  uet-lms:
-    source: .
-    plugin: flutter
-    flutter-target: lib/main.dart
-    build-packages:
-      - libsecret-1-dev
-    stage-packages:
-      - libsecret-1-0
-```
-
-Apart from `libsecret` you also need a keyring service, for that you need either [`gnome-keyring`](https://wiki.gnome.org/Projects/GnomeKeyring) (for Gnome users) or [`kwalletmanager`](https://wiki.archlinux.org/title/KDE_Wallet) (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
+You need a keyring service, for that you need either [`gnome-keyring`](https://wiki.gnome.org/Projects/GnomeKeyring) (for Gnome users) or [`kwalletmanager`](https://wiki.archlinux.org/title/KDE_Wallet) (for KDE users) or other light provider like [`secret-service`](https://github.com/yousefvand/secret-service).
 
 ## Integration Tests
 

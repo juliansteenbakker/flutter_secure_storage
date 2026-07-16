@@ -9,13 +9,14 @@ environment:
   flutter: '>=3.19.0'
 
 dependencies:
-  flutter:
-    sdk: flutter
   flutter_secure_storage_platform_interface: ^2.0.1
+  freedesktop_secret: ^0.1.0
+  linux_application_id: ^1.0.0
 
 flutter:
   plugin:
     implements: flutter_secure_storage
     platforms:
       linux:
-        pluginClass: FlutterSecureStorageLinuxPlugin
+        dartPluginClass: FlutterSecureStorageLinux
+        fileName: flutter_secure_storage_linux.dart
