@@ -66,7 +66,7 @@ tasks.register('jacocoTestReport', JacocoReport) {
 }
 
 dependencies {
-    implementation("com.google.crypto.tink:tink-android:1.21.0")
+    implementation("com.google.crypto.tink:tink-android:1.23.0")
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'

@@ -7,13 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 
-part './options/android_options.dart';
-part './options/apple_options.dart';
-part './options/linux_options.dart';
-part './options/web_options.dart';
-part './options/windows_options.dart';
-part './options/ios_options.dart';
-part './options/macos_options.dart';
+part 'options/android_options.dart';
+part 'options/apple_options.dart';
+part 'options/linux_options.dart';
+part 'options/web_options.dart';
+part 'options/windows_options.dart';
+part 'options/ios_options.dart';
+part 'options/macos_options.dart';
 
 final Map<String, List<ValueChanged<String?>>> _listeners = {};
 

@@ -146,6 +146,32 @@ class FlutterSecureStorage {
         return accessControl
     }
 
+    /// Recreates the `SecAccessControl` object the way versions prior to 0.3.0 always did, even
+    /// with empty `accessControlFlags`, to find items stored under that legacy envelope.
+    private func legacyAccessControl(params: KeychainQueryParameters) -> SecAccessControl? {
+        guard let accessibilityLevel = params.accessibilityLevel else { return nil }
+        let protection = parseAccessibleAttr(accessibilityLevel)
+        let flags = parseAccessControlFlags(params.accessControlFlags)
+        var error: Unmanaged<CFError>?
+        let accessControl = SecAccessControlCreateWithFlags(nil, protection, flags, &error)
+        if error != nil { return nil }
+        return accessControl
+    }
+
+    /// Fallback search query using the pre-0.3.0 `kSecAttrAccessControl` envelope, for items
+    /// written by older plugin versions (see #1158).
+    private func legacyQuery(from params: KeychainQueryParameters) -> [CFString: Any]? {
+        guard params.accessControlFlags == nil || params.accessControlFlags?.isEmpty == true else { return nil }
+        guard !(params.useSecureEnclave ?? false) else { return nil }
+        guard let accessControl = legacyAccessControl(params: params) else { return nil }
+
+        var query = baseQuery(from: params)
+        query.removeValue(forKey: kSecAttrAccessible)
+        query.removeValue(forKey: kSecAttrSynchronizable)
+        query[kSecAttrAccessControl] = accessControl
+        return query
+    }
+
     /// Constructs a keychain query dictionary from the given parameters.
     private func baseQuery(from params: KeychainQueryParameters) -> [CFString: Any] {
         // Validate parameters
@@ -377,7 +403,14 @@ class FlutterSecureStorage {
             modifiedParams.isSynchronizable = synchronizable // Modify the synchronizable parameter for the query.
             modifiedParams.shouldReturnData = false              // Ensuring no data is returned.
             let query = baseQuery(from: modifiedParams)
-            return SecItemCopyMatching(query as CFDictionary, nil)
+            let status = SecItemCopyMatching(query as CFDictionary, nil)
+
+            // Fall back to the legacy SecAccessControl envelope for items written by older
+            // plugin versions (see #1158).
+            if status == errSecItemNotFound, let legacy = legacyQuery(from: modifiedParams) {
+                return SecItemCopyMatching(legacy as CFDictionary, nil)
+            }
+            return status
         }
 
         // Check synchronizable items first.
@@ -401,30 +434,18 @@ class FlutterSecureStorage {
 
     /// Reads all items from the keychain matching the query parameters.
     internal func readAll(params: KeychainQueryParameters) -> FlutterSecureStorageResponse {
-        var query = baseQuery(from: params)
-        query[kSecMatchLimit] = kSecMatchLimitAll
-        query[kSecReturnAttributes] = true
-        query[kSecReturnData] = true
-
-        var ref: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &ref)
-
-        // Return nil if nothing is found
-        if (status == errSecItemNotFound) {
-            return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)
-        }
-        
-        guard status == errSecSuccess else {
-            return FlutterSecureStorageResponse(status: status, value: nil)
-        }
-
-        var results: [String: String] = [:]
-        if let items = ref as? [[CFString: Any]] {
+        func collectResults(from ref: AnyObject?, into results: inout [String: String]) {
+            guard let items = ref as? [[CFString: Any]] else { return }
             for item in items {
                 guard let key = item[kSecAttrAccount] as? String else { continue }
 
                 // Skip wrapped key items (they're companion items for Secure Enclave)
                 if key.hasPrefix("fss.wrapped.") {
+                    continue
+                }
+
+                // Already found via a previous query (e.g. the current envelope); don't overwrite.
+                if results[key] != nil {
                     continue
                 }
 
@@ -452,7 +473,38 @@ class FlutterSecureStorage {
             }
         }
 
-        return FlutterSecureStorageResponse(status: status, value: results)
+        var query = baseQuery(from: params)
+        query[kSecMatchLimit] = kSecMatchLimitAll
+        query[kSecReturnAttributes] = true
+        query[kSecReturnData] = true
+
+        var ref: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &ref)
+
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            return FlutterSecureStorageResponse(status: status, value: nil)
+        }
+
+        var results: [String: String] = [:]
+        if status == errSecSuccess {
+            collectResults(from: ref, into: &results)
+        }
+
+        // Also check the legacy SecAccessControl envelope so items written by older plugin
+        // versions are included (see #1158).
+        if var legacy = legacyQuery(from: params) {
+            legacy[kSecMatchLimit] = kSecMatchLimitAll
+            legacy[kSecReturnAttributes] = true
+            legacy[kSecReturnData] = true
+
+            var legacyRef: AnyObject?
+            let legacyStatus = SecItemCopyMatching(legacy as CFDictionary, &legacyRef)
+            if legacyStatus == errSecSuccess {
+                collectResults(from: legacyRef, into: &results)
+            }
+        }
+
+        return FlutterSecureStorageResponse(status: errSecSuccess, value: results)
     }
 
     /// Reads a single item from the keychain.
@@ -461,7 +513,13 @@ class FlutterSecureStorage {
         if !(params.useSecureEnclave ?? false) {
             let query = baseQuery(from: params)
             var ref: AnyObject?
-            let status = SecItemCopyMatching(query as CFDictionary, &ref)
+            var status = SecItemCopyMatching(query as CFDictionary, &ref)
+
+            // Fall back to the legacy SecAccessControl envelope for items written by older
+            // plugin versions (see #1158).
+            if status == errSecItemNotFound, let legacy = legacyQuery(from: params) {
+                status = SecItemCopyMatching(legacy as CFDictionary, &ref)
+            }
 
             if (status == errSecItemNotFound) {
                 return FlutterSecureStorageResponse(status: errSecSuccess, value: nil)

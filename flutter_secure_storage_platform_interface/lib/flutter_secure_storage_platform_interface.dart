@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-part './src/method_channel_flutter_secure_storage.dart';
-part './src/options.dart';
+part 'src/method_channel_flutter_secure_storage.dart';
+part 'src/options.dart';
 
 /// The interface that implementations of flutter_secure_storage must implement.
 ///
