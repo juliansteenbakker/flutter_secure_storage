@@ -1,6 +1,13 @@
 ## 0.4.1
 - Fixed items written by versions prior to 0.3.0 becoming unreadable (and subsequent writes failing with `errSecDuplicateItem`) when no `accessControlFlags` are set. The 0.3.0 fix for `kSecAttrSynchronizable` being dropped caused `read`, `readAll` and `containsKey` to stop querying the legacy `kSecAttrAccessControl` storage envelope that those items were written under; they now fall back to it automatically. ([#1158](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1158))
 
+## [0.4.2](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_darwin-v0.4.1...flutter_secure_storage_darwin-v0.4.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* **darwin:** restore access to items written before 0.3.0's SecAccess… ([4523503](https://github.com/juliansteenbakker/flutter_secure_storage/commit/4523503b3b4e86264252aed7024604a83d5f9399))
+
 ## 0.4.0
 - Raised minimum iOS deployment target from 12.0 to 13.0 to fix Swift compiler errors when building with Swift Package Manager. CryptoKit (used for Secure Enclave support) requires iOS 13.0+.
 
