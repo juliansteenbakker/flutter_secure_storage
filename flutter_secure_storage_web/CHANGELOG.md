@@ -1,6 +1,18 @@
 ## 2.1.1
 - Fix potential key skipping in `readAll` when storage is modified concurrently during async decryption by collecting keys synchronously before awaiting.
 
+## [3.0.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_web-v2.1.1...flutter_secure_storage_web-v3.0.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+
+
+### Bug Fixes
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+ ([87198bc](https://github.com/juliansteenbakker/flutter_secure_storage/commit/87198bc22050f5050a90c427f89039156d69690f))
+* win32 upgrade & other improvements ([70e983e](https://github.com/juliansteenbakker/flutter_secure_storage/commit/70e983e1d3dfed1ca42eebc601fb273ca3c27288))
+
 ## 2.1.0
 - Updated code style
 - Add check for secure context, since operations are only allowed with secure context.
