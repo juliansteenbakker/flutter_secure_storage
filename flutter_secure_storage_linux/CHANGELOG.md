@@ -5,6 +5,27 @@
 - Fixed JSON parse errors and other C++ exceptions now surfacing as a `PlatformException` with code `StorageError` instead of sending malformed bytes through the channel.
 - Updated README with installation instructions for apt, dnf, pacman, Flatpak, and Snapcraft.
 
+## [4.0.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.1...flutter_secure_storage_linux-v4.0.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+
+
+### Features
+
+* linux native tests ([e3521ee](https://github.com/juliansteenbakker/flutter_secure_storage/commit/e3521eea3426229dc84805cbcdb463866006fefd))
+* linux native tests ([24a0d6c](https://github.com/juliansteenbakker/flutter_secure_storage/commit/24a0d6cf7d4a2f6ccf1c4eeddd1a9cf4b79db500))
+
+
+### Bug Fixes
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+ ([87198bc](https://github.com/juliansteenbakker/flutter_secure_storage/commit/87198bc22050f5050a90c427f89039156d69690f))
+* deleteKeyring null, non utf8 error messages & warmupKeyring throwing error ([621195b](https://github.com/juliansteenbakker/flutter_secure_storage/commit/621195b91dd82d05fba6e297a8700c68a72ab031))
+* general exception catch ([7e3846c](https://github.com/juliansteenbakker/flutter_secure_storage/commit/7e3846c1642fb8deb038c7b82726e0c68513fd01))
+* linux locked keyring ([d5ab2cb](https://github.com/juliansteenbakker/flutter_secure_storage/commit/d5ab2cbce4a8f7b0ac26edda5772ec9f54930793))
+* win32 upgrade & other improvements ([70e983e](https://github.com/juliansteenbakker/flutter_secure_storage/commit/70e983e1d3dfed1ca42eebc601fb273ca3c27288))
+
 ## 3.0.0
 - Fixed whitespace deprecation warning.
 - Reverted json.dump with indentations due to problems. If still needed, pin version to 2.x
