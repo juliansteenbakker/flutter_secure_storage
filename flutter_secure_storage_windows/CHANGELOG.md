@@ -1,6 +1,22 @@
 ## 4.2.2
 Fixed `deleteAll` and `containsKey` not acquiring the mutex lock, which could cause data races under concurrent access.
 
+## [5.0.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_windows-v4.2.2...flutter_secure_storage_windows-v5.0.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove v10 deprecated members, upgrade win32 to 6.0, darwin to 0.40
+
+### Features
+
+* remove v10 deprecated members, upgrade win32 to 6.0, darwin to 0.40 ([e62e90f](https://github.com/juliansteenbakker/flutter_secure_storage/commit/e62e90f4f656f4bd7d1e88cfd6f987b94171d161))
+
+
+### Bug Fixes
+
+* win32 upgrade & other improvements ([70e983e](https://github.com/juliansteenbakker/flutter_secure_storage/commit/70e983e1d3dfed1ca42eebc601fb273ca3c27288))
+
 ## 4.2.1
 Fix concurrent read/write operations causing data loss or a `PathAccessException` on Windows (issue #634).
 
