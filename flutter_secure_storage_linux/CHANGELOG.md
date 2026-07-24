@@ -5,6 +5,18 @@
 - Fixed JSON parse errors and other C++ exceptions now surfacing as a `PlatformException` with code `StorageError` instead of sending malformed bytes through the channel.
 - Updated README with installation instructions for apt, dnf, pacman, Flatpak, and Snapcraft.
 
+## [4.0.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.1...flutter_secure_storage_linux-v4.0.0) (2026-07-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+
+
+### Bug Fixes
+
+* **android:** raise minSdk to 24, overhaul CI and workspace for Flutter 3.35+ ([87198bc](https://github.com/juliansteenbakker/flutter_secure_storage/commit/87198bc22050f5050a90c427f89039156d69690f))
+* win32 upgrade & other improvements ([70e983e](https://github.com/juliansteenbakker/flutter_secure_storage/commit/70e983e1d3dfed1ca42eebc601fb273ca3c27288))
+
 ## 3.0.0
 - Fixed whitespace deprecation warning.
 - Reverted json.dump with indentations due to problems. If still needed, pin version to 2.x
