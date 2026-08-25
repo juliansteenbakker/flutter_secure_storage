@@ -427,6 +427,41 @@ void main() {
     );
 
     testWidgets(
+      'Android: data written before switching to storageNamespace '
+      'must remain readable (#1126)',
+      skip: !Platform.isAndroid,
+      (tester) async {
+        // Write using the default configuration, as a pre-v11 app would.
+        const legacy = FlutterSecureStorage();
+
+        await legacy.deleteAll();
+        await legacy.write(
+          key: 'namespace_migration_key',
+          value: 'written_before_migration',
+        );
+        expect(
+          await legacy.read(key: 'namespace_migration_key'),
+          'written_before_migration',
+        );
+
+        // Switch to storageNamespace, as the v10 deprecation advised.
+        // The namespace matches the default prefs name, so the data file is
+        // unchanged and only the wrapped key and KeyStore alias move.
+        const namespaced = FlutterSecureStorage(
+          aOptions: AndroidOptions(storageNamespace: 'FlutterSecureStorage'),
+        );
+
+        expect(
+          await namespaced.read(key: 'namespace_migration_key'),
+          'written_before_migration',
+          reason: 'Switching to storageNamespace must not orphan existing data',
+        );
+
+        await legacy.deleteAll();
+      },
+    );
+
+    testWidgets(
         'iOS device: item written without SE returns null when read with SE',
         skip: !(Platform.isIOS &&
             !Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')),
