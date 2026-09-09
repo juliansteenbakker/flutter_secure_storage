@@ -7,6 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 
+export 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart'
+    show
+        SecureStorageUpgradeReason,
+        SecureStorageUpgradeState,
+        SecureStorageUpgradeStatus;
+
 part 'options/android_options.dart';
 part 'options/apple_options.dart';
 part 'options/linux_options.dart';
@@ -388,6 +394,34 @@ class FlutterSecureStorage {
       ? await (_platform as MethodChannelFlutterSecureStorage)
             .isCupertinoProtectedDataAvailable()
       : null;
+
+  /// Reports whether data written by an older version of the plugin survived
+  /// the upgrade to this version.
+  ///
+  /// Read-only: it never writes, migrates, or deletes anything. Call it on
+  /// startup, before the first [read] or [write], to catch a direct major
+  /// upgrade that left data undecryptable and re-authenticate the user instead
+  /// of losing them silently.
+  ///
+  /// Android only; other platforms return
+  /// [SecureStorageUpgradeStatus.unsupported].
+  Future<SecureStorageUpgradeStatus> checkUpgradeStatus({
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) => _platform.checkUpgradeStatus(
+    options: _selectOptions(
+      iOptions,
+      aOptions,
+      lOptions,
+      webOptions,
+      mOptions,
+      wOptions,
+    ),
+  );
 
   /// Initializes the shared preferences with mock values for testing.
   @visibleForTesting

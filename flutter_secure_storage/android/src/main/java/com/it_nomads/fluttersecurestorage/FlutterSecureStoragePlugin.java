@@ -163,6 +163,13 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     options = new HashMap<>();
                 }
                 FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+
+                if ("checkUpgradeStatus".equals(call.method)) {
+                    // Runs before initialize(), which is what would migrate or wipe.
+                    result.success(UpgradeInspector.inspect(applicationContext, config));
+                    return;
+                }
+
                 FlutterSecureStorage secureStorage = getOrCreateStorage(config);
 
                 secureStorage.initialize(config, new SecurePreferencesCallback<>() {
