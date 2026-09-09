@@ -1,0 +1,37 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - "flutter_secure_storage-v*"
+      - "flutter_secure_storage_platform_interface-v*"
+      - "flutter_secure_storage_darwin-v*"
+      - "flutter_secure_storage_linux-v*"
+      - "flutter_secure_storage_web-v*"
+      - "flutter_secure_storage_windows-v*"
+
+jobs:
+  publish:
+    if: github.repository == 'juliansteenbakker/flutter_secure_storage'
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve package directory from tag
+        id: package
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "dir=${TAG%-v*}" >> "$GITHUB_OUTPUT"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # Fetches the pub.dev OIDC token; flutter-action does not.
+      - uses: dart-lang/setup-dart@v1
+
+      - name: Publish ${{ steps.package.outputs.dir }}
+        working-directory: ${{ steps.package.outputs.dir }}
+        run: flutter pub publish --force
