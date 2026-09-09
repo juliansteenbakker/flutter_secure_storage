@@ -1,83 +1,126 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: chore
+      include: scope
+
   - package-ecosystem: gradle
-    directory: "flutter_secure_storage/android"
+    directory: /flutter_secure_storage/android
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: deps
+
   - package-ecosystem: gradle
-    directory: "flutter_secure_storage/example/android"
+    directory: /flutter_secure_storage/example/android
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      example-android:
+        patterns:
+          - "*"
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage"
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage_platform_interface"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_platform_interface
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage_darwin"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_darwin
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage_linux"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_linux
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage_web"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_web
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
-  - package-ecosystem: "pub"
-    directory: "/flutter_secure_storage_windows"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_windows
     schedule:
-      interval: "weekly"
-    reviewers:
-      - "juliansteenbakker"
+      interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: deps
+      prefix-development: chore
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage/example
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      example-dart:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: pub
+    directory: /flutter_secure_storage_windows/example
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      windows-example-dart:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: chore
+      include: scope
