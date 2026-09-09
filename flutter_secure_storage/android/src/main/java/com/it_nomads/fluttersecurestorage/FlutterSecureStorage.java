@@ -13,6 +13,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.it_nomads.fluttersecurestorage.ciphers.KeyCipher;
+import com.it_nomads.fluttersecurestorage.ciphers.LegacyNamespaceKeyRecovery;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipher;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipherFactory;
 
@@ -136,6 +137,10 @@ public class FlutterSecureStorage {
         );
 
         NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
+
+        // Move the wrapped key if the app switched between sharedPreferencesName
+        // and storageNamespace.
+        LegacyNamespaceKeyRecovery.recoverIfNeeded(context, config);
 
         initializeStorageCipher(configSource, new SecurePreferencesCallback<>() {
             @Override
