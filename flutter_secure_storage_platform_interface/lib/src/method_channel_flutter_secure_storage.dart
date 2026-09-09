@@ -114,4 +114,22 @@ class MethodChannelFlutterSecureStorage extends FlutterSecureStoragePlatform {
         'value': value,
         'options': options,
       });
+
+  @override
+  Future<SecureStorageUpgradeStatus> checkUpgradeStatus({
+    required Map<String, String> options,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'checkUpgradeStatus',
+        {'options': options},
+      );
+      if (result == null) {
+        return SecureStorageUpgradeStatus.unsupported;
+      }
+      return SecureStorageUpgradeStatus.fromMap(result);
+    } on MissingPluginException {
+      return SecureStorageUpgradeStatus.unsupported;
+    }
+  }
 }

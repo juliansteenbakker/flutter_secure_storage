@@ -1143,6 +1143,33 @@ void main() {
     );
   });
 
+  group('checkUpgradeStatus', () {
+    test('delegates to the platform with the selected options', () async {
+      const report = SecureStorageUpgradeStatus(
+        state: SecureStorageUpgradeState.legacyDataUnreadable,
+        reason: SecureStorageUpgradeReason.missingAlgorithmMarkers,
+        entryCount: 2,
+        willDiscardOnNextAccess: true,
+      );
+      when(
+        () => mockPlatform.checkUpgradeStatus(
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async => report);
+
+      final result = await storage.checkUpgradeStatus(
+        aOptions: AndroidOptions.defaultOptions,
+      );
+
+      expect(result, report);
+      verify(
+        () => mockPlatform.checkUpgradeStatus(
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+  });
+
   group('Test Helper Methods', () {
     test('setMockInitialValues sets up test platform with initial data', () {
       final testData = {'testKey': 'testValue', 'key2': 'value2'};

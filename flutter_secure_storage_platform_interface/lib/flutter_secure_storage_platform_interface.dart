@@ -6,6 +6,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 part 'src/method_channel_flutter_secure_storage.dart';
 part 'src/options.dart';
+part 'src/upgrade_status.dart';
 
 /// The interface that implementations of flutter_secure_storage must implement.
 ///
@@ -120,4 +121,17 @@ abstract class FlutterSecureStoragePlatform extends PlatformInterface {
   Future<void> deleteAll({
     required Map<String, String> options,
   });
+
+  /// Reports whether data written by an older version of the plugin survived
+  /// the upgrade to this version. Never writes, migrates, or deletes anything.
+  ///
+  /// Parameters:
+  /// - [options]: the same platform options passed to read and write.
+  ///
+  /// Returns [SecureStorageUpgradeStatus.unsupported] on platforms that do not
+  /// implement the check.
+  Future<SecureStorageUpgradeStatus> checkUpgradeStatus({
+    required Map<String, String> options,
+  }) async =>
+      SecureStorageUpgradeStatus.unsupported;
 }

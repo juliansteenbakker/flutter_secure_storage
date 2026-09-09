@@ -113,6 +113,16 @@ public class StorageCipherFactory {
         return savedKeyAlgorithm.keyCipher.apply(context, config);
     }
 
+    /** Reads the saved key-cipher marker, or null if none was ever written. */
+    public static String readSavedKeyAlgorithm(NamespacedConfigSource configSource) {
+        return configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
+    }
+
+    /** Reads the saved storage-cipher marker, or null if none was ever written. */
+    public static String readSavedStorageAlgorithm(NamespacedConfigSource configSource) {
+        return configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
+    }
+
     public void storeCurrentAlgorithms(SharedPreferences.Editor editor) {
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_KEY, currentKeyAlgorithm.name());
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, currentStorageAlgorithm.name());

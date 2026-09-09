@@ -25,4 +25,9 @@ public enum StorageCipherAlgorithm {
         }
         return valueOf(name);
     }
+
+    /** True for a marker whose cipher v11 removed; that data can't be read. */
+    public static boolean isRemoved(String name) {
+        return "AES_CBC_PKCS7Padding".equals(name);
+    }
 }

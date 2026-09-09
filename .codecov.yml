@@ -36,3 +36,5 @@ ignore:
   - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/KeyCipherImplementationRSAOAEP.java"
   # StorageCipherImplementationAES23 requires an initialized biometric Cipher, covered by integration tests
   - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/ciphers/StorageCipherImplementationAES23.java"
+  # UpgradeInspector's decrypt/keystore probes require AndroidKeyStore, covered by the upgrade matrix on a device
+  - "flutter_secure_storage/android/src/main/java/com/it_nomads/fluttersecurestorage/UpgradeInspector.java"
