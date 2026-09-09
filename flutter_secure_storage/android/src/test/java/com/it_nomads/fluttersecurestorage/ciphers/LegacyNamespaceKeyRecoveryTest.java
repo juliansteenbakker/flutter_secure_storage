@@ -25,6 +25,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
@@ -170,6 +171,29 @@ public class LegacyNamespaceKeyRecoveryTest {
         String afterFirst = plainKeyPrefs.getString(WRAPPED, null);
         assertFalse(run(plainConfig()));
         assertEquals(afterFirst, plainKeyPrefs.getString(WRAPPED, null));
+    }
+
+    @Test
+    public void publicOverloadReturnsFalseWhenNothingToRecover() {
+        storeData();
+
+        assertFalse(LegacyNamespaceKeyRecovery.recoverIfNeeded(context, plainConfig()));
+    }
+
+    @Test
+    public void rethrowsVirtualMachineError() {
+        storeKey(namespacedKeyPrefs, "QUJD");
+        storeData();
+        LegacyNamespaceKeyRecovery.KeyCipherProvider oom = c -> {
+            throw new OutOfMemoryError("boom");
+        };
+
+        try {
+            LegacyNamespaceKeyRecovery.recoverIfNeeded(context, plainConfig(), oom);
+            fail("expected OutOfMemoryError to propagate");
+        } catch (OutOfMemoryError expected) {
+            // A VirtualMachineError must not be swallowed.
+        }
     }
 
     @Test
