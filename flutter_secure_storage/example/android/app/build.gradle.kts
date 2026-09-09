@@ -48,7 +48,7 @@ android {
 
     defaultConfig {
         applicationId = "com.it_nomads.fluttersecurestorageexample"
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
