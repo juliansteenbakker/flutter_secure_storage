@@ -88,6 +88,16 @@ public class StorageCipherFactoryTest {
                 .requiresReEncryption());
     }
 
+    @Test
+    public void assumedSavedAlgorithms_trueWithoutMarkers_falseWithMarkers() {
+        assertTrue(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .assumedSavedAlgorithms());
+
+        saveAlgorithms("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding");
+        assertFalse(factory("RSA_ECB_OAEPwithSHA_256andMGF1Padding", "AES_GCM_NoPadding")
+                .assumedSavedAlgorithms());
+    }
+
     // -------------------------------------------------------------------------
     // Saved markers present — algorithm change detection
     // -------------------------------------------------------------------------

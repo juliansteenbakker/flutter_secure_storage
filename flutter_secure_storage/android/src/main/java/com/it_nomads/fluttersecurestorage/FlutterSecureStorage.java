@@ -15,6 +15,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.it_nomads.fluttersecurestorage.ciphers.KeyCipher;
+import com.it_nomads.fluttersecurestorage.ciphers.LegacyNamespaceKeyRecovery;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipher;
 import com.it_nomads.fluttersecurestorage.ciphers.StorageCipherFactory;
 import com.it_nomads.fluttersecurestorage.crypto.EncryptedSharedPreferences;
@@ -158,6 +159,10 @@ public class FlutterSecureStorage {
         // Use namespaced config with legacy fallback for backwards compatibility
         NamespacedConfigSource configSource = new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
 
+        // Move the wrapped key if the app switched between sharedPreferencesName
+        // and storageNamespace.
+        LegacyNamespaceKeyRecovery.recoverIfNeeded(context, config);
+
         Boolean isAlreadyMigrated = getEncryptedPrefsMigrated(configSource);
 
         // Skip old ESP migration if migrateWithBackup is enabled - ESP migration is now
@@ -265,9 +270,22 @@ public class FlutterSecureStorage {
 
     private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
         try {
+            // v9 wrote the algorithm markers to the data prefs, not the config
+            // prefs; move them over so v9 data isn't read as the v9 defaults.
+            SharedPreferences dataPrefs = context.getSharedPreferences(
+                    config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE);
+            StorageCipherFactory.adoptLegacyMarkers(configSource, dataPrefs);
+
             storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
             if (storageCipherFactory.requiresReEncryption()) {
+                if (canSkipMarkerlessMigration()) {
+                    // No markers, and nothing to migrate (fresh install, or the
+                    // data already reads with the current cipher). Use it as is.
+                    storageCipher = storageCipherFactory.getCurrentStorageCipher(context, null);
+                    callback.onSuccess(null);
+                    return;
+                }
                 Log.w(TAG, "Algorithm changed detected.");
                 handleKeyMismatch(configSource, callback, null, "Algorithm changed detected");
                 return;
@@ -328,6 +346,44 @@ public class FlutterSecureStorage {
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize storage cipher", e);
             callback.onError(e);
+        }
+    }
+
+    /**
+     * Whether a "changed algorithm" seen only because there are no markers can
+     * be resolved without migrating: RSA key cipher, and either nothing stored
+     * or the data already reads with the current cipher. Read-only.
+     */
+    private boolean canSkipMarkerlessMigration() {
+        if (!storageCipherFactory.assumedSavedAlgorithms()) {
+            return false;
+        }
+        try {
+            if (storageCipherFactory.getCurrentKeyCipher(context).getCipher(context) != null) {
+                return false; // biometric key, can't decrypt without a prompt
+            }
+            SharedPreferences dataPrefs = context.getSharedPreferences(
+                    config.getEffectiveDataPrefsName(),
+                    Context.MODE_PRIVATE
+            );
+            String sample = null;
+            for (Map.Entry<String, ?> entry : dataPrefs.getAll().entrySet()) {
+                if (entry.getValue() instanceof String
+                        && entry.getKey().contains(config.getSharedPreferencesKeyPrefix())) {
+                    sample = (String) entry.getValue();
+                    break;
+                }
+            }
+            if (sample == null) {
+                return true; // fresh install: nothing to migrate
+            }
+            return storageCipherFactory.currentCipherDecrypts(context, Base64.decode(sample, 0));
+        } catch (Throwable t) {
+            if (t instanceof VirtualMachineError) {
+                throw (VirtualMachineError) t;
+            }
+            Log.d(TAG, "Marker-less migration probe failed; will migrate", t);
+            return false;
         }
     }
 
@@ -1361,7 +1417,7 @@ public class FlutterSecureStorage {
 
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+                    config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
 
                 // Step 1: Create backup - copies data + wrapped keys to _BACKUP, keeps originals.
                 // createBackup() is idempotent: skips internally if status is already "complete".
@@ -1585,7 +1641,7 @@ public class FlutterSecureStorage {
                                                                    SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+                    config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
 
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
@@ -1677,7 +1733,7 @@ public class FlutterSecureStorage {
                                                                    SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+                    config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
 
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);
@@ -1770,7 +1826,7 @@ public class FlutterSecureStorage {
                                                             SecurePreferencesCallback<Void> callback) {
             try {
                 SharedPreferences keyStorage = context.getSharedPreferences(
-                    "FlutterSecureKeyStorage", Context.MODE_PRIVATE);
+                    config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
 
                 // Step 0: Create backup BEFORE any destructive operations
                 String backupStatus = MigrationBackup.getBackupStatus(configSource, config);

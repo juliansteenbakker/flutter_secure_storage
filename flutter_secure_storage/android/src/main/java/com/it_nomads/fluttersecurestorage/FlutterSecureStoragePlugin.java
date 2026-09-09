@@ -154,6 +154,11 @@ public class FlutterSecureStoragePlugin implements MethodCallHandler, FlutterPlu
                     handleException(new IllegalArgumentException("Method call arguments must be a Map"));
                     return;
                 }
+                if (applicationContext == null) {
+                    // Engine detached before this queued call ran.
+                    result.error("INIT_FAILED", "Plugin is not attached to an Android context", null);
+                    return;
+                }
                 Map<String, Object> args = (Map<String, Object>) call.arguments;
                 Object rawOptions = args.get("options");
                 Map<String, Object> options;

@@ -20,12 +20,14 @@ public class StorageCipherFactory {
     private final StorageCipherAlgorithm savedStorageAlgorithm;
     private final KeyCipherAlgorithm currentKeyAlgorithm;
     private final StorageCipherAlgorithm currentStorageAlgorithm;
+    private final boolean assumedSavedAlgorithms;
     private final FlutterSecureStorageConfig config;
 
     public StorageCipherFactory(NamespacedConfigSource configSource, String keyCipherAlgorithm, String storageCipherAlgorithm, FlutterSecureStorageConfig config) {
         this.config = config;
         final String savedKeyCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
         final String savedStorageCipherAlgorithm = configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
+        this.assumedSavedAlgorithms = savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null;
 
         if (savedKeyCipherAlgorithm == null || savedStorageCipherAlgorithm == null) {
             // Migration from v9.2.4 or v10.0.0-beta.4:
@@ -63,6 +65,11 @@ public class StorageCipherFactory {
         return savedKeyAlgorithm != currentKeyAlgorithm || savedStorageAlgorithm != currentStorageAlgorithm;
     }
 
+    /** True when there were no markers, so the saved algorithms are a guess. */
+    public boolean assumedSavedAlgorithms() {
+        return assumedSavedAlgorithms;
+    }
+
     public boolean changedKeyAlgorithm() {
         return savedKeyAlgorithm != currentKeyAlgorithm;
     }
@@ -75,6 +82,23 @@ public class StorageCipherFactory {
     public StorageCipher getCurrentStorageCipher(Context context, Cipher cipher) throws Exception {
         final KeyCipher keyCipher = currentKeyAlgorithm.keyCipher.apply(context, config);
         return createStorageCipher(context, keyCipher, cipher, currentStorageAlgorithm);
+    }
+
+    /**
+     * Whether the current storage cipher can decrypt the given ciphertext.
+     * Always false for KeyStore/biometric ciphers, which need an authenticated
+     * cipher.
+     */
+    public boolean currentCipherDecrypts(Context context, byte[] ciphertext) {
+        try {
+            getCurrentStorageCipher(context, null).decrypt(ciphertext);
+            return true;
+        } catch (Throwable t) {
+            if (t instanceof VirtualMachineError) {
+                throw (VirtualMachineError) t;
+            }
+            return false;
+        }
     }
 
     /**
@@ -119,5 +143,27 @@ public class StorageCipherFactory {
     public void storeCurrentAlgorithms(SharedPreferences.Editor editor) {
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_KEY, currentKeyAlgorithm.name());
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, currentStorageAlgorithm.name());
+    }
+
+    /**
+     * Copies algorithm markers from the data prefs, where v9 stored them, into
+     * the config source, where v10+ looks. No-op if the config source already
+     * has markers or the data prefs have none. Returns true if it copied.
+     */
+    public static boolean adoptLegacyMarkers(NamespacedConfigSource configSource, SharedPreferences dataPrefs) {
+        if (configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null) != null
+                && configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null) != null) {
+            return false;
+        }
+        final String key = dataPrefs.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
+        final String storage = dataPrefs.getString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, null);
+        if (key == null || storage == null) {
+            return false;
+        }
+        configSource.edit()
+                .putString(ELEMENT_PREFERENCES_ALGORITHM_KEY, key)
+                .putString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, storage)
+                .apply();
+        return true;
     }
 }

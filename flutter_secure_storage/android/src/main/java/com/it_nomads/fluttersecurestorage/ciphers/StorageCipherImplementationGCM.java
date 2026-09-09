@@ -19,6 +19,11 @@ public class StorageCipherImplementationGCM implements StorageCipher {
     private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
     private static final String SHARED_PREFERENCES_KEY = "AESVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    // The typo'd name v9 stored the wrapped AES key under before v10 fixed it.
+    private static final String LEGACY_V9_KEY = "VGhpcyBpcyB0aGUga2V5IGZvcihBIHNlY3XyZZBzdG9yYWdlIEFFUyBLZXkK";
+
+    static final String WRAPPED_KEY_PREF = SHARED_PREFERENCES_KEY;
+    static final String WRAPPED_KEY_ALGORITHM = KEY_ALGORITHM;
     private final String keyStoragePrefsName;
     private final Cipher cipher;
     private final SecureRandom secureRandom;
@@ -32,6 +37,11 @@ public class StorageCipherImplementationGCM implements StorageCipher {
         SharedPreferences.Editor editor = preferences.edit();
 
         String aesKey = preferences.getString(SHARED_PREFERENCES_KEY, null);
+        boolean fromLegacyName = false;
+        if (aesKey == null) {
+            aesKey = preferences.getString(LEGACY_V9_KEY, null);
+            fromLegacyName = aesKey != null;
+        }
 
         cipher = getCipher();
 
@@ -39,6 +49,9 @@ public class StorageCipherImplementationGCM implements StorageCipher {
             // Unwrap existing key - may throw BadPaddingException, InvalidKeyException if algorithm changed
             byte[] encrypted = Base64.decode(aesKey, Base64.DEFAULT);
             secretKey = rsaCipher.unwrap(encrypted, KEY_ALGORITHM);
+            if (fromLegacyName) {
+                editor.putString(SHARED_PREFERENCES_KEY, aesKey).apply();
+            }
             return;
         }
 

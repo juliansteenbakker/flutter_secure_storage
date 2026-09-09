@@ -5,6 +5,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class FlutterSecureStorageConfig {
@@ -61,8 +62,10 @@ public class FlutterSecureStorageConfig {
     private final String biometricPromptNegativeButton;
     private final String keyCipherAlgorithm;
     private final String storageCipherAlgorithm;
+    private final Map<String, Object> rawOptions;
 
     public FlutterSecureStorageConfig(Map<String, Object> options) {
+        this.rawOptions = new HashMap<>(options);
         this.sharedPreferencesName = getStringOption(options, PREF_OPTION_NAME, DEFAULT_PREF_NAME);
         this.sharedPreferencesKeyPrefix = getStringOption(options, PREF_OPTION_PREFIX, DEFAULT_KEY_PREFIX);
         this.deleteOnFailure = getBooleanOption(options, PREF_OPTION_DELETE_ON_FAILURE, DEFAULT_DELETE_ON_FAILURE);
@@ -194,6 +197,20 @@ public class FlutterSecureStorageConfig {
      */
     public String getKeyAliasSuffix() {
         return storageNamespace != null ? "." + storageNamespace : "";
+    }
+
+    /** Returns a copy of this config with storageNamespace set to {@code namespace}. */
+    public FlutterSecureStorageConfig withStorageNamespace(String namespace) {
+        Map<String, Object> copy = new HashMap<>(rawOptions);
+        copy.put(PREF_OPTION_STORAGE_NAMESPACE, namespace);
+        return new FlutterSecureStorageConfig(copy);
+    }
+
+    /** Returns a copy of this config with no storageNamespace. */
+    public FlutterSecureStorageConfig withoutStorageNamespace() {
+        Map<String, Object> copy = new HashMap<>(rawOptions);
+        copy.remove(PREF_OPTION_STORAGE_NAMESPACE);
+        return new FlutterSecureStorageConfig(copy);
     }
 
     @NonNull
