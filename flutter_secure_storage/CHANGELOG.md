@@ -1,3 +1,13 @@
+## 10.3.2
+
+### Android
+- Fixed data loss when switching between `sharedPreferencesName` and `storageNamespace` with the same name; the wrapped key is now moved to the new location instead of the store starting empty.
+- Fixed v9 data with a non-default `keyCipherAlgorithm`/`storageCipherAlgorithm` being discarded on upgrade: its algorithm markers were stored where v10 doesn't look, so a failed migration deleted it. Markers are now read from the v9 location, and unmarked data that still decrypts with the current cipher is left alone.
+- Fixed AES-GCM data from v9 becoming unreadable: v9's wrapped-key preference name had a typo that v10 corrected, and is now read as a fallback.
+- Fixed `migrateWithBackup` ignoring `storageNamespace` and backing up the wrong key storage file.
+- Fixed a migration running on a fresh install, which could fail on some devices' KeyStore.
+- Fixed a `NullPointerException` when a storage call ran after the Flutter engine detached; it now throws a catchable `INIT_FAILED` `PlatformException`.
+
 ## 10.3.1
 
 ### Android
