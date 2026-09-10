@@ -1,5 +1,19 @@
 # Changelog
 
+## [11.1.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.0.0...flutter_secure_storage-v11.1.0) (2026-09-10)
+
+
+### Features
+
+* add checkUpgradeStatus() to report data lost on a direct major upgrade ([#1243](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1243)) ([fc716ea](https://github.com/juliansteenbakker/flutter_secure_storage/commit/fc716ea7b3973db985d953776107b44b5984f591))
+
+
+### Bug Fixes
+
+* **android:** move wrapped key when switching between sharedPreferencesName and storageNamespace ([2482e34](https://github.com/juliansteenbakker/flutter_secure_storage/commit/2482e34e377cae7e6e082c0c0c867c2d5857a531))
+* **android:** use flutter.compileSdkVersion (36) instead of pinning compileSdk (37) ([#1236](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1236)) ([0530fe7](https://github.com/juliansteenbakker/flutter_secure_storage/commit/0530fe74174743b234adc14c5305d13cbdac7764)), closes [#1224](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1224)
+* require flutter_secure_storage_platform_interface ^2.1.0 for checkUpgradeStatus ([#1247](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1247)) ([0d3d6f2](https://github.com/juliansteenbakker/flutter_secure_storage/commit/0d3d6f21201cb844ef085b2cb0a3999e45f125e1))
+
 ## [11.0.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v10.3.1...flutter_secure_storage-v11.0.0) (2026-08-06)
 
 **Breaking changes**
