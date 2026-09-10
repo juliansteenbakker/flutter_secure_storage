@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <cstdlib>
 #include <memory>
+#include <string>
 
 #include "include/Secret.hpp"
 
@@ -152,33 +156,51 @@ TEST_F(SecretStorageTest, StoredValuesAreValidUtf8) {
   EXPECT_TRUE(isValidUtf8(key));
 }
 
-TEST(IsSandboxedDesktopTest, NotSandboxedByDefault) {
-  EXPECT_FALSE(isSandboxedDesktop("/nonexistent/.flatpak-info", nullptr, nullptr));
+// Provides a path that exists (stand-in for /.flatpak-info) and one that does
+// not, without depending on platform-specific files.
+class IsSandboxedDesktopTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    char tmpl[] = "/tmp/fss_flatpak_info_XXXXXX";
+    int fd = mkstemp(tmpl);
+    ASSERT_NE(fd, -1);
+    close(fd);
+    existing_path_ = tmpl;
+  }
+
+  void TearDown() override { unlink(existing_path_.c_str()); }
+
+  std::string existing_path_;
+  static constexpr const char* kMissingPath = "/nonexistent/.flatpak-info";
+};
+
+TEST_F(IsSandboxedDesktopTest, NotSandboxedByDefault) {
+  EXPECT_FALSE(isSandboxedDesktop(kMissingPath, nullptr, nullptr));
 }
 
-TEST(IsSandboxedDesktopTest, FlatpakInfoPresentIsSandboxed) {
-  EXPECT_TRUE(isSandboxedDesktop("/proc/self/status", nullptr, nullptr));
+TEST_F(IsSandboxedDesktopTest, FlatpakInfoPresentIsSandboxed) {
+  EXPECT_TRUE(isSandboxedDesktop(existing_path_.c_str(), nullptr, nullptr));
 }
 
-TEST(IsSandboxedDesktopTest, SnapNameSetIsSandboxed) {
-  EXPECT_TRUE(isSandboxedDesktop("/nonexistent/.flatpak-info", "my-snap", nullptr));
+TEST_F(IsSandboxedDesktopTest, SnapNameSetIsSandboxed) {
+  EXPECT_TRUE(isSandboxedDesktop(kMissingPath, "my-snap", nullptr));
 }
 
-TEST(IsSandboxedDesktopTest, EmptySnapNameIsNotSandboxed) {
-  EXPECT_FALSE(isSandboxedDesktop("/nonexistent/.flatpak-info", "", nullptr));
+TEST_F(IsSandboxedDesktopTest, EmptySnapNameIsNotSandboxed) {
+  EXPECT_FALSE(isSandboxedDesktop(kMissingPath, "", nullptr));
 }
 
-TEST(IsSandboxedDesktopTest, SecretBackendFileForcesTrue) {
-  EXPECT_TRUE(isSandboxedDesktop("/nonexistent/.flatpak-info", nullptr, "file"));
+TEST_F(IsSandboxedDesktopTest, SecretBackendFileForcesTrue) {
+  EXPECT_TRUE(isSandboxedDesktop(kMissingPath, nullptr, "file"));
 }
 
-TEST(IsSandboxedDesktopTest, SecretBackendServiceForcesFalseEvenWhenSandboxed) {
-  EXPECT_FALSE(isSandboxedDesktop("/proc/self/status", "my-snap", "service"));
+TEST_F(IsSandboxedDesktopTest, SecretBackendServiceForcesFalseEvenWhenSandboxed) {
+  EXPECT_FALSE(isSandboxedDesktop(existing_path_.c_str(), "my-snap", "service"));
 }
 
-TEST(IsSandboxedDesktopTest, UnrecognizedSecretBackendFallsBackToAutoDetection) {
-  EXPECT_TRUE(isSandboxedDesktop("/proc/self/status", nullptr, "something-else"));
-  EXPECT_FALSE(isSandboxedDesktop("/nonexistent/.flatpak-info", nullptr, "something-else"));
+TEST_F(IsSandboxedDesktopTest, UnrecognizedSecretBackendFallsBackToAutoDetection) {
+  EXPECT_TRUE(isSandboxedDesktop(existing_path_.c_str(), nullptr, "something-else"));
+  EXPECT_FALSE(isSandboxedDesktop(kMissingPath, nullptr, "something-else"));
 }
 
 }  // namespace test

@@ -29,8 +29,10 @@ inline bool isSandboxedDesktop(const char *flatpakInfoPath, const char *snapName
 }
 
 inline bool isSandboxedDesktop() {
-  return isSandboxedDesktop("/.flatpak-info", g_getenv("SNAP_NAME"),
-                             g_getenv("SECRET_BACKEND"));
+  // Sandbox state cannot change during the process lifetime, so probe once.
+  static const bool sandboxed = isSandboxedDesktop(
+      "/.flatpak-info", g_getenv("SNAP_NAME"), g_getenv("SECRET_BACKEND"));
+  return sandboxed;
 }
 
 class LibsecretError : public std::runtime_error {
@@ -135,7 +137,7 @@ public:
   }
 
   bool deleteKeyring() {
-    if (!isSandboxedDesktop() && !warmupKeyring()) {
+    if (!warmupKeyring()) {
       return true;
     }
     return this->storeToKeyring(nlohmann::json::object());
@@ -159,7 +161,7 @@ public:
     nlohmann::json value = nlohmann::json::object();
     g_autoptr(GError) err = nullptr;
 
-    if (!isSandboxedDesktop() && !warmupKeyring()) {
+    if (!warmupKeyring()) {
       return value;
     }
 
@@ -182,9 +184,16 @@ private:
   // all collections here: some Secret Service backends fail when an
   // unrelated stale item exists in another collection.
   //
-  // Skip this when sandboxed: it needs org.freedesktop.secrets directly,
-  // which the portal backend doesn't provide.
+  // Skipped when sandboxed: this talks to org.freedesktop.secrets directly,
+  // which isn't available under Flatpak/Snap. There libsecret's Simple API
+  // uses the portal file backend, which has no collections to alias or lock,
+  // so the guards below don't apply, and secret_password_lookupv_sync /
+  // storev_sync still surface a locked backing store as KeyringLocked.
   bool warmupKeyring() {
+    if (isSandboxedDesktop()) {
+      return true;
+    }
+
     g_autoptr(GError) err = nullptr;
 
     SecretService *service = secret_service_get_sync(
