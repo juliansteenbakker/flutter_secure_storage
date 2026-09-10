@@ -34,7 +34,7 @@ dependencies:
   # https://github.com/flutter/flutter/issues/46264
   flutter_secure_storage_darwin: ^0.4.0
   flutter_secure_storage_linux: ^3.0.1
-  flutter_secure_storage_platform_interface: ^2.0.1
+  flutter_secure_storage_platform_interface: ^2.1.0
   flutter_secure_storage_web: ^2.1.1
   flutter_secure_storage_windows: ^4.2.2
   meta: ^1.16.0
