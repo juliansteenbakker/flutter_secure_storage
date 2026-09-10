@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_platform_interface-v2.0.3...flutter_secure_storage_platform_interface-v2.1.0) (2026-09-09)
+
+
+### Features
+
+* add checkUpgradeStatus() to report data lost on a direct major upgrade ([#1243](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1243)) ([fc716ea](https://github.com/juliansteenbakker/flutter_secure_storage/commit/fc716ea7b3973db985d953776107b44b5984f591))
+
 ## [2.0.3](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_platform_interface-v2.0.2...flutter_secure_storage_platform_interface-v2.0.3) (2026-08-05)
 
 

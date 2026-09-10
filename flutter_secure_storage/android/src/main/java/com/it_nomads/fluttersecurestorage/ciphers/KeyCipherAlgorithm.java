@@ -25,4 +25,9 @@ public enum KeyCipherAlgorithm {
         }
         return valueOf(name);
     }
+
+    /** True for a marker whose cipher v11 removed; that data can't be read. */
+    public static boolean isRemoved(String name) {
+        return "RSA_ECB_PKCS1Padding".equals(name);
+    }
 }
