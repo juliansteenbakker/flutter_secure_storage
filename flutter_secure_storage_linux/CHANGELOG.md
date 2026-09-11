@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0-beta.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.3...flutter_secure_storage_linux-v4.0.0-beta.1) (2026-09-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **linux:** previously affected installs stored secrets under whatever incorrect xdg:schema value they happened to compute (stable per app build, but not the intended one). Reads and writes now use the correct "<application id>/FlutterSecureStorage" schema name. The first read after upgrading automatically migrates matching secrets found under any other schema value forward into the correct one; legacy items are left in place, nothing is deleted.
+
+### Bug Fixes
+
+* **linux:** stop the xdg:schema attribute from going stale after relabeling ([#1249](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1249)) ([105f323](https://github.com/juliansteenbakker/flutter_secure_storage/commit/105f323e2bf1c59e36d8780eec31bed4af9a5847))
+
 ## [3.0.3](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.2...flutter_secure_storage_linux-v3.0.3) (2026-09-11)
 
 
