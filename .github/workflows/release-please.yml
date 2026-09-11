@@ -31,7 +31,11 @@ jobs:
   # release-please-master.yml mistakes them for master-side releases.
   promote-to-master:
     needs: release-please
-    if: needs.release-please.outputs.releases_created == 'true'
+    # Paused for the flutter_secure_storage_linux 4.0.0-beta.1 release: master
+    # must stay on the 3.0.3 baseline so a 3.x hotfix can still be cut from it
+    # while the beta is being validated. Re-enable (drop the `&& false`) once
+    # the beta is confirmed good.
+    if: needs.release-please.outputs.releases_created == 'true' && false
     runs-on: ubuntu-latest
     permissions:
       contents: write
