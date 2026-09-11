@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.3](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.2...flutter_secure_storage_linux-v3.0.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* **linux:** skip D-Bus keyring warmup when sandboxed ([#1223](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1223)) ([1e625c9](https://github.com/juliansteenbakker/flutter_secure_storage/commit/1e625c9718b0d301039c3456bf97bbbfbc020ea3))
+
 ## [3.0.2](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_linux-v3.0.1...flutter_secure_storage_linux-v3.0.2) (2026-08-06)
 
 
