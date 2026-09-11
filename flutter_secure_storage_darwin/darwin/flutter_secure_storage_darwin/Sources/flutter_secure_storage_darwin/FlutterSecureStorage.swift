@@ -380,8 +380,7 @@ class FlutterSecureStorage {
             return SecItemCopyMatching(query as CFDictionary, nil)
         }
 
-        // Check synchronizable items first, unless the data protection keychain
-        // is off: see performDelete for why that query cannot run there.
+        // Check synchronizable items first, unless the data protection keychain is off.
         if !skipSynchronizableQueries(params) {
             let statusSync = queryKeychain(withSynchronizable: true)
             if statusSync == errSecSuccess {
@@ -688,8 +687,8 @@ class FlutterSecureStorage {
         return result
     }
 
-    /// True when a `kSecAttrSynchronizable = true` query would be rejected for
-    /// want of an entitlement: macOS, data protection keychain disabled.
+    /// True on macOS when the data protection keychain is off, where a
+    /// synchronizable query lacks the entitlement to run.
     private func skipSynchronizableQueries(_ params: KeychainQueryParameters) -> Bool {
         #if os(macOS)
         return !params.usesDataProtectionKeychain
@@ -722,10 +721,8 @@ class FlutterSecureStorage {
             return SecItemDelete(query as CFDictionary)
         }
 
-        // Without the data protection keychain there is no synchronizable item to
-        // delete, and the query needs an entitlement an ad-hoc signed app cannot
-        // carry: it fails with errSecMissingEntitlement (-34018) and takes the
-        // whole delete with it. See juliansteenbakker/flutter_secure_storage#1104.
+        // Without the data protection keychain there's no synchronizable item to
+        // delete, and the query lacks the entitlement to run.
         let statusSync = skipSynchronizableQueries(params)
             ? errSecItemNotFound
             : deleteFromKeychain(withSynchronizable: true)
