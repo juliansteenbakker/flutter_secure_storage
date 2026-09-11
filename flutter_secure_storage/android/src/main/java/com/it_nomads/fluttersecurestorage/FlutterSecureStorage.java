@@ -242,7 +242,7 @@ public class FlutterSecureStorage {
 
         try {
             // Determine if this is a biometric migration
-            String savedStorageAlg = storageCipherFactory.getSavedKeyCipher(context).toString();
+            String savedStorageAlg = StorageCipherFactory.readSavedKeyAlgorithm(configSource);
             String currentStorageAlg = config.getPrefOptionStorageCipherAlgorithm();
 
             boolean fromBiometric = isBiometricAlgorithm(savedStorageAlg);
