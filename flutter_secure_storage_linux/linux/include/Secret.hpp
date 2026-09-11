@@ -1,5 +1,6 @@
 #include "FHashTable.hpp"
 #include "json.hpp"
+#include <gio/gio.h>
 #include <libsecret/secret.h>
 #include <memory>
 #include <stdexcept>
@@ -7,6 +8,79 @@
 
 #define secret_autofree _GLIB_CLEANUP(secret_cleanup_free)
 static inline void secret_cleanup_free(gchar **p) { secret_password_free(*p); }
+
+// True when the process runs inside a Flatpak or Snap sandbox, where libsecret's
+// Simple API (secret_password_*) can route to the portal file backend instead of
+// org.freedesktop.secrets.
+inline bool isSandboxedContainer(const char *flatpakInfoPath,
+                                 const char *snapName) {
+  if (snapName != nullptr && snapName[0] != '\0') {
+    return true;
+  }
+  return flatpakInfoPath != nullptr &&
+         g_file_test(flatpakInfoPath, G_FILE_TEST_EXISTS);
+}
+
+// Whether org.freedesktop.secrets currently has an owner on the session bus.
+// A single NameHasOwner call to the bus daemon, far cheaper than
+// secret_service_get_sync (no session negotiation, no collection load).
+inline bool secretServiceOnSessionBus() {
+  g_autoptr(GError) err = nullptr;
+  g_autoptr(GDBusConnection) bus =
+      g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &err);
+  if (bus == nullptr) {
+    return false;
+  }
+
+  g_autoptr(GVariant) reply = g_dbus_connection_call_sync(
+      bus, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+      "org.freedesktop.DBus", "NameHasOwner",
+      g_variant_new("(s)", "org.freedesktop.secrets"), G_VARIANT_TYPE("(b)"),
+      G_DBUS_CALL_FLAGS_NONE, /*timeout_msec=*/1000, nullptr, &err);
+  if (reply == nullptr) {
+    return false;
+  }
+
+  gboolean has_owner = FALSE;
+  g_variant_get(reply, "(b)", &has_owner);
+  return has_owner;
+}
+
+// True when libsecret's Simple API is NOT backed by org.freedesktop.secrets for
+// this process, so warmupKeyring (which talks to the Secret Service directly)
+// must be skipped.
+//
+// SECRET_BACKEND is libsecret's own explicit override. Otherwise only a sandbox
+// can redirect the Simple API to the portal file backend, and even then only
+// when the Secret Service is genuinely unreachable: a snap with the
+// password-manager-service interface connected, or a flatpak granted
+// --talk-name=org.freedesktop.secrets, still uses the real service, and
+// warmupKeyring's missing-alias and lock guards are meaningful there.
+inline bool shouldSkipKeyringWarmup(const char *flatpakInfoPath,
+                                    const char *snapName,
+                                    const char *secretBackendEnv,
+                                    bool serviceOnBus) {
+  if (secretBackendEnv != nullptr) {
+    const std::string preference(secretBackendEnv);
+    if (preference == "file") {
+      return true;
+    }
+    if (preference == "service") {
+      return false;
+    }
+  }
+
+  return isSandboxedContainer(flatpakInfoPath, snapName) && !serviceOnBus;
+}
+
+inline bool shouldSkipKeyringWarmup() {
+  // Neither the sandbox status nor the bus name changes meaningfully over the
+  // process lifetime for this purpose, so decide once.
+  static const bool skip = shouldSkipKeyringWarmup(
+      "/.flatpak-info", g_getenv("SNAP_NAME"), g_getenv("SECRET_BACKEND"),
+      secretServiceOnSessionBus());
+  return skip;
+}
 
 class LibsecretError : public std::runtime_error {
   std::string error_code;
@@ -156,7 +230,16 @@ private:
   // the normal state of a fresh profile, not a locked keyring. Do not load
   // all collections here: some Secret Service backends fail when an
   // unrelated stale item exists in another collection.
+  //
+  // Skipped when libsecret's Simple API is on the portal file backend (see
+  // shouldSkipKeyringWarmup): that backend has no collections to alias or lock,
+  // so the guards below don't apply, and secret_password_lookupv_sync /
+  // storev_sync still surface a locked backing store as KeyringLocked.
   bool warmupKeyring() {
+    if (shouldSkipKeyringWarmup()) {
+      return true;
+    }
+
     g_autoptr(GError) err = nullptr;
 
     SecretService *service = secret_service_get_sync(
