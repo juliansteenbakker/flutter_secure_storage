@@ -1,5 +1,12 @@
 # Changelog
 
+## [11.1.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.1.0...flutter_secure_storage-v11.1.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **android:** read saved key-cipher marker instead of toString() on a KeyCipher ([#1256](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1256)) ([73f0ef5](https://github.com/juliansteenbakker/flutter_secure_storage/commit/73f0ef5b0666a25912ae07694211414dfcabcf23))
+
 ## [11.1.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.0.0...flutter_secure_storage-v11.1.0) (2026-09-10)
 
 
