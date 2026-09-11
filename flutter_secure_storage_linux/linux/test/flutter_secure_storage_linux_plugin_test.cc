@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <cstdlib>
 #include <memory>
+#include <string>
 
 #include "include/Secret.hpp"
 
@@ -150,6 +154,76 @@ TEST_F(SecretStorageTest, StoredValuesAreValidUtf8) {
   EXPECT_EQ(result, value);
   EXPECT_TRUE(isValidUtf8(result));
   EXPECT_TRUE(isValidUtf8(key));
+}
+
+// Provides a path that exists (stand-in for /.flatpak-info) and one that does
+// not, without depending on platform-specific files.
+class ShouldSkipKeyringWarmupTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    char tmpl[] = "/tmp/fss_flatpak_info_XXXXXX";
+    int fd = mkstemp(tmpl);
+    ASSERT_NE(fd, -1);
+    close(fd);
+    existing_path_ = tmpl;
+  }
+
+  void TearDown() override { unlink(existing_path_.c_str()); }
+
+  std::string existing_path_;
+  static constexpr const char* kMissingPath = "/nonexistent/.flatpak-info";
+};
+
+TEST_F(ShouldSkipKeyringWarmupTest, NotSandboxedRunsWarmup) {
+  EXPECT_FALSE(shouldSkipKeyringWarmup(kMissingPath, nullptr, nullptr, false));
+  EXPECT_FALSE(shouldSkipKeyringWarmup(kMissingPath, nullptr, nullptr, true));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, SandboxedWithoutServiceSkips) {
+  EXPECT_TRUE(shouldSkipKeyringWarmup(existing_path_.c_str(), nullptr, nullptr,
+                                      false));
+  EXPECT_TRUE(shouldSkipKeyringWarmup(kMissingPath, "my-snap", nullptr, false));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, SandboxedWithServiceRunsWarmup) {
+  EXPECT_FALSE(shouldSkipKeyringWarmup(existing_path_.c_str(), nullptr, nullptr,
+                                       true));
+  EXPECT_FALSE(shouldSkipKeyringWarmup(kMissingPath, "my-snap", nullptr, true));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, EmptySnapNameIsNotSandboxed) {
+  EXPECT_FALSE(shouldSkipKeyringWarmup(kMissingPath, "", nullptr, false));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, SecretBackendFileForcesSkip) {
+  EXPECT_TRUE(shouldSkipKeyringWarmup(kMissingPath, nullptr, "file", true));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, SecretBackendServiceForcesWarmup) {
+  EXPECT_FALSE(
+      shouldSkipKeyringWarmup(existing_path_.c_str(), "my-snap", "service",
+                              false));
+}
+
+TEST_F(ShouldSkipKeyringWarmupTest, UnrecognizedSecretBackendFallsBackToDetection) {
+  EXPECT_TRUE(shouldSkipKeyringWarmup(existing_path_.c_str(), nullptr,
+                                      "something-else", false));
+  EXPECT_FALSE(shouldSkipKeyringWarmup(kMissingPath, nullptr, "something-else",
+                                       false));
+}
+
+// Exercises the real D-Bus call against whatever session bus this process is
+// connected to. Skipped unless CI points FSS_EXPECT_SECRET_SERVICE_REACHABLE
+// at a specific bus policy (see the "Verify Secret Service Reachability"
+// steps in ci.yml), since the answer otherwise depends on the environment.
+TEST(SecretServiceOnSessionBusTest, MatchesConfiguredBusPolicy) {
+  const char *expected = g_getenv("FSS_EXPECT_SECRET_SERVICE_REACHABLE");
+  if (expected == nullptr) {
+    GTEST_SKIP() << "set FSS_EXPECT_SECRET_SERVICE_REACHABLE=0|1 to run this "
+                    "against a specific D-Bus policy";
+  }
+  const bool want = std::string(expected) == "1";
+  EXPECT_EQ(secretServiceOnSessionBus(), want);
 }
 
 }  // namespace test
