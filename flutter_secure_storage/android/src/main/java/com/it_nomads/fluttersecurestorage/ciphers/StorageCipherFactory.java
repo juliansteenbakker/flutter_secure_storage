@@ -145,6 +145,11 @@ public class StorageCipherFactory {
         editor.putString(ELEMENT_PREFERENCES_ALGORITHM_STORAGE, currentStorageAlgorithm.name());
     }
 
+    /** Reads the saved key-cipher marker, or null if none was ever written. */
+    public static String readSavedKeyAlgorithm(NamespacedConfigSource configSource) {
+        return configSource.getString(ELEMENT_PREFERENCES_ALGORITHM_KEY, null);
+    }
+
     /**
      * Copies algorithm markers from the data prefs, where v9 stored them, into
      * the config source, where v10+ looks. No-op if the config source already
