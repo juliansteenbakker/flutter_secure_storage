@@ -145,9 +145,8 @@ public:
   const char *getLabel() { return label.c_str(); }
   const char *getSchemaName() { return the_schema.name; }
 
-  // Reassigning label can move its buffer (e.g. once the new value outgrows
-  // small-string optimization), which would leave the_schema.name, captured
-  // once in the constructor, dangling. Re-point it at the live buffer.
+  // Reassigning label can move its buffer, which would leave the_schema.name
+  // (captured once in the constructor) dangling. Re-point it at the live one.
   void setLabel(const char *label) {
     this->label = label;
     the_schema.name = this->label.c_str();
@@ -214,25 +213,109 @@ public:
 
   nlohmann::json readFromKeyring() {
     nlohmann::json value = nlohmann::json::object();
-    g_autoptr(GError) err = nullptr;
 
-    if (!warmupKeyring()) {
-      return value;
+    if (warmupKeyring()) {
+      g_autoptr(GError) err = nullptr;
+      secret_autofree gchar *result = secret_password_lookupv_sync(
+          &the_schema, m_attributes.getGHashTable(), nullptr, &err);
+
+      if (err) {
+        throw LibsecretError("secret_password_lookupv_sync", err);
+      }
+      if(result != NULL && strcmp(result, "") != 0){
+        value = nlohmann::json::parse(result);
+      }
+    }
+    // warmupKeyring() returning false (no default collection, nothing
+    // matching this schema) looks just like a fresh profile, so check for
+    // legacy data below in that case too, not just on an empty lookup.
+
+    // Nothing under this schema yet: check for data left behind under an
+    // older, incorrect schema value and bring it forward. Once anything has
+    // been written under the current schema this is skipped for good.
+    if (value.empty()) {
+      migrateLegacySchemaData(value);
     }
 
-    secret_autofree gchar *result = secret_password_lookupv_sync(
-        &the_schema, m_attributes.getGHashTable(), nullptr, &err);
-
-    if (err) {
-      throw LibsecretError("secret_password_lookupv_sync", err);
-    }
-    if(result != NULL && strcmp(result, "") != 0){
-      value = nlohmann::json::parse(result);
-    }
     return value;
   }
 
 private:
+  // Older builds could end up storing items under a bogus xdg:schema value
+  // instead of the intended "<application id>/FlutterSecureStorage". That
+  // value depended on std::string's internal layout, so there's no safe way
+  // to reconstruct it; instead this searches by the "account" attribute
+  // alone (schema = nullptr skips libsecret's xdg:schema matching entirely,
+  // see secret_service_search_sync) and pulls forward any match whose
+  // xdg:schema isn't already the current one.
+  //
+  // Best-effort only: every failure path here just returns without
+  // migrating rather than throwing, so a problem reaching legacy data never
+  // breaks the read that triggered this.
+  void migrateLegacySchemaData(nlohmann::json &current) {
+    g_autoptr(GError) err = nullptr;
+    SecretService *service =
+        secret_service_get_sync(SECRET_SERVICE_OPEN_SESSION, nullptr, &err);
+    if (!service) {
+      return;
+    }
+
+    GList *items = secret_service_search_sync(
+        service, /*schema=*/nullptr, m_attributes.getGHashTable(),
+        static_cast<SecretSearchFlags>(SECRET_SEARCH_ALL |
+                                       SECRET_SEARCH_LOAD_SECRETS),
+        nullptr, &err);
+    g_object_unref(service);
+    if (err) {
+      return;
+    }
+
+    bool changed = false;
+    for (GList *l = items; l != nullptr; l = l->next) {
+      SecretItem *item = SECRET_ITEM(l->data);
+
+      g_autoptr(GHashTable) item_attributes = secret_item_get_attributes(item);
+      const char *item_schema = item_attributes == nullptr
+          ? nullptr
+          : static_cast<const char *>(
+                g_hash_table_lookup(item_attributes, "xdg:schema"));
+      if (item_schema != nullptr && strcmp(item_schema, the_schema.name) == 0) {
+        continue;  // already under the current schema
+      }
+
+      SecretValue *secret_value = secret_item_get_secret(item);
+      if (secret_value == nullptr) {
+        continue;  // locked, or the search above couldn't load it
+      }
+      const gchar *raw = secret_value_get_text(secret_value);
+      if (raw != nullptr && raw[0] != '\0') {
+        try {
+          nlohmann::json legacy = nlohmann::json::parse(raw);
+          if (legacy.is_object()) {
+            for (auto &entry : legacy.items()) {
+              if (!current.contains(entry.key())) {
+                current[entry.key()] = entry.value();
+                changed = true;
+              }
+            }
+          }
+        } catch (const nlohmann::json::parse_error &) {
+          // Not our JSON blob; leave it alone.
+        }
+      }
+      secret_value_unref(secret_value);
+    }
+    if (items) {
+      g_list_free_full(items, g_object_unref);
+    }
+
+    // Legacy items are left in place: this only copies data forward, it
+    // never deletes, so a partial or repeated migration can't lose data.
+    if (changed) {
+      storeToKeyring(current);
+    }
+  }
+
   // Ensures the default keyring is accessible and distinguishes a locked
   // collection from other storage errors. A missing default collection is
   // the normal state of a fresh profile, not a locked keyring. Do not load
