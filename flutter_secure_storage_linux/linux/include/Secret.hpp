@@ -143,7 +143,15 @@ class SecretStorage {
 
 public:
   const char *getLabel() { return label.c_str(); }
-  void setLabel(const char *label) { this->label = label; }
+  const char *getSchemaName() { return the_schema.name; }
+
+  // Reassigning label can move its buffer (e.g. once the new value outgrows
+  // small-string optimization), which would leave the_schema.name, captured
+  // once in the constructor, dangling. Re-point it at the live buffer.
+  void setLabel(const char *label) {
+    this->label = label;
+    the_schema.name = this->label.c_str();
+  }
 
   SecretStorage(const char *_label = "default") : label(_label) {
     the_schema = {label.c_str(),

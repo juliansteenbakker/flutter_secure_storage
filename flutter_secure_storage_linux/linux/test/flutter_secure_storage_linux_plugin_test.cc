@@ -226,5 +226,20 @@ TEST(SecretServiceOnSessionBusTest, MatchesConfiguredBusPolicy) {
   EXPECT_EQ(secretServiceOnSessionBus(), want);
 }
 
+// setLabel() used to leave the_schema.name pointing at label's old buffer.
+// A short initial label fits small-string optimization; relabeling to
+// something long enough to force a heap allocation used to leave the
+// schema name dangling/stale instead of tracking the new value.
+TEST(SecretStorageSchemaNameTest, SchemaNameTracksLabelAfterRelabel) {
+  SecretStorage storage("x");
+  const std::string long_label(
+      "com.example.somewhat_long_application_id/FlutterSecureStorage");
+
+  storage.setLabel(long_label.c_str());
+
+  EXPECT_STREQ(storage.getSchemaName(), long_label.c_str());
+  EXPECT_STREQ(storage.getSchemaName(), storage.getLabel());
+}
+
 }  // namespace test
 }  // namespace flutter_secure_storage_linux
