@@ -16,7 +16,7 @@ body:
       placeholder: e.g. 11.0.0
     validations:
       required: true
-§
+
   - type: dropdown
     attributes:
       label: Platform

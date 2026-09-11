@@ -19,7 +19,7 @@ android {
         buildConfig = true
     }
 
-    compileSdk = 37
+    compileSdk = flutter.compileSdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

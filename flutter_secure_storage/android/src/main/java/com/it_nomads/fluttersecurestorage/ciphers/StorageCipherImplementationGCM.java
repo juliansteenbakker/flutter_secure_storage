@@ -19,6 +19,8 @@ public class StorageCipherImplementationGCM implements StorageCipher {
     private static final int AUTHENTICATION_TAG_SIZE = 128;
     private static final String KEY_ALGORITHM = "AES";
     private static final String SHARED_PREFERENCES_KEY = "AESVGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK";
+    static final String WRAPPED_KEY_PREF = SHARED_PREFERENCES_KEY;
+    static final String WRAPPED_KEY_ALGORITHM = KEY_ALGORITHM;
     private final String keyStoragePrefsName;
     private final Cipher cipher;
     private final SecureRandom secureRandom;
