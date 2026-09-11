@@ -1,3 +1,8 @@
+## 10.3.3
+
+### Android
+- Read saved key-cipher marker instead of toString() on a KeyCipher
+
 ## 10.3.2
 
 ### Android
