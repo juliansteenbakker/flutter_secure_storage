@@ -1,5 +1,12 @@
 # Changelog
 
+## [11.1.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.1.0...flutter_secure_storage-v11.1.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* allow flutter_secure_storage_linux 4.x for the workspace resolver ([a4ed935](https://github.com/juliansteenbakker/flutter_secure_storage/commit/a4ed935e3b15467f647971dd8bdb3439a0262c55))
+
 ## [11.1.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.0.0...flutter_secure_storage-v11.1.0) (2026-09-10)
 
 
