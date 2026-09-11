@@ -413,15 +413,12 @@ class FlutterSecureStorage {
             return status
         }
 
-        // Check synchronizable items first, unless the data protection keychain
-        // is off: see performDelete for why that query cannot run there.
-        if !skipSynchronizableQueries(params) {
-            let statusSync = queryKeychain(withSynchronizable: true)
-            if statusSync == errSecSuccess {
-                return .success(true)
-            } else if statusSync != errSecItemNotFound {
-                return .failure(OSSecError(status: statusSync))
-            }
+        // Check synchronizable items first.
+        let statusSync = queryKeychain(withSynchronizable: true)
+        if statusSync == errSecSuccess {
+            return .success(true)
+        } else if statusSync != errSecItemNotFound {
+            return .failure(OSSecError(status: statusSync))
         }
 
         // Check non-synchronizable items.
@@ -746,16 +743,6 @@ class FlutterSecureStorage {
         return result
     }
 
-    /// True when a `kSecAttrSynchronizable = true` query would be rejected for
-    /// want of an entitlement: macOS, data protection keychain disabled.
-    private func skipSynchronizableQueries(_ params: KeychainQueryParameters) -> Bool {
-        #if os(macOS)
-        return !params.usesDataProtectionKeychain
-        #else
-        return false
-        #endif
-    }
-
     /// Private helper method to perform keychain deletion.
     /// Attempts to delete items with both synchronizable states and without accessibility constraints
     /// to ensure complete removal regardless of how items were originally stored.
@@ -780,13 +767,7 @@ class FlutterSecureStorage {
             return SecItemDelete(query as CFDictionary)
         }
 
-        // Without the data protection keychain there is no synchronizable item to
-        // delete, and the query needs an entitlement an ad-hoc signed app cannot
-        // carry: it fails with errSecMissingEntitlement (-34018) and takes the
-        // whole delete with it. See juliansteenbakker/flutter_secure_storage#1104.
-        let statusSync = skipSynchronizableQueries(params)
-            ? errSecItemNotFound
-            : deleteFromKeychain(withSynchronizable: true)
+        let statusSync = deleteFromKeychain(withSynchronizable: true)
         let statusNonSync = deleteFromKeychain(withSynchronizable: false)
 
         // Return success if both operations report item not found
