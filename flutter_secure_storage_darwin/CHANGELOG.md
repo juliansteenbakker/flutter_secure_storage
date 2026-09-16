@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_darwin-v0.4.2...flutter_secure_storage_darwin-v0.4.3) (2026-09-16)
+
+
+### Bug Fixes
+
+* **darwin:** find keychain items across accessibility levels ([#1269](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1269)) ([9ae0e42](https://github.com/juliansteenbakker/flutter_secure_storage/commit/9ae0e422d6ad6376ddf7960186d42342b0370baf))
+
 ## [0.4.2](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_darwin-v0.4.1...flutter_secure_storage_darwin-v0.4.2) (2026-09-11)
 
 
