@@ -377,10 +377,18 @@ You need the C++ ATL libraries installed along with the rest of Visual Studio Bu
 
 ### Linux
 
-You need to install [Libsecret](https://github.com/GNOME/libsecret) packages:
+#### Requirements
 
-1. **development package**: on your machine to build the project
-2. **runtime package**: to run the application (add it as a dependency after packaging your app).
+These requirements are typically already satisfied by default on most Linux desktop environments.
+
+- A Linux desktop operating system with D-Bus support.
+- A running Secret Service implementation (e.g., [GNOME Keyring](https://wiki.gnome.org/Projects/GnomeKeyring), [KDE Wallet](https://wiki.archlinux.org/title/KDE_Wallet) or another implementation of the `org.freedesktop.secrets` D-Bus service).
+- [GNOME libsecret](https://github.com/GNOME/libsecret) library.
+
+#### GNOME libsecret installation
+
+The installation steps for the development package (to build the app) and the runtime package (to run the app)
+depend on how the app is packaged.
 
 <details>
 	<summary>Apt / Dnf / Pacman</summary>
@@ -397,7 +405,7 @@ For Fedora / RHEL / CentOS distros:
 sudo dnf install libsecret libsecret-devel
 ```
 
-For Arch based distros (a single package containing both development and runtime modules):
+For Arch-based distros (a single package containing both development and runtime modules):
 
 ```shell
 sudo pacman -S libsecret
@@ -420,14 +428,14 @@ runtime-version: '25.08' # Should be at least 25.08 (or newer)
 ```
 
 > However, if you are still using an older runtime, you may use [Flathub Shared Modules](https://docs.flathub.org/docs/for-app-authors/shared-modules)
-and add `shared-modules/libsecret/libsecret.json` (**no longer recommend** and will be removed).
+and add `shared-modules/libsecret/libsecret.json` (**no longer recommended** and will be removed).
 	
 </details>
 
 <details>
 	<summary>Snapcraft</summary>
 
-If you using snapcraft to build the project, use the following:
+If you are using snapcraft to build the project, use the following:
 
 ```yaml
 parts:
@@ -442,22 +450,25 @@ parts:
 
 </details>
 
-Apart from `libsecret`, you also need a keyring service. This is typically already installed by the desktop environment:
+#### GNOME libsecret implementation details
 
-- [`gnome-keyring`](https://wiki.gnome.org/Projects/GnomeKeyring) (for Gnome users)
-- [`kwalletmanager`](https://wiki.archlinux.org/title/KDE_Wallet) (for KDE users)
-- Or a light provider such as [`secret-service`](https://github.com/yousefvand/secret-service)
+libsecret provides a convenient wrapper around two different storage mechanisms: If available, secrets are
+stored in the Freedesktop [Secret Service](https://specifications.freedesktop.org/secret-service/latest/) (D-Bus `org.freedesktop.secrets`). Otherwise, secrets are stored in a
+file that is encrypted using a master secret that was provided by the [Secret
+Portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Secret.html) (suitable for sandboxed environments, such as Flatpak/Snap).
 
 For more details, including known issues and CI setup, see the [`flutter_secure_storage_linux` README](https://pub.dev/packages/flutter_secure_storage_linux).
 
 #### Alternative implementations
 
-These are unofficial, non-endorsed plugin implementations of `flutter_secure_storage`:
+These are unofficial, non-endorsed plugin implementations of `flutter_secure_storage` and do not depend on `libsecret`:
 
-- [`flutter_secure_storage_linux_secret_service`](https://pub.dev/packages/flutter_secure_storage_linux_secret_service): a pure-Dart Linux implementation that communicates with the standard Secret Service API over D-Bus, without additional system packages (such as `libsecret`) to build or run the application.
-  - When `flutter_secure_storage_linux` is using the Secret Service API through the `org.freedesktop.secrets` D-Bus, existing secrets remain interoperable with this implementation. This is not an official interoperability guarantee.
-- [`flutter_secure_storage_linux_portal`](https://pub.dev/packages/flutter_secure_storage_linux_portal): a pure-Dart Linux implementation that uses the Secret Portal API to obtain a master secret and encrypts the secrets in a local file, without additional system packages (such as `libsecret`) to build or run the application.
-  - Secrets stored by this implementation are not interoperable with `flutter_secure_storage_linux`.
+- [`flutter_secure_storage_linux_secret_service`](https://pub.dev/packages/flutter_secure_storage_linux_secret_service): a pure-Dart Linux implementation that communicates directly with the standard Secret Service API over D-Bus.
+  - When `flutter_secure_storage_linux` or `libsecret` is using the Secret Service API, existing secrets remain interoperable with this implementation. This is not an official interoperability guarantee.
+- [`flutter_secure_storage_linux_portal`](https://pub.dev/packages/flutter_secure_storage_linux_portal): a pure-Dart Linux implementation that uses the Secret Portal API to obtain a master secret and encrypts the secrets in a local file. Typically used for sandboxed environments (Flatpak/Snap).
+  - Secrets stored by this implementation are not interoperable with `flutter_secure_storage_linux` or `libsecret`.
+ 
+These two packages implement the two storage mechanisms used by `libsecret`: the Secret Service API and the Secret Portal API. They can be used independently or together.
 
 ## Integration Tests
 
