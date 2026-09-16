@@ -1,5 +1,24 @@
 # Changelog
 
+## [11.2.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.1.1...flutter_secure_storage-v11.2.0) (2026-09-16)
+
+
+### Features
+
+* **android:** requireBiometricsPerOperation flag ([#1264](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1264)) ([321cf97](https://github.com/juliansteenbakker/flutter_secure_storage/commit/321cf97c72e78ddb81e888484560ebca74414614))
+
+
+### Bug Fixes
+
+* **android:** don't hang when biometric negative button is tapped ([#1267](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1267)) ([405c6e6](https://github.com/juliansteenbakker/flutter_secure_storage/commit/405c6e6299c665dfb8a7211192b42319da2e88bc))
+* **android:** fix fresh biometric install crash on non-namespaced stores ([120bdf4](https://github.com/juliansteenbakker/flutter_secure_storage/commit/120bdf4ddb75e94d0c7d40519e2da9cea953a2c1))
+* **android:** port the shared-key multi-instance fixes to v11.x ([6cc9ddc](https://github.com/juliansteenbakker/flutter_secure_storage/commit/6cc9ddc55df42255edd4afb72bac56458997885d))
+* **android:** recover biometric-protected storage on post-auth cipher failure ([#1271](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1271)) ([77eed59](https://github.com/juliansteenbakker/flutter_secure_storage/commit/77eed597eaa244106b946cd02c4d7edb3eb9fa05))
+* **android:** recover the biometric app key on a namespace switch ([31f6eeb](https://github.com/juliansteenbakker/flutter_secure_storage/commit/31f6eeb79ad8187a49d8675bbf58d81b050f506f))
+* **android:** scope deleteAll to the key prefix instead of clearing the file ([#1266](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1266)) ([34170b2](https://github.com/juliansteenbakker/flutter_secure_storage/commit/34170b2caf52c642efa5b6584fa4cc5072f6c697))
+* **darwin:** find keychain items across accessibility levels ([#1269](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1269)) ([9ae0e42](https://github.com/juliansteenbakker/flutter_secure_storage/commit/9ae0e422d6ad6376ddf7960186d42342b0370baf))
+* don't report pending namespace recovery as data loss in checkUpgradeStatus ([f795d52](https://github.com/juliansteenbakker/flutter_secure_storage/commit/f795d52488450d6ef04ee580c895d98c59b737f3))
+
 ## [11.1.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.1.0...flutter_secure_storage-v11.1.1) (2026-09-11)
 
 
