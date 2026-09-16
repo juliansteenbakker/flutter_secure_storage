@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_platform_interface-v2.1.0...flutter_secure_storage_platform_interface-v2.1.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* don't report pending namespace recovery as data loss in checkUpgradeStatus ([f795d52](https://github.com/juliansteenbakker/flutter_secure_storage/commit/f795d52488450d6ef04ee580c895d98c59b737f3))
+
 ## [2.1.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage_platform_interface-v2.0.3...flutter_secure_storage_platform_interface-v2.1.0) (2026-09-09)
 
 
