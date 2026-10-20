@@ -196,19 +196,8 @@ public class FlutterSecureStorage {
                         // decrypted (corrupted state, or an OEM Keystore invalidating it
                         // independently of BiometricPrompt's own success signal). Recover once,
                         // then re-derive this operation's cipher fresh.
-                        NamespacedConfigSource configSource =
-                                new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
-                        handleKeyMismatch(configSource, new SecurePreferencesCallback<>() {
-                            @Override
-                            public void onSuccess(Void unused) {
-                                withStorageCipher(callback, true);
-                            }
-
-                            @Override
-                            public void onError(Exception recoveryError) {
-                                callback.onError(recoveryError);
-                            }
-                        }, e, "Biometric key decrypt failed after successful authentication");
+                        recoverAndRetryWithStorageCipher(callback, e,
+                                "Biometric key decrypt failed after successful authentication");
                     }
                 }
 
@@ -217,9 +206,36 @@ public class FlutterSecureStorage {
                     callback.onError(e);
                 }
             });
+        } catch (java.security.InvalidKeyException e) {
+            if (isRetryAfterRecovery) {
+                callback.onError(e);
+                return;
+            }
+            // The Keystore key can't be used anymore, e.g. a KeyPermanentlyInvalidatedException
+            // after the biometric enrollment changed. initialize() recovers from this, but it only
+            // runs once per instance: in per-operation mode every later call fails here until the
+            // app process restarts. Recover once, then re-derive this operation's cipher fresh.
+            recoverAndRetryWithStorageCipher(callback, e, "Invalid key before biometric authentication");
         } catch (Exception e) {
             callback.onError(e);
         }
+    }
+
+    private void recoverAndRetryWithStorageCipher(SecurePreferencesCallback<StorageCipher> callback,
+                                                  Exception exception, String errorType) {
+        NamespacedConfigSource configSource =
+                new NamespacedConfigSource(context, config.getEffectiveDataPrefsName());
+        handleKeyMismatch(configSource, new SecurePreferencesCallback<>() {
+            @Override
+            public void onSuccess(Void unused) {
+                withStorageCipher(callback, true);
+            }
+
+            @Override
+            public void onError(Exception recoveryError) {
+                callback.onError(recoveryError);
+            }
+        }, exception, errorType);
     }
 
     public void delete(String key) {
