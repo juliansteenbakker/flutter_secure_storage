@@ -301,6 +301,11 @@ final storage = FlutterSecureStorage(
 
 Version 10 automatically migrates data from older cipher algorithms when `migrateOnAlgorithmChange: true` (enabled by default). If you were using `encryptedSharedPreferences` in version 9, the data will be automatically migrated to the new cipher implementation.
 
+Version 11 removed those legacy readers. Apps whose users can upgrade directly
+from version 9 or earlier to version 11 can opt into the
+[`flutter_secure_storage_legacy_migration`](../flutter_secure_storage_legacy_migration/README.md)
+package. Call its migrator before any normal secure-storage access.
+
 To disable automatic migration:
 
 ```dart

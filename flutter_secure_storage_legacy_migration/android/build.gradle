@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.library'
+}
+
+group = 'com.it_nomads.fluttersecurestorage_legacy_migration'
+version = '1.0-SNAPSHOT'
+
+android {
+    namespace = 'com.it_nomads.fluttersecurestorage_legacy_migration'
+    compileSdk = flutter.compileSdkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+}
+
+dependencies {
+    implementation('androidx.security:security-crypto:1.1.0-alpha06')
+    testImplementation project(':flutter_secure_storage')
+    testImplementation 'com.google.crypto.tink:tink-android:1.8.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
+}

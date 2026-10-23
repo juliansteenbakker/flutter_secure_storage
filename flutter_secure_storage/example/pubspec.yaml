@@ -17,6 +17,8 @@ dependencies:
     path: ../
 
 dev_dependencies:
+  flutter_secure_storage_legacy_migration:
+    path: ../../flutter_secure_storage_legacy_migration
   flutter_test:
     sdk: flutter
   integration_test:
