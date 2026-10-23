@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter_secure_storage_web/flutter_secure_storage_web.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:web/web.dart' as web;
 
 /// Options that use sessionStorage so test data is never persisted across
 /// browser sessions and each test run starts clean.
@@ -42,6 +43,29 @@ void main() {
       await storage.write(key: 'k', value: 'first', options: _opts);
       await storage.write(key: 'k', value: 'second', options: _opts);
       expect(await storage.read(key: 'k', options: _opts), 'second');
+    });
+
+    test('concurrent writes on a fresh storage can all be read back', () async {
+      await Future.wait([
+        storage.write(key: 'a', value: '1', options: _opts),
+        storage.write(key: 'b', value: '2', options: _opts),
+        storage.write(key: 'c', value: '3', options: _opts),
+      ]);
+
+      expect(await storage.readAll(options: _opts), {
+        'a': '1',
+        'b': '2',
+        'c': '3',
+      });
+    });
+
+    test('read returns null when the value cannot be decrypted', () async {
+      await storage.write(key: 'k', value: 'v', options: _opts);
+      // Drop the stored key so the next call makes a new one that does not
+      // match the value.
+      web.window.sessionStorage.removeItem(_opts['publicKey']!);
+
+      expect(await storage.read(key: 'k', options: _opts), isNull);
     });
   });
 

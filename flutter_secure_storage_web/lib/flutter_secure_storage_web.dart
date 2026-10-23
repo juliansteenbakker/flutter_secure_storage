@@ -184,6 +184,12 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
             await _crypto.subtle.exportKey('raw', encryptionKey).toDart;
       }
 
+      // Another call may have saved a key while this one was awaiting. Use
+      // that key, or values it already encrypted can no longer be read.
+      if (storage.has(key)) {
+        return _getEncryptionKey(algorithm, options);
+      }
+
       storage.setItem(
         key,
         base64Encode(
@@ -276,7 +282,8 @@ class FlutterSecureStorageWeb extends FlutterSecureStoragePlatform {
         );
 
         return plainText;
-      } on Exception catch (e, s) {
+      } on Object catch (e, s) {
+        // A failed decrypt throws a DOMException, which is not an Exception.
         if (kDebugMode) {
           print(e);
           debugPrintStack(stackTrace: s);
