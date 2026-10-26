@@ -243,6 +243,16 @@ public class FlutterSecureStorage {
             callback.onSuccess(null);
             return;
         }
+        KeyStoreInitLock.Held<Void> held = KeyStoreInitLock.acquire(config.getEffectiveKeyStoragePrefsName(), callback);
+        try {
+            initializeHoldingLock(config, held);
+        } catch (RuntimeException | Error e) {
+            held.release();
+            throw e;
+        }
+    }
+
+    private void initializeHoldingLock(FlutterSecureStorageConfig config, SecurePreferencesCallback<Void> callback) {
         this.config = config;
 
         // A biometric-protected app key needs live authentication to move, unlike the
