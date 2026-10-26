@@ -13,6 +13,7 @@ import android.util.Base64;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 
 import com.it_nomads.fluttersecurestorage.ciphers.BiometricNamespaceKeyRecovery;
 import com.it_nomads.fluttersecurestorage.ciphers.KeyCipher;
@@ -50,6 +51,15 @@ public class FlutterSecureStorage {
         this.context = context.getApplicationContext();
     }
 
+    @VisibleForTesting
+    FlutterSecureStorage(Context context, FlutterSecureStorageConfig config,
+                         SharedPreferences preferences, StorageCipher storageCipher) {
+        this(context);
+        this.config = config;
+        this.preferences = preferences;
+        this.storageCipher = storageCipher;
+    }
+
     public String addPrefixToKey(String key) {
         return config.getSharedPreferencesKeyPrefix() + "_" + key;
     }
@@ -69,9 +79,19 @@ public class FlutterSecureStorage {
         }
     }
 
+    /**
+     * Whether values go to EncryptedSharedPreferences, which encrypts them itself.
+     * Decided by the instance in use, not by the config: when EncryptedSharedPreferences
+     * fails to initialize, {@code preferences} is the plain file even with
+     * encryptedSharedPreferences=true, and values must go through {@code storageCipher}.
+     */
+    private boolean isUsingEncryptedSharedPreferences() {
+        return preferences instanceof EncryptedSharedPreferences;
+    }
+
     private String readUnsafe(String key) throws Exception {
         String rawValue = preferences.getString(key, null);
-        if (config.isUseEncryptedSharedPreferences() && !config.shouldMigrateOnAlgorithmChange()) {
+        if (isUsingEncryptedSharedPreferences()) {
             return rawValue;
         }
         return decodeRawValue(rawValue);
@@ -97,7 +117,7 @@ public class FlutterSecureStorage {
             String keyWithPrefix = entry.getKey();
             if (keyWithPrefix.contains(config.getSharedPreferencesKeyPrefix())) {
                 String key = entry.getKey().replaceFirst(config.getSharedPreferencesKeyPrefix() + '_', "");
-                if (config.isUseEncryptedSharedPreferences() && !config.shouldMigrateOnAlgorithmChange()) {
+                if (isUsingEncryptedSharedPreferences()) {
                     all.put(key, entry.getValue());
                 } else {
                     String rawValue = entry.getValue();
@@ -125,7 +145,7 @@ public class FlutterSecureStorage {
     private void writeUnsafe(String key, String value) throws Exception {
         SharedPreferences.Editor editor = preferences.edit();
 
-        if (config.isUseEncryptedSharedPreferences() && !config.shouldMigrateOnAlgorithmChange()) {
+        if (isUsingEncryptedSharedPreferences()) {
             editor.putString(key, value);
         } else {
             byte[] result = storageCipher.encrypt(value.getBytes(charset));

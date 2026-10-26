@@ -1,6 +1,7 @@
 ## Unreleased
 
 ### Android
+- Fixed `encryptedSharedPreferences: true` with `migrateOnAlgorithmChange: false` storing values in plain text, and returning stored ciphertext as the value, when EncryptedSharedPreferences fails to initialize and the plugin falls back to its own ciphers.
 - Fixed `deleteAll()` clearing data from other stores that share a `sharedPreferencesName`/`storageNamespace`.
 - If you use different `preferencesKeyPrefix` values under one shared name/namespace, check your data after upgrading, use `storageNamespace` if you need real isolation.
 
