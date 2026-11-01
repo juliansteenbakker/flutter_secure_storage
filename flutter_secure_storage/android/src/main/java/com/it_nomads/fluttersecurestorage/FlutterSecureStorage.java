@@ -2,6 +2,7 @@ package com.it_nomads.fluttersecurestorage;
 
 import android.app.KeyguardManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
@@ -25,6 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 import javax.crypto.Cipher;
 
@@ -1267,6 +1270,22 @@ public class FlutterSecureStorage {
         CancellationSignal cancellationSignal = new CancellationSignal();
         Executor executor = Executors.newSingleThreadExecutor();
 
+        // Delivers an error at most once; the prompt can race its own callbacks.
+        AtomicBoolean resultDelivered = new AtomicBoolean(false);
+        BiConsumer<Integer, CharSequence> deliverError = (errorCode, errString) -> {
+            if (resultDelivered.compareAndSet(false, true)) {
+                String message = "Biometric authentication error [" + errorCode + "]: " + errString;
+                Log.e(TAG, message);
+                securePreferencesCallback.onError(new Exception(message));
+            }
+        };
+
+        // The platform does not call onAuthenticationError for a custom negative button.
+        DialogInterface.OnClickListener negativeButtonListener = (dialog, which) -> {
+            deliverError.accept(BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED, "Cancelled by user");
+            cancellationSignal.cancel();
+        };
+
         BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
                 .setTitle(config.getBiometricPromptTitle())
                 .setSubtitle(config.getPrefOptionBiometricPromptSubtitle());
@@ -1279,13 +1298,13 @@ public class FlutterSecureStorage {
             // DEVICE_CREDENTIAL as a fallback conflicts with a negative button; only add one
             // when using strong-biometric-only (no credential fallback).
             if (config.isStrongBiometricOnly()) {
-                promptInfoBuilder.setNegativeButton(config.getBiometricPromptNegativeButton(), executor, (dialog, which) -> {});
+                promptInfoBuilder.setNegativeButton(config.getBiometricPromptNegativeButton(), executor, negativeButtonListener);
             }
         } else {
             // Android 10 (API level 29) and lower: setAllowedAuthenticators is unavailable.
             // Device credentials are not enabled (setDeviceCredentialAllowed defaults to false),
             // so a negative button is required.
-            promptInfoBuilder.setNegativeButton(config.getBiometricPromptNegativeButton(), executor, (dialog, which) -> {});
+            promptInfoBuilder.setNegativeButton(config.getBiometricPromptNegativeButton(), executor, negativeButtonListener);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -1298,14 +1317,15 @@ public class FlutterSecureStorage {
             @Override
             public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                 super.onAuthenticationSucceeded(result);
-                securePreferencesCallback.onSuccess(result);
+                if (resultDelivered.compareAndSet(false, true)) {
+                    securePreferencesCallback.onSuccess(result);
+                }
             }
 
             @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
-                Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
-                securePreferencesCallback.onError(new Exception("Biometric authentication error [" + errorCode + "]: " + errString));
+                deliverError.accept(errorCode, errString);
             }
         };
 
