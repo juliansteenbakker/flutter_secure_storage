@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 import javax.crypto.Cipher;
 
@@ -1269,17 +1270,20 @@ public class FlutterSecureStorage {
         CancellationSignal cancellationSignal = new CancellationSignal();
         Executor executor = Executors.newSingleThreadExecutor();
 
-        // A custom negative button only invokes its own OnClickListener; the platform
-        // BiometricPrompt does not also deliver onAuthenticationError for it. So the listener
-        // must complete the callback itself. Guard with resultDelivered in case the framework
-        // still races it with a real onAuthenticationError/onAuthenticationSucceeded, so the
-        // caller's callback is never invoked twice.
+        // Delivers an error at most once; the prompt can race its own callbacks.
         AtomicBoolean resultDelivered = new AtomicBoolean(false);
-        DialogInterface.OnClickListener negativeButtonListener = (dialog, which) -> {
+        BiConsumer<Integer, CharSequence> deliverError = (errorCode, errString) -> {
             if (resultDelivered.compareAndSet(false, true)) {
-                Log.e(TAG, "Biometric authentication cancelled by user (negative button)");
-                securePreferencesCallback.onError(new Exception("Biometric authentication cancelled by user (negative button)"));
+                String message = "Biometric authentication error [" + errorCode + "]: " + errString;
+                Log.e(TAG, message);
+                securePreferencesCallback.onError(new Exception(message));
             }
+        };
+
+        // The platform does not call onAuthenticationError for a custom negative button.
+        DialogInterface.OnClickListener negativeButtonListener = (dialog, which) -> {
+            deliverError.accept(BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED, "Cancelled by user");
+            cancellationSignal.cancel();
         };
 
         BiometricPrompt.Builder promptInfoBuilder = new BiometricPrompt.Builder(context)
@@ -1321,10 +1325,7 @@ public class FlutterSecureStorage {
             @Override
             public void onAuthenticationError(int errorCode, CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
-                if (resultDelivered.compareAndSet(false, true)) {
-                    Log.e(TAG, "Biometric authentication error [" + errorCode + "]: " + errString);
-                    securePreferencesCallback.onError(new Exception("Biometric authentication error [" + errorCode + "]: " + errString));
-                }
+                deliverError.accept(errorCode, errString);
             }
         };
 
