@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.2.1](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.2.0...flutter_secure_storage-v11.2.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **android:** don't hang when strongBiometricOnly negative button is tapped ([#1279](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1279)) ([1012697](https://github.com/juliansteenbakker/flutter_secure_storage/commit/10126973316682dd1bae779d86a91a501359b11b))
+
+
+### Dependencies
+
+* bump org.robolectric:robolectric ([#1280](https://github.com/juliansteenbakker/flutter_secure_storage/issues/1280)) ([e05ac8d](https://github.com/juliansteenbakker/flutter_secure_storage/commit/e05ac8db6e22ce3d5dd9a94fbf4dd04f4260fce1))
+
 ## [11.2.0](https://github.com/juliansteenbakker/flutter_secure_storage/compare/flutter_secure_storage-v11.1.1...flutter_secure_storage-v11.2.0) (2026-09-16)
 
 
