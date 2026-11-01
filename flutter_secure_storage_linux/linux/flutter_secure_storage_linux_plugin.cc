@@ -21,11 +21,17 @@ G_DEFINE_TYPE(FlutterSecureStorageLinuxPlugin, flutter_secure_storage_linux_plug
               g_object_get_type())
 
 static SecretStorage keyring;
-void deleteIt(const gchar *key) { keyring.deleteItem(key); }
-void deleteAll() { keyring.deleteKeyring(); }
+bool deleteIt(const gchar *key) { return keyring.deleteItem(key); }
+bool deleteAll() { return keyring.deleteKeyring(); }
+// libsecret reports a rejected store by returning FALSE, which the published
+// release discarded: Dart then saw a successful write whose value was never
+// persisted. Surface it as an error instead.
 void write(const gchar *key, const gchar *value)
 {
-  keyring.addItem(key, value);
+  if (!keyring.addItem(key, value))
+  {
+    throw std::runtime_error("libsecret rejected the store request");
+  }
 }
 
 FlValue *read(const gchar *key)
@@ -122,14 +128,20 @@ static void flutter_secure_storage_linux_plugin_handle_method_call(
         }
         else
         {
-          deleteIt(keyString);
+          if (!deleteIt(keyString))
+          {
+            throw std::runtime_error("libsecret rejected the delete request");
+          }
           response =
               FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
         }
       }
       else if (strcmp(method, "deleteAll") == 0)
       {
-        deleteAll();
+        if (!deleteAll())
+        {
+          throw std::runtime_error("libsecret rejected the delete request");
+        }
         response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
       } 
       else if (strcmp(method, "containsKey") == 0) {

@@ -156,6 +156,73 @@ TEST_F(SecretStorageTest, StoredValuesAreValidUtf8) {
   EXPECT_TRUE(isValidUtf8(key));
 }
 
+// The store path reports what libsecret answered, verifies the map it wrote and
+// retries once. A test cannot force libsecret to drop a replace, so these lock
+// the two things it can observe: the reported result of every mutating call,
+// and the promise that writing or deleting one key never takes another key
+// with it — a dropped replace used to empty the single JSON item the plugin
+// keeps, and the next read-modify-write persisted that loss.
+TEST_F(SecretStorageTest, AddItemReportsSuccessAndIsImmediatelyReadable) {
+  ASSERT_TRUE(storage_->addItem("reported", "value"));
+
+  nlohmann::json data = storage_->readFromKeyring();
+  ASSERT_TRUE(data.is_object());
+  EXPECT_EQ(data["reported"], "value");
+}
+
+TEST_F(SecretStorageTest, DeleteItemReportsResultForExistingKey) {
+  ASSERT_TRUE(storage_->addItem("k", "v"));
+  EXPECT_TRUE(storage_->deleteItem("k"));
+}
+
+TEST_F(SecretStorageTest, DeleteItemReportsResultForMissingKey) {
+  EXPECT_TRUE(storage_->deleteItem("never_written"));
+}
+
+TEST_F(SecretStorageTest, DeleteKeyringReportsResult) {
+  ASSERT_TRUE(storage_->addItem("k", "v"));
+  EXPECT_TRUE(storage_->deleteKeyring());
+}
+
+TEST_F(SecretStorageTest, OverwritingOneKeyKeepsTheOthers) {
+  ASSERT_TRUE(storage_->addItem("a", "1"));
+  ASSERT_TRUE(storage_->addItem("b", "2"));
+
+  ASSERT_TRUE(storage_->addItem("a", "1-updated"));
+
+  nlohmann::json data = storage_->readFromKeyring();
+  EXPECT_EQ(data["a"], "1-updated");
+  EXPECT_EQ(data["b"], "2");
+}
+
+TEST_F(SecretStorageTest, DeletingOneKeyKeepsTheOthers) {
+  ASSERT_TRUE(storage_->addItem("a", "1"));
+  ASSERT_TRUE(storage_->addItem("b", "2"));
+  ASSERT_TRUE(storage_->addItem("c", "3"));
+
+  ASSERT_TRUE(storage_->deleteItem("b"));
+
+  nlohmann::json data = storage_->readFromKeyring();
+  EXPECT_FALSE(data.contains("b"));
+  EXPECT_EQ(data["a"], "1");
+  EXPECT_EQ(data["c"], "3");
+}
+
+TEST_F(SecretStorageTest, RepeatedWritesKeepTheMapComplete) {
+  ASSERT_TRUE(storage_->addItem("stable", "kept"));
+
+  for (int i = 0; i < 5; ++i) {
+    const std::string value = std::to_string(i);
+    ASSERT_TRUE(storage_->addItem("changing", value.c_str()));
+    EXPECT_EQ(storage_->getItem("stable"), "kept")
+        << "lost the unrelated key on iteration " << i;
+  }
+
+  nlohmann::json data = storage_->readFromKeyring();
+  EXPECT_TRUE(data.is_object());
+  EXPECT_EQ(data.size(), 2u) << "got: " << data.dump();
+}
+
 // Provides a path that exists (stand-in for /.flatpak-info) and one that does
 // not, without depending on platform-specific files.
 class ShouldSkipKeyringWarmupTest : public ::testing::Test {

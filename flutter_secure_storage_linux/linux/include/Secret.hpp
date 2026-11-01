@@ -164,10 +164,32 @@ public:
     m_attributes.insert(key, value);
   }
 
+  // The Secret Service replaces an item by removing the previous one and
+  // creating a new one. On this backend that create is occasionally dropped
+  // while still reporting success, which leaves the item empty or partial and
+  // lets the next read-modify-write persist the loss. Every store is therefore
+  // verified against the content we intended and retried once; the retry
+  // carries the whole map, so keys removed by a dropped replace are restored.
+  bool storeVerified(const nlohmann::json &root) {
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      if (!storeToKeyring(root)) {
+        return false;
+      }
+      try {
+        if (readFromKeyring() == root) {
+          return true;
+        }
+      } catch (const std::exception &) {
+        return false;
+      }
+    }
+    return false;
+  }
+
   bool addItem(const char *key, const char *value) {
     nlohmann::json root = readFromKeyring();
     root[key] = value;
-    return storeToKeyring(root);
+    return storeVerified(root);
   }
 
   std::string getItem(const char *key) {
@@ -181,13 +203,13 @@ public:
     return "";
   }
 
-  void deleteItem(const char *key) {
+  bool deleteItem(const char *key) {
     nlohmann::json root = readFromKeyring();
     if (!root.is_object() || !root.contains(key)) {
-      return;
+      return true;
     }
     root.erase(key);
-    storeToKeyring(root);
+    return storeVerified(root);
   }
 
   bool deleteKeyring() {
