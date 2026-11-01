@@ -97,28 +97,18 @@ updates:
       prefix: deps
       prefix-development: chore
 
+  # The example resolves the plugin through a path dependency. Dependabot would
+  # pin it to the released version, which breaks resolution on the next bump.
   - package-ecosystem: pub
     directory: /flutter_secure_storage/example
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    ignore:
+      - dependency-name: flutter_secure_storage
     groups:
       example-dart:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: chore
-      include: scope
-
-  - package-ecosystem: pub
-    directory: /flutter_secure_storage_windows/example
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-    groups:
-      windows-example-dart:
         patterns:
           - "*"
     commit-message:
