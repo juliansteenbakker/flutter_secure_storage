@@ -351,12 +351,24 @@ public class FlutterSecureStorage {
     }
 
     private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
+        initializeStorageCipher(configSource, callback, false);
+    }
+
+    /**
+     * @param resetAlreadyAttempted true when this attempt is itself the retry that
+     *                              follows a resetOnError cleanup (GH-1282). A
+     *                              failure here must surface to the caller instead
+     *                              of resetting again — otherwise this method and
+     *                              deleteAllDataAndKeys recurse without a bound.
+     */
+    private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
+                                         boolean resetAlreadyAttempted) {
         try {
             storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
             if (storageCipherFactory.requiresReEncryption()) {
                 Log.w(TAG, "Algorithm changed detected.");
-                handleKeyMismatch(configSource, callback, null, "Algorithm changed detected");
+                handleKeyMismatch(configSource, callback, null, "Algorithm changed detected", resetAlreadyAttempted);
                 return;
             }
 
@@ -409,7 +421,7 @@ public class FlutterSecureStorage {
                         // same way a synchronous key mismatch does, instead of leaving the store
                         // permanently broken.
                         handleKeyMismatch(configSource, callback, new Exception(e),
-                                "Biometric key decrypt failed after successful authentication");
+                                "Biometric key decrypt failed after successful authentication", resetAlreadyAttempted);
                     }
                 }
 
@@ -420,13 +432,13 @@ public class FlutterSecureStorage {
             });
         } catch (javax.crypto.BadPaddingException e) {
             // Wrong key/padding for cipher, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Bad padding, wrong key for cipher algorithm");
+            handleKeyMismatch(configSource, callback, e, "Bad padding, wrong key for cipher algorithm", resetAlreadyAttempted);
         } catch (java.security.InvalidKeyException e) {
             // Key type doesn't match cipher requirements, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Invalid key, key type incompatible with cipher");
+            handleKeyMismatch(configSource, callback, e, "Invalid key, key type incompatible with cipher", resetAlreadyAttempted);
         } catch (javax.crypto.IllegalBlockSizeException e) {
             // Wrong cipher mode or block size, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Illegal block size, wrong cipher configuration");
+            handleKeyMismatch(configSource, callback, e, "Illegal block size, wrong cipher configuration", resetAlreadyAttempted);
         } catch (java.security.NoSuchAlgorithmException e) {
             // Algorithm not available on this device, cannot recover
             Log.e(TAG, "Cryptographic algorithm not available on this device", e);
@@ -1015,6 +1027,11 @@ public class FlutterSecureStorage {
      */
     private void handleKeyMismatch(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
                                    Exception exception, String errorType) {
+        handleKeyMismatch(configSource, callback, exception, errorType, false);
+    }
+
+    private void handleKeyMismatch(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
+                                   Exception exception, String errorType, boolean resetAlreadyAttempted) {
         Log.e(TAG, "Key mismatch detected during cipher initialization: " + errorType, exception);
         Log.e(TAG, "This typically occurs after an algorithm change.");
         Log.e(TAG, "Stored key cannot be decrypted with current algorithm.");
@@ -1040,7 +1057,12 @@ public class FlutterSecureStorage {
                     Log.e(TAG, "Data migration failed: " + migrationError.getMessage(), migrationError);
 
                     // Migration failed, check if we should delete
-                    if (config.shouldDeleteOnFailure()) {
+                    if (resetAlreadyAttempted) {
+                        Log.e(TAG, "Reset already attempted; not resetting again after migration failure.");
+                        callback.onError(new Exception(
+                                "Secure storage migration failed after reset; the recreated key is not usable.",
+                                migrationError));
+                    } else if (config.shouldDeleteOnFailure()) {
                         Log.w(TAG, "resetOnError is enabled. Deleting all data as fallback...");
                         deleteAllDataAndKeys(configSource, callback);
                     } else {
@@ -1057,7 +1079,16 @@ public class FlutterSecureStorage {
             // Migration disabled, go straight to delete if enabled
             Log.w(TAG, "migrateOnAlgorithmChange is disabled. Skipping data migration.");
 
-            if (config.shouldDeleteOnFailure()) {
+            if (resetAlreadyAttempted) {
+                // The fresh key created by the previous reset failed too (e.g. the
+                // transient UserNotAuthenticatedException window on some OEMs after
+                // biometric re-enrollment). Resetting again would recurse without a
+                // bound; surface the failure to Dart instead. (GH-1282)
+                Log.e(TAG, "Reset already attempted and initialization failed again; not resetting.");
+                callback.onError(new Exception(
+                        "Secure storage initialization failed after reset. The key was recreated but is not yet usable; lock and unlock the device, then retry.",
+                        exception));
+            } else if (config.shouldDeleteOnFailure()) {
                 Log.w(TAG, "resetOnError is enabled. Deleting all data and keys to recover.");
                 deleteAllDataAndKeys(configSource, callback);
             } else {
@@ -1121,8 +1152,9 @@ public class FlutterSecureStorage {
 
             Log.w(TAG, "All data deleted. Reinitializing with new algorithm...");
 
-            // Retry initialization with clean state
-            initializeStorageCipher(configSource, callback);
+            // Retry initialization with clean state — flagged as the final attempt
+            // so a second failure surfaces instead of resetting again. (GH-1282)
+            initializeStorageCipher(configSource, callback, true);
         } catch (Exception cleanupError) {
             Log.e(TAG, "Failed to clean up after key mismatch", cleanupError);
             callback.onError(cleanupError);
