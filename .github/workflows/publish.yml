@@ -4,11 +4,12 @@ name: Publish to pub.dev
 # per package, since release-please-config.json has include-component-in-tag
 # set and each package's component name matches its directory name). This
 # extracts the package directory straight from the tag so one workflow can
-# publish any of the six packages.
+# publish any workspace package.
 on:
   push:
     tags:
       - "flutter_secure_storage-v*"
+      - "flutter_secure_storage_legacy_migration-v*"
       - "flutter_secure_storage_platform_interface-v*"
       - "flutter_secure_storage_darwin-v*"
       - "flutter_secure_storage_linux-v*"

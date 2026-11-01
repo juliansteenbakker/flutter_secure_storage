@@ -18,6 +18,9 @@
     { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
   ],
   "packages": {
+    "flutter_secure_storage_legacy_migration": {
+      "component": "flutter_secure_storage_legacy_migration"
+    },
     "flutter_secure_storage": {
       "component": "flutter_secure_storage"
     },
