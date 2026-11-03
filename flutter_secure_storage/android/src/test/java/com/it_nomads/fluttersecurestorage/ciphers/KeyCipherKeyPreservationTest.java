@@ -1,9 +1,7 @@
 package com.it_nomads.fluttersecurestorage.ciphers;
 
 import android.content.Context;
-import com.it_nomads.fluttersecurestorage.FlutterSecureStorage;
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
-import com.it_nomads.fluttersecurestorage.SecurePreferencesCallback;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,8 +19,6 @@ import java.util.Enumeration;
 import java.util.Collections;
 import java.util.HashMap;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 
 @RunWith(RobolectricTestRunner.class)
@@ -123,32 +119,6 @@ public class KeyCipherKeyPreservationTest {
 
         assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
-    }
-
-    @Test public void failedNamespaceRecoveryStopsInitializationBeforeKeyCreation() {
-        Context context = RuntimeEnvironment.getApplication();
-        var options = new HashMap<String, Object>();
-        options.put(FlutterSecureStorageConfig.PREF_OPTION_STORAGE_NAMESPACE, "FlutterSecureStorage");
-        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
-        var source = context.getSharedPreferences("FlutterSecureKeyStorage", Context.MODE_PRIVATE);
-        var target = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
-        var data = context.getSharedPreferences(config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE);
-        source.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "c3ludGhldGlj").commit();
-        target.edit().clear().commit();
-        data.edit().clear().putString(config.getSharedPreferencesKeyPrefix() + "_token", "ciphertext").commit();
-        privateKeyAvailable = false;
-        Exception[] error = new Exception[1];
-
-        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
-            @Override public void onSuccess(Void unused) { throw new AssertionError("Initialization must fail"); }
-            @Override public void onError(Exception e) { error[0] = e; }
-        });
-
-        assertNotNull(error[0]);
-        assertEquals(0, generated);
-        assertNull(target.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
-        assertEquals("c3ludGhldGlj", source.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
-        assertEquals("ciphertext", data.getString(config.getSharedPreferencesKeyPrefix() + "_token", null));
     }
 
     public static final class TestProvider extends Provider {

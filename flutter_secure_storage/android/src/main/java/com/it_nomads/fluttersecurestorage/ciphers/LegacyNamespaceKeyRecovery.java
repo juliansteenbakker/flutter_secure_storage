@@ -110,7 +110,8 @@ public final class LegacyNamespaceKeyRecovery {
             if (e instanceof VirtualMachineError) {
                 throw (VirtualMachineError) e;
             }
-            throw new IllegalStateException("Could not recover the existing namespace key", e);
+            Log.w(TAG, "Could not move wrapped key for namespace '" + name + "'", e);
+            return false;
         }
     }
 

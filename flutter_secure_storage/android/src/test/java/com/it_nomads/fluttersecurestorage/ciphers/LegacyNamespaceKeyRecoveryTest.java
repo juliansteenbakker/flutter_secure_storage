@@ -26,7 +26,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -227,8 +226,7 @@ public class LegacyNamespaceKeyRecoveryTest {
             throw new IllegalStateException("no key");
         };
 
-        assertThrows(IllegalStateException.class,
-                () -> LegacyNamespaceKeyRecovery.recoverIfNeeded(context, plainConfig(), failing));
+        assertFalse(LegacyNamespaceKeyRecovery.recoverIfNeeded(context, plainConfig(), failing));
         assertNull(plainKeyPrefs.getString(WRAPPED, null));
     }
 
@@ -245,7 +243,7 @@ public class LegacyNamespaceKeyRecoveryTest {
         // Real data is encrypted with a DIFFERENT key than the one stored above.
         storeEncryptedData(Base64.decode(SAMPLE_KEY_BASE64, Base64.DEFAULT));
 
-        assertThrows(IllegalStateException.class, () -> run(plainConfig()));
+        assertFalse(run(plainConfig()));
         assertNull(plainKeyPrefs.getString(WRAPPED, null));
     }
 }
