@@ -39,15 +39,23 @@ class KeyCipherImplementationRSAOAEP implements KeyCipher {
     public KeyCipherImplementationRSAOAEP(Context context, FlutterSecureStorageConfig config) throws Exception {
         this.context = context;
         this.config = config;
-        keyAlias = context.getPackageName() + ".FlutterSecureStoragePluginKeyOAEP" + config.getKeyAliasSuffix();
+        keyAlias = keyAlias(context, config);
         createRSAKeysIfNeeded(context);
     }
 
     @Override
     public void deleteKey() throws Exception {
+        deleteKey(context, config);
+    }
+
+    static void deleteKey(Context context, FlutterSecureStorageConfig config) throws Exception {
         KeyStore ks = KeyStore.getInstance(KEYSTORE_PROVIDER_ANDROID);
         ks.load(null);
-        ks.deleteEntry(keyAlias);
+        ks.deleteEntry(keyAlias(context, config));
+    }
+
+    private static String keyAlias(Context context, FlutterSecureStorageConfig config) {
+        return context.getPackageName() + ".FlutterSecureStoragePluginKeyOAEP" + config.getKeyAliasSuffix();
     }
 
     @Override
@@ -91,7 +99,7 @@ class KeyCipherImplementationRSAOAEP implements KeyCipher {
 
         Certificate cert = ks.getCertificate(keyAlias);
         if (cert == null) {
-            throw new Exception("No certificate found under alias: " + keyAlias);
+            throw new InvalidKeyException("No certificate found under alias: " + keyAlias);
         }
         PublicKey key = cert.getPublicKey();
         if (key == null) {

@@ -31,26 +31,45 @@ import static org.junit.Assert.assertThrows;
 @Config(sdk = 34)
 public class KeyCipherKeyPreservationTest {
     private Provider original;
+    private int originalPosition;
     private static int generated;
     private static boolean privateKeyAvailable;
     private static boolean wrongKeyType;
     private static boolean certificateAvailable;
     private static boolean allowGeneration;
+    private static boolean detectRepeatedCertificateLookup;
+    private static int certificateLookups;
+    private static int deleted;
+    private static boolean failDeletion;
+    private static boolean certificateOnGeneration;
+    private static boolean detectRepeatedReset;
 
     @Before public void installProvider() {
         original = Security.getProvider("AndroidKeyStore");
-        if (original != null) Security.removeProvider("AndroidKeyStore");
+        if (original != null) {
+            Provider[] providers = Security.getProviders();
+            for (int i = 0; i < providers.length; i++) {
+                if (providers[i] == original) originalPosition = i + 1;
+            }
+            Security.removeProvider("AndroidKeyStore");
+        }
         Security.addProvider(new TestProvider());
         generated = 0;
         privateKeyAvailable = true;
         wrongKeyType = false;
         certificateAvailable = false;
         allowGeneration = false;
+        detectRepeatedCertificateLookup = false;
+        certificateLookups = 0;
+        deleted = 0;
+        failDeletion = false;
+        certificateOnGeneration = false;
+        detectRepeatedReset = false;
     }
 
     @After public void restoreProvider() {
         Security.removeProvider("AndroidKeyStore");
-        if (original != null) Security.addProvider(original);
+        if (original != null) Security.insertProviderAt(original, originalPosition);
     }
 
     @Test public void missingCertificateDoesNotReplaceExistingPrivateKey() throws Exception {
@@ -219,6 +238,137 @@ public class KeyCipherKeyPreservationTest {
         assertNotNull(error[0]);
     }
 
+    @Test public void resetRemovesCertificateWhenPrivateKeyIsUnavailable() {
+        assertResetRemovesCertificate(true);
+    }
+
+    @Test public void resetRemovesCertificateWithoutWrappedKey() {
+        assertResetRemovesCertificate(false);
+    }
+
+    private void assertResetRemovesCertificate(boolean hasWrappedKey) {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "true");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, "false");
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        var keyPrefs = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        keyPrefs.edit().clear().commit();
+        if (hasWrappedKey) {
+            keyPrefs.edit().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        }
+        privateKeyAvailable = false;
+        certificateAvailable = true;
+        detectRepeatedCertificateLookup = true;
+        allowGeneration = true;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) {}
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertTrue(deleted > 0);
+        assertTrue(generated > 0);
+        assertNotNull(error[0]); // Synthetic generator does not produce a usable certificate.
+    }
+
+    @Test public void resetPreservesDataWhenKeystoreDeletionFails() {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "true");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, "false");
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        var keyPrefs = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        var dataPrefs = context.getSharedPreferences(config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE);
+        String dataKey = config.getSharedPreferencesKeyPrefix() + "_synthetic";
+        keyPrefs.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        dataPrefs.edit().clear().putString(dataKey, "ciphertext").commit();
+        privateKeyAvailable = false;
+        certificateAvailable = true;
+        failDeletion = true;
+        detectRepeatedCertificateLookup = true;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) { throw new AssertionError("Expected failure"); }
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertNotNull(error[0]);
+        assertEquals(0, generated);
+        assertEquals("wrapped", keyPrefs.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
+        assertEquals("ciphertext", dataPrefs.getString(dataKey, null));
+    }
+
+    @Test public void resetCanRecoverWhenCertificateAndWrappedKeyAreMissing() {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "true");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, "false");
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE)
+                .edit().clear().commit();
+        privateKeyAvailable = true;
+        certificateAvailable = false;
+        allowGeneration = true;
+        certificateOnGeneration = true;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) {}
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertTrue(deleted > 0);
+        assertTrue(generated > 0);
+        assertNotNull(error[0]); // Synthetic certificate has no public key.
+    }
+
+    @Test public void missingCertificateDoesNotDeletePrivateKeyWhenResetDisabled() {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "false");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, "false");
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE)
+                .edit().clear().commit();
+        privateKeyAvailable = true;
+        certificateAvailable = false;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) { throw new AssertionError("Expected failure"); }
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertNotNull(error[0]);
+        assertEquals(0, deleted);
+        assertEquals(0, generated);
+    }
+
+    @Test public void failedResetDoesNotRetryIndefinitely() {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "true");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, "false");
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE)
+                .edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        privateKeyAvailable = false;
+        allowGeneration = true;
+        detectRepeatedReset = true;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) { throw new AssertionError("Expected failure"); }
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertEquals(1, deleted);
+        assertNotNull(error[0]);
+    }
+
     public static final class TestProvider extends Provider {
         public TestProvider() {
             super("AndroidKeyStore", 1.0, "Synthetic keystore for regression tests");
@@ -232,7 +382,13 @@ public class KeyCipherKeyPreservationTest {
         @Override public void initialize(AlgorithmParameterSpec spec, SecureRandom random) {}
         @Override public KeyPair generateKeyPair() {
             generated++;
-            if (allowGeneration) return new KeyPair(null, null);
+            if (allowGeneration) {
+                if (certificateOnGeneration) {
+                    privateKeyAvailable = true;
+                    certificateAvailable = true;
+                }
+                return new KeyPair(null, null);
+            }
             throw new AssertionError("Existing key must not be replaced");
         }
     }
@@ -248,6 +404,9 @@ public class KeyCipherKeyPreservationTest {
             };
         }
         @Override public Certificate engineGetCertificate(String alias) {
+            if (detectRepeatedCertificateLookup && ++certificateLookups > 2 && certificateAvailable) {
+                throw new AssertionError("Reset retried without removing the existing alias");
+            }
             if (!certificateAvailable) return null;
             return new Certificate("synthetic") {
                 @Override public byte[] getEncoded() { return new byte[0]; }
@@ -262,7 +421,13 @@ public class KeyCipherKeyPreservationTest {
         @Override public void engineSetKeyEntry(String a, Key k, char[] p, Certificate[] c) {}
         @Override public void engineSetKeyEntry(String a, byte[] k, Certificate[] c) {}
         @Override public void engineSetCertificateEntry(String a, Certificate c) {}
-        @Override public void engineDeleteEntry(String alias) {}
+        @Override public void engineDeleteEntry(String alias) throws KeyStoreException {
+            if (failDeletion) throw new KeyStoreException("Synthetic keystore deletion failure");
+            if (detectRepeatedReset && deleted > 0) throw new AssertionError("Reset was repeated");
+            deleted++;
+            certificateAvailable = false;
+            privateKeyAvailable = false;
+        }
         @Override public Enumeration<String> engineAliases() { return Collections.emptyEnumeration(); }
         @Override public boolean engineContainsAlias(String alias) { return false; }
         @Override public int engineSize() { return 0; }

@@ -354,12 +354,17 @@ public class FlutterSecureStorage {
     }
 
     private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback) {
+        initializeStorageCipher(configSource, callback, false);
+    }
+
+    private void initializeStorageCipher(NamespacedConfigSource configSource, SecurePreferencesCallback<Void> callback,
+                                         boolean afterReset) {
         try {
             storageCipherFactory = new StorageCipherFactory(configSource, config.getPrefOptionKeyCipherAlgorithm(), config.getPrefOptionStorageCipherAlgorithm(), config);
 
             if (storageCipherFactory.requiresReEncryption()) {
                 Log.w(TAG, "Algorithm changed detected.");
-                handleKeyMismatch(configSource, callback, null, "Algorithm changed detected");
+                handleInitializationKeyMismatch(configSource, callback, null, "Algorithm changed detected", afterReset);
                 return;
             }
 
@@ -411,8 +416,8 @@ public class FlutterSecureStorage {
                         // independently of BiometricPrompt's own success signal). Recover the
                         // same way a synchronous key mismatch does, instead of leaving the store
                         // permanently broken.
-                        handleKeyMismatch(configSource, callback, new Exception(e),
-                                "Biometric key decrypt failed after successful authentication");
+                        handleInitializationKeyMismatch(configSource, callback, new Exception(e),
+                                "Biometric key decrypt failed after successful authentication", afterReset);
                     }
                 }
 
@@ -423,13 +428,13 @@ public class FlutterSecureStorage {
             });
         } catch (javax.crypto.BadPaddingException e) {
             // Wrong key/padding for cipher, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Bad padding, wrong key for cipher algorithm");
+            handleInitializationKeyMismatch(configSource, callback, e, "Bad padding, wrong key for cipher algorithm", afterReset);
         } catch (java.security.InvalidKeyException e) {
             // Key type doesn't match cipher requirements, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Invalid key, key type incompatible with cipher");
+            handleInitializationKeyMismatch(configSource, callback, e, "Invalid key, key type incompatible with cipher", afterReset);
         } catch (javax.crypto.IllegalBlockSizeException e) {
             // Wrong cipher mode or block size, typically after algorithm change
-            handleKeyMismatch(configSource, callback, e, "Illegal block size, wrong cipher configuration");
+            handleInitializationKeyMismatch(configSource, callback, e, "Illegal block size, wrong cipher configuration", afterReset);
         } catch (java.security.NoSuchAlgorithmException e) {
             // Algorithm not available on this device, cannot recover
             Log.e(TAG, "Cryptographic algorithm not available on this device", e);
@@ -438,6 +443,16 @@ public class FlutterSecureStorage {
             Log.e(TAG, "Failed to initialize storage cipher", e);
             callback.onError(e);
         }
+    }
+
+    private void handleInitializationKeyMismatch(NamespacedConfigSource configSource,
+                                                  SecurePreferencesCallback<Void> callback,
+                                                  Exception error, String errorType, boolean afterReset) {
+        if (afterReset) {
+            callback.onError(error != null ? error : new Exception(errorType));
+            return;
+        }
+        handleKeyMismatch(configSource, callback, error, errorType);
     }
 
     /**
@@ -1085,11 +1100,12 @@ public class FlutterSecureStorage {
         try {
             // Delete keys from AndroidKeyStore
             try {
-                KeyCipher cipher = storageCipherFactory.getCurrentKeyCipher(context);
-                cipher.deleteKey();
+                storageCipherFactory.deleteCurrentKey(context);
                 Log.i(TAG, "Deleted key from AndroidKeyStore");
             } catch (Exception keyDeleteError) {
-                Log.w(TAG, "Failed to delete key from AndroidKeyStore (may not exist)", keyDeleteError);
+                Log.e(TAG, "Failed to delete key from AndroidKeyStore", keyDeleteError);
+                callback.onError(keyDeleteError);
+                return;
             }
 
             // Delete all encrypted data for this key prefix
@@ -1125,7 +1141,7 @@ public class FlutterSecureStorage {
             Log.w(TAG, "All data deleted. Reinitializing with new algorithm...");
 
             // Retry initialization with clean state
-            initializeStorageCipher(configSource, callback);
+            initializeStorageCipher(configSource, callback, true);
         } catch (Exception cleanupError) {
             Log.e(TAG, "Failed to clean up after key mismatch", cleanupError);
             callback.onError(cleanupError);

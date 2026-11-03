@@ -109,6 +109,14 @@ public class StorageCipherFactory {
         return currentKeyAlgorithm.keyCipher.apply(context, config);
     }
 
+    public void deleteCurrentKey(Context context) throws Exception {
+        if (currentKeyAlgorithm == KeyCipherAlgorithm.RSA_ECB_OAEPwithSHA_256andMGF1Padding) {
+            KeyCipherImplementationRSAOAEP.deleteKey(context, config);
+        } else {
+            getCurrentKeyCipher(context).deleteKey();
+        }
+    }
+
     public KeyCipher getSavedKeyCipher(Context context) throws Exception {
         return savedKeyAlgorithm.keyCipher.apply(context, config);
     }
