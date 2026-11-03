@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import javax.crypto.spec.SecretKeySpec;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -166,7 +167,7 @@ public class KeyCipherKeyPreservationTest {
         Context context = RuntimeEnvironment.getApplication();
         FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(new HashMap<>());
         wrongKeyType = true;
-        assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
     }
 
@@ -198,6 +199,7 @@ public class KeyCipherKeyPreservationTest {
         });
 
         assertNotNull(error[0]);
+        assertFalse(error[0].getMessage().contains("call deleteAll()"));
         assertEquals(0, generated);
         assertEquals("wrapped", keyPrefs.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
         assertEquals("ciphertext", dataPrefs.getString(dataKey, null));
@@ -359,13 +361,15 @@ public class KeyCipherKeyPreservationTest {
         allowGeneration = true;
         detectRepeatedReset = true;
         Exception[] error = new Exception[1];
+        int[] callbackCount = new int[1];
 
         new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
-            @Override public void onSuccess(Void unused) { throw new AssertionError("Expected failure"); }
-            @Override public void onError(Exception e) { error[0] = e; }
+            @Override public void onSuccess(Void unused) { callbackCount[0]++; throw new AssertionError("Expected failure"); }
+            @Override public void onError(Exception e) { callbackCount[0]++; error[0] = e; }
         });
 
         assertEquals(1, deleted);
+        assertEquals(1, callbackCount[0]);
         assertNotNull(error[0]);
     }
 

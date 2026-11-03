@@ -123,7 +123,7 @@ class KeyCipherImplementationRSAOAEP implements KeyCipher {
         Key privateKey = ks.getKey(keyAlias, null);
         if (privateKey != null) {
             if (!(privateKey instanceof PrivateKey)) {
-                throw new Exception("Existing keystore key is not an RSA private key");
+                throw new InvalidKeyException("Existing keystore key is not an RSA private key");
             }
             return;
         }

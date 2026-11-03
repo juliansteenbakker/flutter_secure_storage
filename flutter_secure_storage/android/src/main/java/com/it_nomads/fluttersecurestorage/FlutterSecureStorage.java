@@ -1064,7 +1064,7 @@ public class FlutterSecureStorage {
                     } else {
                         Log.e(TAG, "Set resetOnError=true to automatically delete data after migration failure.");
                         String userMessage = String.format(
-                            "Migration failed after algorithm change (%s). Enable resetOnError=true or call deleteAll().",
+                            "Migration failed after algorithm change (%s). Retry when the key is available, or enable resetOnError=true to delete existing data.",
                             errorType
                         );
                         callback.onError(new Exception(userMessage, migrationError));
