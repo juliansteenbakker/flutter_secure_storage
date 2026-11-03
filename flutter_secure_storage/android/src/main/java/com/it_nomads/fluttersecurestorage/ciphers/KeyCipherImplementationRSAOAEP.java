@@ -11,6 +11,7 @@ import androidx.annotation.RequiresApi;
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
 
 import java.math.BigInteger;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -124,7 +125,7 @@ class KeyCipherImplementationRSAOAEP implements KeyCipher {
         boolean hasWrappedKey = preferences.contains(StorageCipherImplementationGCM.WRAPPED_KEY_PREF)
                 || preferences.contains(StorageCipherImplementationGCM.WRAPPED_KEY_PREF + "_BACKUP");
         if (cert != null || hasWrappedKey) {
-            throw new Exception("Existing secure storage key cannot be safely recovered");
+            throw new InvalidKeyException("Existing secure storage key cannot be safely recovered");
         }
         createKeys(context);
     }

@@ -1,7 +1,9 @@
 package com.it_nomads.fluttersecurestorage.ciphers;
 
 import android.content.Context;
+import com.it_nomads.fluttersecurestorage.FlutterSecureStorage;
 import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
+import com.it_nomads.fluttersecurestorage.SecurePreferencesCallback;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +20,11 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.Collections;
 import java.util.HashMap;
+import javax.crypto.spec.SecretKeySpec;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertThrows;
 
 @RunWith(RobolectricTestRunner.class)
@@ -27,6 +33,7 @@ public class KeyCipherKeyPreservationTest {
     private Provider original;
     private static int generated;
     private static boolean privateKeyAvailable;
+    private static boolean wrongKeyType;
     private static boolean certificateAvailable;
     private static boolean allowGeneration;
 
@@ -36,6 +43,7 @@ public class KeyCipherKeyPreservationTest {
         Security.addProvider(new TestProvider());
         generated = 0;
         privateKeyAvailable = true;
+        wrongKeyType = false;
         certificateAvailable = false;
         allowGeneration = false;
     }
@@ -60,7 +68,7 @@ public class KeyCipherKeyPreservationTest {
                 "synthetic-wrapped-key").commit();
         privateKeyAvailable = false;
 
-        assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
         assertEquals("synthetic-wrapped-key", preferences.getString(
                 StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
@@ -87,7 +95,7 @@ public class KeyCipherKeyPreservationTest {
         preferences.edit().clear().putString(backupKey, "synthetic-backup").commit();
         privateKeyAvailable = false;
 
-        assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
         assertEquals("synthetic-backup", preferences.getString(backupKey, null));
     }
@@ -103,7 +111,7 @@ public class KeyCipherKeyPreservationTest {
                 "synthetic-namespaced-key").commit();
         privateKeyAvailable = false;
 
-        assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
         assertEquals("synthetic-namespaced-key", preferences.getString(
                 StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
@@ -117,8 +125,98 @@ public class KeyCipherKeyPreservationTest {
         privateKeyAvailable = false;
         certificateAvailable = true;
 
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertEquals(0, generated);
+    }
+
+    @Test public void retryUsesRestoredPrivateKeyWithoutReplacingIt() throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(new HashMap<>());
+        var preferences = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        preferences.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        privateKeyAvailable = false;
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+
+        privateKeyAvailable = true;
+        new KeyCipherImplementationRSAOAEP(context, config);
+        assertEquals(0, generated);
+        assertEquals("wrapped", preferences.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
+    }
+
+    @Test public void wrongKeyTypeIsNotReplaced() {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(new HashMap<>());
+        wrongKeyType = true;
         assertThrows(Exception.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
         assertEquals(0, generated);
+    }
+
+    @Test public void initializationWithResetDisabledPreservesExistingData() {
+        assertResetDisabledPreservesData(false);
+    }
+
+    @Test public void initializationWithMigrationAndResetDisabledPreservesExistingData() {
+        assertResetDisabledPreservesData(true);
+    }
+
+    private void assertResetDisabledPreservesData(boolean migrate) {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "false");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, Boolean.toString(migrate));
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        var keyPrefs = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        var dataPrefs = context.getSharedPreferences(config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE);
+        String dataKey = config.getSharedPreferencesKeyPrefix() + "_synthetic";
+        keyPrefs.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        dataPrefs.edit().clear().putString(dataKey, "ciphertext").commit();
+        privateKeyAvailable = false;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) { throw new AssertionError("Expected failure"); }
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertNotNull(error[0]);
+        assertEquals(0, generated);
+        assertEquals("wrapped", keyPrefs.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
+        assertEquals("ciphertext", dataPrefs.getString(dataKey, null));
+    }
+
+    @Test public void initializationWithResetEnabledCanClearUnrecoverableData() {
+        assertResetEnabledClearsData(false);
+    }
+
+    @Test public void initializationWithMigrationAndResetEnabledCanClearUnrecoverableData() {
+        assertResetEnabledClearsData(true);
+    }
+
+    private void assertResetEnabledClearsData(boolean migrate) {
+        Context context = RuntimeEnvironment.getApplication();
+        var options = new HashMap<String, Object>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "true");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_MIGRATE_ON_ALGORITHM_CHANGE, Boolean.toString(migrate));
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(options);
+        var keyPrefs = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        var dataPrefs = context.getSharedPreferences(config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE);
+        String dataKey = config.getSharedPreferencesKeyPrefix() + "_synthetic";
+        keyPrefs.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "wrapped").commit();
+        dataPrefs.edit().clear().putString(dataKey, "ciphertext").commit();
+        privateKeyAvailable = false;
+        allowGeneration = true;
+        Exception[] error = new Exception[1];
+
+        new FlutterSecureStorage(context).initialize(config, new SecurePreferencesCallback<Void>() {
+            @Override public void onSuccess(Void unused) {}
+            @Override public void onError(Exception e) { error[0] = e; }
+        });
+
+        assertNull(dataPrefs.getString(dataKey, null));
+        assertNull(keyPrefs.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
+        assertTrue(generated > 0);
+        // The synthetic generator does not create a usable certificate for the retry.
+        assertNotNull(error[0]);
     }
 
     public static final class TestProvider extends Provider {
@@ -142,6 +240,7 @@ public class KeyCipherKeyPreservationTest {
     public static final class TestKeyStore extends KeyStoreSpi {
         @Override public Key engineGetKey(String alias, char[] password) {
             if (!privateKeyAvailable) return null;
+            if (wrongKeyType) return new SecretKeySpec(new byte[16], "AES");
             return new PrivateKey() {
                 public String getAlgorithm() { return "RSA"; }
                 public String getFormat() { return null; }
