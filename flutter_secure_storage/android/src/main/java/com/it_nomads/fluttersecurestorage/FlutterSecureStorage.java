@@ -273,7 +273,12 @@ public class FlutterSecureStorage {
 
         // Move the wrapped key if the app switched between sharedPreferencesName
         // and storageNamespace.
-        LegacyNamespaceKeyRecovery.recoverIfNeeded(context, config);
+        try {
+            LegacyNamespaceKeyRecovery.recoverIfNeeded(context, config);
+        } catch (Exception e) {
+            callback.onError(e);
+            return;
+        }
 
         initializeStorageCipher(configSource, new SecurePreferencesCallback<>() {
             @Override

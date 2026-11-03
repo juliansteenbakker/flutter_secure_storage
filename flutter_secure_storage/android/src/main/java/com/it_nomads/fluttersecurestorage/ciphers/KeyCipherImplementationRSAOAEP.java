@@ -112,10 +112,21 @@ class KeyCipherImplementationRSAOAEP implements KeyCipher {
         ks.load(null);
 
         Key privateKey = ks.getKey(keyAlias, null);
-        Certificate cert = ks.getCertificate(keyAlias);
-        if (privateKey == null || cert == null) {
-            createKeys(context);
+        if (privateKey != null) {
+            if (!(privateKey instanceof PrivateKey)) {
+                throw new Exception("Existing keystore key is not an RSA private key");
+            }
+            return;
         }
+        Certificate cert = ks.getCertificate(keyAlias);
+        var preferences = context.getSharedPreferences(
+                config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        boolean hasWrappedKey = preferences.contains(StorageCipherImplementationGCM.WRAPPED_KEY_PREF)
+                || preferences.contains(StorageCipherImplementationGCM.WRAPPED_KEY_PREF + "_BACKUP");
+        if (cert != null || hasWrappedKey) {
+            throw new Exception("Existing secure storage key cannot be safely recovered");
+        }
+        createKeys(context);
     }
 
     private void setLocale(Locale locale) {
