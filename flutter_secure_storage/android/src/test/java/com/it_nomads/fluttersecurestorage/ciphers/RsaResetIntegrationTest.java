@@ -14,6 +14,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
@@ -53,6 +54,7 @@ public class RsaResetIntegrationTest {
     private static final List<String> EVENTS = new ArrayList<>();
     private static String hiddenPrivateKeyAlias;
     private static String hiddenCertificateAlias;
+    private static boolean failKeyStoreLoad;
     private Provider originalStore;
     private Provider originalCipher;
     private int originalStorePosition;
@@ -77,6 +79,7 @@ public class RsaResetIntegrationTest {
         EVENTS.clear();
         hiddenPrivateKeyAlias = null;
         hiddenCertificateAlias = null;
+        failKeyStoreLoad = false;
     }
 
     @After public void restoreProviders() {
@@ -99,6 +102,118 @@ public class RsaResetIntegrationTest {
     @Test public void retriesExistingDataWithMigration() throws Exception { verifyRetry(true); }
     @Test public void readsExistingDataWithoutCertificateOrMigration() { verifyReadWithoutCertificate(false); }
     @Test public void readsExistingDataWithoutCertificateWithMigration() { verifyReadWithoutCertificate(true); }
+
+    @Test public void emptyStorageRemainsEmptyAfterReopening() {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = isolatedConfig("empty-fixture");
+        clearFixture(context, config);
+        FlutterSecureStorage storage = new FlutterSecureStorage(context);
+        RecordingCallback<Void> initialized = new RecordingCallback<>();
+        storage.initialize(config, initialized);
+        initialized.assertSuccess();
+        FlutterSecureStorage reopened = new FlutterSecureStorage(context);
+        RecordingCallback<Void> reopenedInit = new RecordingCallback<>();
+        reopened.initialize(config, reopenedInit);
+        reopenedInit.assertSuccess();
+        RecordingCallback<Map<String, String>> all = new RecordingCallback<>();
+        reopened.readAll(all);
+        all.assertSuccess();
+        assertEquals(Collections.emptyMap(), all.value);
+        assertEquals(1, EVENTS.size());
+    }
+
+    @Test public void multipleValuesAndOtherNamespaceSurviveMissingCertificate() {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = isolatedConfig("many-fixture");
+        FlutterSecureStorageConfig otherConfig = isolatedConfig("many-other-fixture");
+        clearFixture(context, config);
+        clearFixture(context, otherConfig);
+        FlutterSecureStorage storage = new FlutterSecureStorage(context);
+        FlutterSecureStorage other = new FlutterSecureStorage(context);
+        RecordingCallback<Void> first = new RecordingCallback<>();
+        RecordingCallback<Void> second = new RecordingCallback<>();
+        storage.initialize(config, first);
+        other.initialize(otherConfig, second);
+        first.assertSuccess();
+        second.assertSuccess();
+        Map<String, String> expected = new HashMap<>();
+        expected.put("empty", "");
+        expected.put("unicode", "тест 🔐");
+        expected.put("long", "0123456789".repeat(100));
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            RecordingCallback<Void> written = new RecordingCallback<>();
+            storage.write(storage.addPrefixToKey(entry.getKey()), entry.getValue(), written);
+            written.assertSuccess();
+        }
+        RecordingCallback<Void> otherWritten = new RecordingCallback<>();
+        other.write(other.addPrefixToKey("item"), "other-value", otherWritten);
+        otherWritten.assertSuccess();
+        List<String> before = new ArrayList<>(EVENTS);
+        assertEquals(2, before.size());
+        hiddenCertificateAlias = context.getPackageName() + ".FlutterSecureStoragePluginKeyOAEP" + config.getKeyAliasSuffix();
+
+        FlutterSecureStorage reopened = new FlutterSecureStorage(context);
+        RecordingCallback<Void> reopenedInit = new RecordingCallback<>();
+        reopened.initialize(config, reopenedInit);
+        reopenedInit.assertSuccess();
+        RecordingCallback<Map<String, String>> all = new RecordingCallback<>();
+        reopened.readAll(all);
+        all.assertSuccess();
+        assertEquals(expected, all.value);
+        FlutterSecureStorage otherReopened = new FlutterSecureStorage(context);
+        RecordingCallback<Void> otherInit = new RecordingCallback<>();
+        otherReopened.initialize(otherConfig, otherInit);
+        otherInit.assertSuccess();
+        RecordingCallback<String> otherRead = new RecordingCallback<>();
+        otherReopened.read(otherReopened.addPrefixToKey("item"), otherRead);
+        otherRead.assertSuccess();
+        assertEquals("other-value", otherRead.value);
+        assertEquals(before, EVENTS);
+    }
+
+    @Test public void keystoreLoadFailurePreservesDataAndAllowsRetry() {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = isolatedConfig("load-error-fixture");
+        clearFixture(context, config);
+        FlutterSecureStorage storage = new FlutterSecureStorage(context);
+        RecordingCallback<Void> initialized = new RecordingCallback<>();
+        storage.initialize(config, initialized);
+        initialized.assertSuccess();
+        String key = storage.addPrefixToKey("item");
+        RecordingCallback<Void> written = new RecordingCallback<>();
+        storage.write(key, "value", written);
+        written.assertSuccess();
+        List<String> before = new ArrayList<>(EVENTS);
+
+        failKeyStoreLoad = true;
+        RecordingCallback<Void> failed = new RecordingCallback<>();
+        new FlutterSecureStorage(context).initialize(config, failed);
+        assertEquals(1, failed.calls);
+        assertNotNull(failed.error);
+        assertEquals(before, EVENTS);
+        failKeyStoreLoad = false;
+        FlutterSecureStorage retry = new FlutterSecureStorage(context);
+        RecordingCallback<Void> retryInit = new RecordingCallback<>();
+        retry.initialize(config, retryInit);
+        retryInit.assertSuccess();
+        RecordingCallback<String> read = new RecordingCallback<>();
+        retry.read(key, read);
+        read.assertSuccess();
+        assertEquals("value", read.value);
+        assertEquals(before, EVENTS);
+    }
+
+    private FlutterSecureStorageConfig isolatedConfig(String namespace) {
+        Map<String, Object> options = new HashMap<>();
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_DELETE_ON_FAILURE, "false");
+        options.put(FlutterSecureStorageConfig.PREF_OPTION_STORAGE_NAMESPACE, namespace);
+        return new FlutterSecureStorageConfig(options);
+    }
+
+    private void clearFixture(Context context, FlutterSecureStorageConfig config) {
+        context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences(config.getEffectiveDataPrefsName(), Context.MODE_PRIVATE).edit().clear().commit();
+    }
 
     private void verifyReset(boolean migrate, boolean namespaced) throws Exception {
         Context context = RuntimeEnvironment.getApplication();
@@ -316,7 +431,9 @@ public class RsaResetIntegrationTest {
         @Override public boolean engineIsCertificateEntry(String alias) { return false; }
         @Override public String engineGetCertificateAlias(Certificate cert) { return null; }
         @Override public void engineStore(OutputStream stream, char[] password) {}
-        @Override public void engineLoad(InputStream stream, char[] password) {}
+        @Override public void engineLoad(InputStream stream, char[] password) throws IOException {
+            if (failKeyStoreLoad) throw new IOException("Synthetic keystore load failure");
+        }
     }
 
     public static final class FakeRsaCipher extends CipherSpi {

@@ -94,6 +94,18 @@ public class KeyCipherKeyPreservationTest {
                 StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
     }
 
+    @Test public void emptyWrappedKeyStillPreventsReplacement() {
+        Context context = RuntimeEnvironment.getApplication();
+        FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(new HashMap<>());
+        var preferences = context.getSharedPreferences(config.getEffectiveKeyStoragePrefsName(), Context.MODE_PRIVATE);
+        preferences.edit().clear().putString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, "").commit();
+        privateKeyAvailable = false;
+
+        assertThrows(InvalidKeyException.class, () -> new KeyCipherImplementationRSAOAEP(context, config));
+        assertEquals(0, generated);
+        assertEquals("", preferences.getString(StorageCipherImplementationGCM.WRAPPED_KEY_PREF, null));
+    }
+
     @Test public void freshStorageCreatesAKeyPair() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         FlutterSecureStorageConfig config = new FlutterSecureStorageConfig(new HashMap<>());
