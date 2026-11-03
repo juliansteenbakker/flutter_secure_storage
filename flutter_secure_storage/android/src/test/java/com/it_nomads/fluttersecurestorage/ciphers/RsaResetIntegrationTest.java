@@ -7,6 +7,7 @@ import com.it_nomads.fluttersecurestorage.FlutterSecureStorageConfig;
 import com.it_nomads.fluttersecurestorage.SecurePreferencesCallback;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -45,6 +46,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 
 @RunWith(RobolectricTestRunner.class)
@@ -52,6 +54,8 @@ import static org.junit.Assert.assertNull;
 public class RsaResetIntegrationTest {
     private static final Map<String, KeyPair> KEYS = new HashMap<>();
     private static final List<String> EVENTS = new ArrayList<>();
+    private static final List<KeyPair> KEY_PAIRS = new ArrayList<>();
+    private static int nextKeyPair;
     private static String hiddenPrivateKeyAlias;
     private static String hiddenCertificateAlias;
     private static boolean failKeyStoreLoad;
@@ -59,6 +63,12 @@ public class RsaResetIntegrationTest {
     private Provider originalCipher;
     private int originalStorePosition;
     private int originalCipherPosition;
+
+    @BeforeClass public static void generateTestKeys() throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA", "SunRsaSign");
+        generator.initialize(2048);
+        for (int i = 0; i < 3; i++) KEY_PAIRS.add(generator.generateKeyPair());
+    }
 
     @Before public void installProviders() {
         Provider[] providers = Security.getProviders();
@@ -77,6 +87,7 @@ public class RsaResetIntegrationTest {
         Security.addProvider(new FakeCipherProvider());
         KEYS.clear();
         EVENTS.clear();
+        nextKeyPair = 0;
         hiddenPrivateKeyAlias = null;
         hiddenCertificateAlias = null;
         failKeyStoreLoad = false;
@@ -242,6 +253,7 @@ public class RsaResetIntegrationTest {
         assertEquals("generate:" + alias, EVENTS.get(1));
         assertEquals(foreignPair, KEYS.get(foreignAlias));
         assertNotNull(KEYS.get(alias).getPrivate());
+        assertNotEquals(oldPair.getPublic(), KEYS.get(alias).getPublic());
 
         String key = storage.addPrefixToKey("synthetic");
         RecordingCallback<Void> written = new RecordingCallback<>();
@@ -262,10 +274,8 @@ public class RsaResetIntegrationTest {
         assertEquals(2, EVENTS.size());
     }
 
-    private static KeyPair newRsaPair() throws Exception {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA", "SunRsaSign");
-        generator.initialize(2048);
-        return generator.generateKeyPair();
+    private static KeyPair newRsaPair() {
+        return KEY_PAIRS.get(nextKeyPair++);
     }
 
     private void verifyRetry(boolean migrate) {
