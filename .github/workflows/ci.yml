@@ -843,7 +843,7 @@ jobs:
 
       - name: Set Up Simulator
         id: simulator
-        uses: futureware-tech/simulator-action@v5
+        uses: futureware-tech/simulator-action@v6
         with:
           os: ${{ env.SIM_OS }}
           os_version: ${{ env.SIM_OS_VERSION }}
