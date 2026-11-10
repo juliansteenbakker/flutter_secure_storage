@@ -189,6 +189,9 @@ public class FlutterSecureStorage {
                 public void onSuccess(BiometricPrompt.AuthenticationResult result) {
                     try {
                         StorageCipher freshCipher = storageCipherFactory.getCurrentStorageCipher(context, result.getCryptoObject().getCipher());
+                        if (config != null && !config.getRequireBiometricsPerOperation()) {
+                            storageCipher = freshCipher;
+                        }
                         callback.onSuccess(freshCipher);
                     } catch (Exception e) {
                         if (isRetryAfterRecovery) {
@@ -606,6 +609,27 @@ public class FlutterSecureStorage {
     }
 
     /**
+     * Updates storageCipher after migration completes.
+     * When requireBiometricsPerOperation is enabled for a biometric algorithm,
+     * storageCipher is left null so subsequent operations authenticate freshly.
+     */
+    private void updateStorageCipherAfterMigration(StorageCipher currentCipher) {
+        boolean isCurrentBiometric = storageCipherFactory != null
+                && isBiometricAlgorithm(storageCipherFactory.getCurrentKeyAlgorithm());
+        boolean deviceHasSecurity = isDeviceSecure();
+        boolean enforceRequired = config != null && config.getEnforceBiometrics();
+
+        if (isCurrentBiometric
+                && config != null
+                && config.getRequireBiometricsPerOperation()
+                && (deviceHasSecurity || enforceRequired)) {
+            storageCipher = null;
+        } else {
+            storageCipher = currentCipher;
+        }
+    }
+
+    /**
      * Migrates data between non-biometric cipher algorithms.
      * Handles migrations like RSA_PKCS1→RSA_OAEP or AES_CBC→AES_GCM.
      * No user authentication required.
@@ -659,7 +683,7 @@ public class FlutterSecureStorage {
             }
 
             // Update storageCipher to current
-            storageCipher = currentCipher;
+            updateStorageCipherAfterMigration(currentCipher);
 
             Log.i(TAG, "Non-biometric migration completed successfully! Migrated " + decryptedCache.size() + " items.");
             callback.onSuccess(null);
@@ -799,7 +823,7 @@ public class FlutterSecureStorage {
                         Log.d(TAG, "Step 6/6: Encrypting all data with current cipher...");
                         encryptAllWithCurrentCipher(decryptedCache, dataSource, currentCipher);
 
-                        storageCipher = currentCipher;
+                        updateStorageCipherAfterMigration(currentCipher);
 
                         Log.i(TAG, "Biometric→Non-biometric migration completed! Data no longer requires biometric authentication.");
                         callback.onSuccess(null);
@@ -832,6 +856,23 @@ public class FlutterSecureStorage {
             Log.d(TAG, "Step 1/6: Decrypting all data with saved non-biometric cipher...");
             StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, null);
             Map<String, String> decryptedCache = decryptAllWithSavedCipher(dataSource, savedCipher);
+
+            if (decryptedCache.isEmpty()) {
+                Log.i(TAG, "No existing data to migrate to biometric. Skipping biometric authentication for migration.");
+                updateAlgorithmMarkers(configSource);
+                if (storageCipherFactory.changedKeyAlgorithm() && canSafelyDeleteOldKey()) {
+                    try {
+                        KeyCipher savedKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                        savedKeyCipher.deleteKey();
+                        savedCipher.deleteKey(context);
+                        Log.d(TAG, "Old key deleted from KeyStore");
+                    } catch (Exception deleteError) {
+                        Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                    }
+                }
+                callback.onSuccess(null);
+                return;
+            }
 
             // Step 2: Delete OLD RSA key from Android KeyStore
             // Critical: Must delete before creating new biometric AES key to avoid key type collision
@@ -878,7 +919,7 @@ public class FlutterSecureStorage {
                         Log.d(TAG, "Step 6/6: Encrypting all data with current biometric cipher...");
                         encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
 
-                        storageCipher = currentCipher;
+                        updateStorageCipherAfterMigration(currentCipher);
 
                         Log.i(TAG, "Non-biometric→Biometric migration completed! Data now requires biometric authentication.");
                         callback.onSuccess(null);
@@ -973,7 +1014,7 @@ public class FlutterSecureStorage {
                                     Log.d(TAG, "Step 7/7: Encrypting all data with current biometric cipher...");
                                     encryptAllWithCurrentCipher(cachedData, dataSource, currentCipher);
 
-                                    storageCipher = currentCipher;
+                                    updateStorageCipherAfterMigration(currentCipher);
 
                                     Log.i(TAG, "Biometric→Biometric migration completed! Data now uses new biometric cipher.");
                                     callback.onSuccess(null);
@@ -1522,7 +1563,7 @@ public class FlutterSecureStorage {
                 }
 
                 // Update storageCipher to current
-                storageCipher = currentCipher;
+                updateStorageCipherAfterMigration(currentCipher);
 
                 Log.i(TAG, "Non-biometric migration with backup completed successfully!");
                 Log.i(TAG, "Migrated " + decryptedCache.size() + " data items with new algorithm.");
@@ -1666,7 +1707,7 @@ public class FlutterSecureStorage {
                                 }
                             }
 
-                            storageCipher = currentCipher;
+                            updateStorageCipherAfterMigration(currentCipher);
 
                             Log.i(TAG, "Biometric→Non-biometric migration WITH BACKUP completed! Data no longer requires biometric authentication.");
                             callback.onSuccess(null);
@@ -1711,6 +1752,25 @@ public class FlutterSecureStorage {
                 Log.d(TAG, "Step 1/7: Decrypting all data from _BACKUP with saved non-biometric cipher...");
                 StorageCipher savedCipher = storageCipherFactory.getSavedStorageCipher(context, null);
                 Map<String, String> decryptedCache = decryptAllWithSavedCipherFromBackup(dataSource, null, savedCipher);
+
+                if (decryptedCache.isEmpty()) {
+                    Log.i(TAG, "No existing data to migrate in backup. Skipping biometric authentication for migration.");
+                    MigrationBackup.deleteBackup(dataSource, keyStorage, configSource, config,
+                                                config.getSharedPreferencesKeyPrefix());
+                    updateAlgorithmMarkers(configSource);
+                    if (storageCipherFactory.changedKeyAlgorithm() && canSafelyDeleteOldKey()) {
+                        try {
+                            KeyCipher oldKeyCipher = storageCipherFactory.getSavedKeyCipher(context);
+                            oldKeyCipher.deleteKey();
+                            savedCipher.deleteKey(context);
+                            Log.d(TAG, "Old key deleted from KeyStore");
+                        } catch (Exception deleteError) {
+                            Log.w(TAG, "Failed to delete old key from KeyStore (may not exist)", deleteError);
+                        }
+                    }
+                    callback.onSuccess(null);
+                    return;
+                }
 
                 // Step 2: Get NEW biometric cipher (requires authentication)
                 Log.d(TAG, "Step 2/7: Getting current biometric cipher...");
@@ -1759,7 +1819,7 @@ public class FlutterSecureStorage {
                                 }
                             }
 
-                            storageCipher = currentCipher;
+                            updateStorageCipherAfterMigration(currentCipher);
 
                             Log.i(TAG, "Non-biometric→Biometric migration WITH BACKUP completed! Data now requires biometric authentication.");
                             callback.onSuccess(null);
@@ -1878,7 +1938,7 @@ public class FlutterSecureStorage {
                                             }
                                         }
 
-                                        storageCipher = currentCipher;
+                                        updateStorageCipherAfterMigration(currentCipher);
 
                                         Log.i(TAG, "Biometric→Biometric migration WITH BACKUP completed! Data now uses new biometric cipher.");
                                         Log.i(TAG, "Migrated " + cachedData.size() + " data items with new biometric algorithm.");
