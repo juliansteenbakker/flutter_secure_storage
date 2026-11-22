@@ -368,6 +368,10 @@ class FlutterSecureStorage {
       return wOptions?.params ?? this.wOptions.params;
     } else if (defaultTargetPlatform == TargetPlatform.macOS) {
       return mOptions?.params ?? this.mOptions.params;
+    } else if (defaultTargetPlatform.name == 'ohos') {
+      // OpenHarmony's native implementation uses its own keystore. Android
+      // cipher and preferences options do not apply to that backend.
+      return const <String, String>{};
     } else {
       throw UnsupportedError(_unsupportedPlatform);
     }
